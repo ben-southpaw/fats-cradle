@@ -1,2 +1,16 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<script>
+	import Canvas from '../lib/components/Canvas.svelte';
+</script>
+
+<section>
+	<Canvas />
+</section>
+
+<style>
+	section {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 100vh;
+	}
+</style>
