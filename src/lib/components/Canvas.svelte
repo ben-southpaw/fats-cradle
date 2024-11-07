@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { gsap } from 'gsap';
-
+	import letterF from '$lib/images/f.png';
 
 	let animationFrameId = null;
 	let pendingRender = false;
@@ -19,6 +19,8 @@
 	let wiperPosition = 0; // 0 to 1 range
 	let isDraggingWiper = false;
 	let wiperKnobWidth = 40; // Width of the knob in pixels
+	let selectedMagnet = null;
+	let isDraggingMagnet = false;
 
 	// Configuration for the drawing effect
 	const CONFIG = {
@@ -31,6 +33,19 @@
 		hexagonSize: 6,
 		whiteParticleProbability: 0.2, // 20% chance of white particles
 	};
+
+	let magnets = [
+		{
+			id: 1,
+			x: 100, // Initial position
+			y: 100,
+			img: null, // Will store the image
+			width: 60,
+			height: 60,
+			isPickedUp: false,
+		},
+	];
+	let magnetImage;
 
 	// Initialize the canvas and set up event listeners
 	onMount(() => {
@@ -48,6 +63,16 @@
 
 		window.addEventListener('pointermove', handleWiperMove);
 		window.addEventListener('pointerup', handleWiperUp);
+
+		// Load magnet image
+		magnetImage = new window.Image();
+		magnetImage.src = letterF; // Update with your image path
+		magnetImage.onload = () => {
+			magnets.forEach((magnet) => {
+				magnet.img = magnetImage;
+			});
+			renderMagnets();
+		};
 
 		// Clean up
 		return () => {
@@ -191,29 +216,58 @@
 	}
 
 	// Handle mouse/touch events
-	function handlePointerMove(e) {
-		if (!isDrawing) return;
-
+	function handlePointerDown(e) {
 		const pos = getPointerPos(e);
 
-		if (pos.x !== lastX || pos.y !== lastY) {
-			generateParticles(lastX, lastY, pos.x, pos.y);
-			scheduleRender(); // Replace direct renderParticles call
+		// Check if clicking on a magnet first
+		const clickedMagnet = findClickedMagnet(pos);
+
+		if (clickedMagnet) {
+			// Start magnet drag
+			isDraggingMagnet = true;
+			selectedMagnet = clickedMagnet;
+			selectedMagnet.isPickedUp = true;
+		} else {
+			// Handle normal drawing
+			isDrawing = true;
 			lastX = pos.x;
 			lastY = pos.y;
+			generateParticles(pos.x, pos.y, pos.x, pos.y);
+			scheduleRender();
 		}
 	}
 
-	function handlePointerDown(e) {
-		isDrawing = true;
+	function handlePointerMove(e) {
 		const pos = getPointerPos(e);
-		lastX = pos.x;
-		lastY = pos.y;
-		generateParticles(pos.x, pos.y, pos.x, pos.y);
-		scheduleRender(); // Replace direct renderParticles call
+
+		if (isDraggingMagnet && selectedMagnet) {
+			// Update magnet position while dragging
+			selectedMagnet.x = pos.x - selectedMagnet.width / 2;
+			selectedMagnet.y = pos.y - selectedMagnet.height / 2;
+			renderAll();
+		} else if (isDrawing) {
+			// Handle normal drawing
+			if (pos.x !== lastX || pos.y !== lastY) {
+				generateParticles(lastX, lastY, pos.x, pos.y);
+				scheduleRender();
+				lastX = pos.x;
+				lastY = pos.y;
+			}
+		}
 	}
 
-	function handlePointerUp() {
+	function handlePointerUp(e) {
+		if (isDraggingMagnet && selectedMagnet) {
+			// Drop the magnet and create stamp
+			const pos = getPointerPos(e);
+			selectedMagnet.x = pos.x - selectedMagnet.width / 2;
+			selectedMagnet.y = pos.y - selectedMagnet.height / 2;
+			selectedMagnet.isPickedUp = false;
+			createMagnetStamp(selectedMagnet);
+			isDraggingMagnet = false;
+			selectedMagnet = null;
+			renderAll();
+		}
 		isDrawing = false;
 	}
 
@@ -253,6 +307,9 @@
 				ctx.restore();
 			});
 		});
+
+		// Render magnets on top
+		renderMagnets();
 	}
 
 	// Clear the drawing
@@ -337,6 +394,108 @@
 
 		// Redraw remaining particles
 		renderParticles();
+	}
+
+	function findClickedMagnet(pos) {
+		return magnets.find((magnet) => {
+			return (
+				pos.x >= magnet.x &&
+				pos.x <= magnet.x + magnet.width &&
+				pos.y >= magnet.y &&
+				pos.y <= magnet.y + magnet.height
+			);
+		});
+	}
+
+	function createMagnetStamp(magnet) {
+		// Create outline of the F shape using particles
+		const stampPoints = [
+			// Vertical line
+			...generateLinePoints(
+				magnet.x + magnet.width * 0.2,
+				magnet.y + magnet.height * 0.1,
+				magnet.x + magnet.width * 0.2,
+				magnet.y + magnet.height * 0.9
+			),
+			// Top horizontal line
+			...generateLinePoints(
+				magnet.x + magnet.width * 0.2,
+				magnet.y + magnet.height * 0.1,
+				magnet.x + magnet.width * 0.8,
+				magnet.y + magnet.height * 0.1
+			),
+			// Middle horizontal line
+			...generateLinePoints(
+				magnet.x + magnet.width * 0.2,
+				magnet.y + magnet.height * 0.4,
+				magnet.x + magnet.width * 0.7,
+				magnet.y + magnet.height * 0.4
+			),
+		];
+
+		stampPoints.forEach((point) => {
+			particles.push({
+				x: point.x + (Math.random() - 0.5) * 2,
+				y: point.y + (Math.random() - 0.5) * 2,
+				angle: Math.random() * Math.PI * 2,
+				length: CONFIG.hexagonSize * (0.2 + Math.random() * 0.3),
+				width: CONFIG.hexagonSize * 0.05,
+				isWhite: Math.random() < CONFIG.whiteParticleProbability,
+			});
+		});
+
+		renderParticles();
+	}
+
+	function generateLinePoints(x1, y1, x2, y2) {
+		const points = [];
+		const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+		const count = Math.floor(distance * CONFIG.particleDensity * 0.5);
+
+		for (let i = 0; i < count; i++) {
+			const ratio = i / count;
+			points.push({
+				x: x1 + (x2 - x1) * ratio,
+				y: y1 + (y2 - y1) * ratio,
+			});
+		}
+
+		return points;
+	}
+
+	function renderMagnets() {
+		magnets.forEach((magnet) => {
+			if (magnet.img) {
+				ctx.drawImage(
+					magnet.img,
+					magnet.x,
+					magnet.y,
+					magnet.width,
+					magnet.height
+				);
+				if (magnet === selectedMagnet && isDraggingMagnet) {
+					// Optional: Add a visual indication that magnet is being dragged
+					ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+					ctx.strokeRect(magnet.x, magnet.y, magnet.width, magnet.height);
+				}
+			}
+		});
+	}
+
+	// Add a function to render everything
+	function renderAll() {
+		// Clear and draw background
+		ctx.fillStyle = CONFIG.backgroundColor;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+		// Draw hexagon grid
+		drawHexagonGrid();
+
+		// Draw particles
+		renderParticles();
+
+		// Draw magnets
+		renderMagnets();
 	}
 </script>
 
