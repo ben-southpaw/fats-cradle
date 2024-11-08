@@ -14,6 +14,7 @@
 	let ctx;
 	let isDrawing = false;
 	let particles = [];
+	let stampParticles = []; // For magnet stamps
 	let lastX = 0;
 	let lastY = 0;
 	let wiperPosition = 0; // 0 to 1 range
@@ -25,13 +26,15 @@
 	// Configuration for the drawing effect
 	const CONFIG = {
 		particleSize: 0.3, // Reduced from 2
-		particleDensity: 8, // Increased for more particles
+		particleDensity: 15, // Increased for more particles
 		lineWidth: 6, // Reduced from 12
-		particleColor: '#666666', // Lighter gray
 		backgroundColor: '#e8e8e8',
 		gridColor: '#d4d4d4',
 		hexagonSize: 6,
-		whiteParticleProbability: 0.2, // 20% chance of white particles
+		particleColor: '#9E9E9E',
+		stampParticleColor: '#1a1a1a',
+		stampWhiteParticleProbability: 0.1, // Separate probability for stamps
+		whiteParticleProbability: 0.3, // For magnet stamps
 	};
 
 	let magnets = [
@@ -40,8 +43,8 @@
 			x: 100, // Initial position
 			y: 100,
 			img: null, // Will store the image
-			width: 60,
-			height: 60,
+			width: 90,
+			height: 90,
 			isPickedUp: false,
 		},
 	];
@@ -187,31 +190,14 @@
 		};
 	}
 
-	//throttlerender
 	function scheduleRender() {
 		if (!pendingRender) {
 			pendingRender = true;
-			animationFrameId = requestAnimationFrame(throttledRender);
-		}
-	}
-
-	function throttledRender(timestamp) {
-		pendingRender = false;
-
-		// Skip frame if too soon
-		if (timestamp - lastRenderTime < FRAME_INTERVAL) {
-			if (isDrawing) {
-				scheduleRender();
-			}
-			return;
-		}
-
-		renderParticles();
-		lastRenderTime = timestamp;
-
-		if (isDrawing) {
-			// Keep rendering if still drawing
-			scheduleRender();
+			animationFrameId = requestAnimationFrame((timestamp) => {
+				pendingRender = false;
+				renderAll(); // Use renderAll instead of renderParticles
+				lastRenderTime = timestamp;
+			});
 		}
 	}
 
@@ -237,16 +223,15 @@
 		}
 	}
 
+	// Update handlePointerMove
 	function handlePointerMove(e) {
 		const pos = getPointerPos(e);
 
 		if (isDraggingMagnet && selectedMagnet) {
-			// Update magnet position while dragging
 			selectedMagnet.x = pos.x - selectedMagnet.width / 2;
 			selectedMagnet.y = pos.y - selectedMagnet.height / 2;
-			renderAll();
+			scheduleRender(); // Use scheduleRender instead of renderAll
 		} else if (isDrawing) {
-			// Handle normal drawing
 			if (pos.x !== lastX || pos.y !== lastY) {
 				generateParticles(lastX, lastY, pos.x, pos.y);
 				scheduleRender();
@@ -256,9 +241,9 @@
 		}
 	}
 
+	// Update handlePointerUp
 	function handlePointerUp(e) {
 		if (isDraggingMagnet && selectedMagnet) {
-			// Drop the magnet and create stamp
 			const pos = getPointerPos(e);
 			selectedMagnet.x = pos.x - selectedMagnet.width / 2;
 			selectedMagnet.y = pos.y - selectedMagnet.height / 2;
@@ -266,58 +251,59 @@
 			createMagnetStamp(selectedMagnet);
 			isDraggingMagnet = false;
 			selectedMagnet = null;
-			renderAll();
 		}
 		isDrawing = false;
 	}
 
 	// Render all particles to the canvas
 	function renderParticles() {
+		const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 		ctx.fillStyle = CONFIG.backgroundColor;
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		ctx.putImageData(imageData, 0, 0);
 
-		// Draw cached grid
-		drawHexagonGrid();
+		// Draw stamp particles
+		stampParticles.forEach((particle) => {
+			// Use only the stored color for stamp particles
+			ctx.fillStyle = particle.color;
+			ctx.save();
+			ctx.translate(particle.x, particle.y);
+			ctx.rotate(particle.angle);
+			ctx.fillRect(
+				-particle.length / 2,
+				-particle.width / 2,
+				particle.length,
+				particle.width
+			);
+			ctx.restore();
+		});
 
-		// Batch particles by color
-		const darkParticles = [];
-		const lightParticles = [];
-
+		// Draw regular particles
 		particles.forEach((particle) => {
-			(particle.isWhite ? lightParticles : darkParticles).push(particle);
+			ctx.fillStyle = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
+			ctx.save();
+			ctx.translate(particle.x, particle.y);
+			ctx.rotate(particle.angle);
+			ctx.fillRect(
+				-particle.length / 2,
+				-particle.width / 2,
+				particle.length,
+				particle.width
+			);
+			ctx.restore();
 		});
 
-		// Draw particles by batch
-		[darkParticles, lightParticles].forEach((batch) => {
-			if (batch.length === 0) return;
-
-			ctx.fillStyle =
-				batch === lightParticles ? '#ffffff' : CONFIG.particleColor;
-
-			batch.forEach((particle) => {
-				ctx.save();
-				ctx.translate(particle.x, particle.y);
-				ctx.rotate(particle.angle);
-				ctx.fillRect(
-					-particle.length / 2,
-					-particle.width / 2,
-					particle.length,
-					particle.width
-				);
-				ctx.restore();
-			});
-		});
-
-		// Render magnets on top
 		renderMagnets();
 	}
 
 	// Clear the drawing
+	// Update clearCanvas to clear both arrays
 	function clearCanvas() {
 		ctx.fillStyle = CONFIG.backgroundColor;
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		drawHexagonGrid();
 		particles = [];
+		stampParticles = [];
 		lastX = 0;
 		lastY = 0;
 	}
@@ -359,6 +345,9 @@
 	function clearBetweenPositions(from, to) {
 		const x1 = Math.min(from, to) * canvas.width;
 		const x2 = Math.max(from, to) * canvas.width;
+
+		particles = particles.filter((p) => p.x < x1 - 1 || p.x > x2 + 1);
+		stampParticles = stampParticles.filter((p) => p.x < x1 - 1 || p.x > x2 + 1);
 
 		// If the width is 0 or too small, skip processing
 		if (x2 - x1 < 1) return;
@@ -408,59 +397,89 @@
 	}
 
 	function createMagnetStamp(magnet) {
-		// Create outline of the F shape using particles
-		const stampPoints = [
-			// Vertical line
-			...generateLinePoints(
-				magnet.x + magnet.width * 0.2,
-				magnet.y + magnet.height * 0.1,
-				magnet.x + magnet.width * 0.2,
-				magnet.y + magnet.height * 0.9
-			),
-			// Top horizontal line
-			...generateLinePoints(
-				magnet.x + magnet.width * 0.2,
-				magnet.y + magnet.height * 0.1,
-				magnet.x + magnet.width * 0.8,
-				magnet.y + magnet.height * 0.1
-			),
-			// Middle horizontal line
-			...generateLinePoints(
-				magnet.x + magnet.width * 0.2,
-				magnet.y + magnet.height * 0.4,
-				magnet.x + magnet.width * 0.7,
-				magnet.y + magnet.height * 0.4
-			),
-		];
+		const tempCanvas = document.createElement('canvas');
+		const tempCtx = tempCanvas.getContext('2d');
+		tempCanvas.width = magnet.width;
+		tempCanvas.height = magnet.height;
 
-		stampPoints.forEach((point) => {
-			particles.push({
-				x: point.x + (Math.random() - 0.5) * 2,
-				y: point.y + (Math.random() - 0.5) * 2,
-				angle: Math.random() * Math.PI * 2,
-				length: CONFIG.hexagonSize * (0.2 + Math.random() * 0.3),
-				width: CONFIG.hexagonSize * 0.05,
-				isWhite: Math.random() < CONFIG.whiteParticleProbability,
-			});
-		});
+		tempCtx.drawImage(magnet.img, 0, 0, magnet.width, magnet.height);
+		const imageData = tempCtx.getImageData(0, 0, magnet.width, magnet.height);
+		const data = imageData.data;
 
-		renderParticles();
-	}
-
-	function generateLinePoints(x1, y1, x2, y2) {
 		const points = [];
-		const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-		const count = Math.floor(distance * CONFIG.particleDensity * 0.5);
+		const alphaThreshold = 100;
+		const particleDensity = {
+			edge: 4, // Increased from 3 for sharper edges
+			fill: 0.9, // Increased from 0.8 for denser fill
+		};
 
-		for (let i = 0; i < count; i++) {
-			const ratio = i / count;
-			points.push({
-				x: x1 + (x2 - x1) * ratio,
-				y: y1 + (y2 - y1) * ratio,
-			});
+		// Adjusted particle size for sharpness
+		const particleSize = {
+			length: CONFIG.hexagonSize * 0.15, // Reduced from 0.2-0.5 range
+			width: CONFIG.hexagonSize * 0.03, // Reduced from 0.05
+			randomness: 0.2, // Reduced randomness factor
+		};
+
+		for (let y = 1; y < magnet.height - 1; y++) {
+			for (let x = 1; x < magnet.width - 1; x++) {
+				const idx = (y * magnet.width + x) * 4;
+				const alpha = data[idx + 3];
+
+				if (alpha > alphaThreshold) {
+					const leftAlpha = data[idx - 4 + 3];
+					const rightAlpha = data[idx + 4 + 3];
+					const topAlpha = data[idx - magnet.width * 4 + 3];
+					const bottomAlpha = data[idx + magnet.width * 4 + 3];
+
+					const isEdge =
+						leftAlpha <= alphaThreshold ||
+						rightAlpha <= alphaThreshold ||
+						topAlpha <= alphaThreshold ||
+						bottomAlpha <= alphaThreshold;
+
+					if (isEdge) {
+						// Tighter particle placement for edges
+						for (let i = 0; i < particleDensity.edge; i++) {
+							points.push({
+								x: magnet.x + x + (Math.random() - 0.5), // Reduced spread
+								y: magnet.y + y + (Math.random() - 0.5), // Reduced spread
+								isEdge: true,
+							});
+						}
+					} else {
+						if (Math.random() < particleDensity.fill) {
+							points.push({
+								x: magnet.x + x + (Math.random() - 0.5) * 1.5,
+								y: magnet.y + y + (Math.random() - 0.5) * 1.5,
+								isEdge: false,
+							});
+						}
+					}
+				}
+			}
 		}
 
-		return points;
+		// Create particles with sharper characteristics
+		points.forEach((point) => {
+			const particle = {
+				x: point.x,
+				y: point.y,
+				angle: Math.random() * Math.PI * 2,
+				length:
+					particleSize.length +
+					Math.random() * particleSize.length * particleSize.randomness,
+				width: particleSize.width,
+				isStampParticle: true,
+				color:
+					Math.random() < CONFIG.stampWhiteParticleProbability
+						? '#ffffff'
+						: CONFIG.stampParticleColor,
+			};
+
+			stampParticles.push(particle);
+		});
+
+		scheduleRender(); // Use scheduleRender instead of renderAll
 	}
 
 	function renderMagnets() {
@@ -475,7 +494,7 @@
 				);
 				if (magnet === selectedMagnet && isDraggingMagnet) {
 					// Optional: Add a visual indication that magnet is being dragged
-					ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+					ctx.strokeStyle = 'rgba(0,0,0,0.1)';
 					ctx.strokeRect(magnet.x, magnet.y, magnet.width, magnet.height);
 				}
 			}
@@ -491,12 +510,41 @@
 		// Draw hexagon grid
 		drawHexagonGrid();
 
-		// Draw particles
-		renderParticles();
+		// Draw stamp particles first (always with their stored color)
+		stampParticles.forEach((particle) => {
+			ctx.fillStyle = particle.color;
+			ctx.save();
+			ctx.translate(particle.x, particle.y);
+			ctx.rotate(particle.angle);
+			ctx.fillRect(
+				-particle.length / 2,
+				-particle.width / 2,
+				particle.length,
+				particle.width
+			);
+			ctx.restore();
+		});
 
-		// Draw magnets
+		// Draw regular particles
+		particles.forEach((particle) => {
+			ctx.fillStyle = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
+			ctx.save();
+			ctx.translate(particle.x, particle.y);
+			ctx.rotate(particle.angle);
+			ctx.fillRect(
+				-particle.length / 2,
+				-particle.width / 2,
+				particle.length,
+				particle.width
+			);
+			ctx.restore();
+		});
+
+		// Draw magnets last
 		renderMagnets();
 	}
+
+	// Remove the separate renderParticles function since we're using renderAll
 </script>
 
 <div class="canvas-container">
