@@ -17,8 +17,9 @@
 	let stampParticles = []; // For magnet stamps
 	let lastX = 0;
 	let lastY = 0;
-	let wiperPosition = 0; // 0 to 1 range
+	let wiperPosition = 0.5; // 0 to 1 range
 	let isDraggingWiper = false;
+	let lastWiperPosition = 0.5; // Add this at the top with other state variables
 	let wiperKnobWidth = 40; // Width of the knob in pixels
 	let selectedMagnet = null;
 	let isDraggingMagnet = false;
@@ -46,6 +47,7 @@
 			width: 90,
 			height: 90,
 			isPickedUp: false,
+			scale: 1,
 		},
 	];
 	let magnetImage;
@@ -204,7 +206,6 @@
 	// Handle mouse/touch events
 	function handlePointerDown(e) {
 		const pos = getPointerPos(e);
-
 		// Check if clicking on a magnet first
 		const clickedMagnet = findClickedMagnet(pos);
 
@@ -213,6 +214,14 @@
 			isDraggingMagnet = true;
 			selectedMagnet = clickedMagnet;
 			selectedMagnet.isPickedUp = true;
+
+			// Animate scale up
+			gsap.to(selectedMagnet, {
+				scale: 1.1,
+				duration: 0.2,
+				ease: 'power2.out',
+				onUpdate: () => scheduleRender(),
+			});
 		} else {
 			// Handle normal drawing
 			isDrawing = true;
@@ -245,12 +254,24 @@
 	function handlePointerUp(e) {
 		if (isDraggingMagnet && selectedMagnet) {
 			const pos = getPointerPos(e);
-			selectedMagnet.x = pos.x - selectedMagnet.width / 2;
-			selectedMagnet.y = pos.y - selectedMagnet.height / 2;
-			selectedMagnet.isPickedUp = false;
-			createMagnetStamp(selectedMagnet);
-			isDraggingMagnet = false;
-			selectedMagnet = null;
+			const magnet = selectedMagnet; // Store reference to magnet
+			magnet.x = pos.x - magnet.width / 2;
+			magnet.y = pos.y - magnet.height / 2;
+
+			// Animate scale down before creating stamp
+			gsap.to(magnet, {
+				scale: 1,
+				duration: 0.2,
+				ease: 'power2.in',
+				onUpdate: () => scheduleRender(),
+				onComplete: () => {
+					magnet.isPickedUp = false;
+					createMagnetStamp(magnet);
+					isDraggingMagnet = false;
+					selectedMagnet = null;
+					scheduleRender();
+				},
+			});
 		}
 		isDrawing = false;
 	}
@@ -326,8 +347,6 @@
 		lastWiperPosition = wiperPosition;
 	}
 
-	let lastWiperPosition = 0; // Add this at the top with other state variables
-
 	function updateWiperPosition(e) {
 		const rect = canvas.getBoundingClientRect();
 		const newPosition = Math.max(
@@ -378,20 +397,23 @@
 		// Copy the hexagon pattern back to main canvas
 		ctx.drawImage(tempCanvas, x1, 0);
 
-		// Remove particles in the cleared area with a small buffer
-		particles = particles.filter((p) => p.x < x1 - 1 || p.x > x2 + 1);
-
-		// Redraw remaining particles
-		renderParticles();
+		// Use scheduleRender instead of renderParticles
+		scheduleRender();
 	}
 
 	function findClickedMagnet(pos) {
 		return magnets.find((magnet) => {
+			const scale = magnet.scale || 1;
+			const centerX = magnet.x + (magnet.width * scale) / 2;
+			const centerY = magnet.y + (magnet.height * scale) / 2;
+			const scaledWidth = magnet.width * scale;
+			const scaledHeight = magnet.height * scale;
+
 			return (
 				pos.x >= magnet.x &&
-				pos.x <= magnet.x + magnet.width &&
+				pos.x <= magnet.x + scaledWidth &&
 				pos.y >= magnet.y &&
-				pos.y <= magnet.y + magnet.height
+				pos.y <= magnet.y + scaledHeight
 			);
 		});
 	}
@@ -485,18 +507,21 @@
 	function renderMagnets() {
 		magnets.forEach((magnet) => {
 			if (magnet.img) {
-				ctx.drawImage(
-					magnet.img,
-					magnet.x,
-					magnet.y,
-					magnet.width,
-					magnet.height
-				);
-				if (magnet === selectedMagnet && isDraggingMagnet) {
-					// Optional: Add a visual indication that magnet is being dragged
-					ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-					ctx.strokeRect(magnet.x, magnet.y, magnet.width, magnet.height);
-				}
+				ctx.save();
+
+				// Calculate center point for scaling
+				const centerX = magnet.x + magnet.width / 2;
+				const centerY = magnet.y + magnet.height / 2;
+
+				// Apply transformations
+				ctx.translate(centerX, centerY);
+				ctx.scale(magnet.scale || 1, magnet.scale || 1); // Add fallback to 1
+				ctx.translate(-magnet.width / 2, -magnet.height / 2);
+
+				// Draw the magnet
+				ctx.drawImage(magnet.img, 0, 0, magnet.width, magnet.height);
+
+				ctx.restore();
 			}
 		});
 	}
@@ -543,8 +568,6 @@
 		// Draw magnets last
 		renderMagnets();
 	}
-
-	// Remove the separate renderParticles function since we're using renderAll
 </script>
 
 <div class="canvas-container">
