@@ -12,17 +12,19 @@
 	// Canvas setup
 	let canvas;
 	let ctx;
-	let isDrawing = false;
+	let isDrawing = true;
 	let particles = [];
 	let stampParticles = []; // For magnet stamps
-	let lastX = 0;
-	let lastY = 0;
+	let lastX = null;
+	let lastY = null;
 	let wiperPosition = 0.5; // 0 to 1 range
 	let isDraggingWiper = false;
 	let lastWiperPosition = 0.5; // Add this at the top with other state variables
 	let wiperKnobWidth = 40; // Width of the knob in pixels
 	let selectedMagnet = null;
 	let isDraggingMagnet = false;
+
+	let mouseIsDown = false;
 
 	// Configuration for the drawing effect
 	const CONFIG = {
@@ -52,6 +54,9 @@
 	];
 	let magnetImage;
 
+	$: console.log(mouseIsDown);
+	$: mouseIsDown;
+
 	// Initialize the canvas and set up event listeners
 	onMount(() => {
 		ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -68,6 +73,8 @@
 
 		window.addEventListener('pointermove', handleWiperMove);
 		window.addEventListener('pointerup', handleWiperUp);
+		window.addEventListener('mousedown', () => (mouseIsDown = true));
+		window.addEventListener('mouseup', () => (mouseIsDown = false));
 
 		// Load magnet image
 		magnetImage = new window.Image();
@@ -88,6 +95,8 @@
 
 			window.removeEventListener('pointermove', handleWiperMove);
 			window.removeEventListener('pointerup', handleWiperUp);
+			window.removeEventListener('mousedown', () => (mouseIsDown = true));
+			window.removeEventListener('mouseup', () => (mouseIsDown = false));
 		};
 	});
 
@@ -205,6 +214,7 @@
 
 	// Handle mouse/touch events
 	function handlePointerDown(e) {
+		mouseIsDown = true;
 		const pos = getPointerPos(e);
 		// Check if clicking on a magnet first
 		const clickedMagnet = findClickedMagnet(pos);
@@ -223,42 +233,40 @@
 				onUpdate: () => scheduleRender(),
 			});
 		} else {
-			// Handle normal drawing
-			isDrawing = true;
-			lastX = pos.x;
-			lastY = pos.y;
-			generateParticles(pos.x, pos.y, pos.x, pos.y);
-			scheduleRender();
+			isDrawing = false;
 		}
 	}
 
-	// Update handlePointerMove
 	function handlePointerMove(e) {
 		const pos = getPointerPos(e);
 
 		if (isDraggingMagnet && selectedMagnet) {
 			selectedMagnet.x = pos.x - selectedMagnet.width / 2;
 			selectedMagnet.y = pos.y - selectedMagnet.height / 2;
-			scheduleRender(); // Use scheduleRender instead of renderAll
-		} else if (isDrawing) {
-			if (pos.x !== lastX || pos.y !== lastY) {
-				generateParticles(lastX, lastY, pos.x, pos.y);
-				scheduleRender();
-				lastX = pos.x;
-				lastY = pos.y;
-			}
+			renderAll(); // Use scheduleRender instead of renderAll
+			lastX = pos.x;
+			lastY = pos.y;
+		} else if (isDrawing && !mouseIsDown) {
+			generateParticles(
+				lastX === null ? pos.x : lastX,
+				lastY === null ? pos.y : lastY,
+				pos.x,
+				pos.y
+			);
+			scheduleRender();
+			lastX = pos.x;
+			lastY = pos.y;
 		}
 	}
 
-	// Update handlePointerUp
 	function handlePointerUp(e) {
+		mouseIsDown = false;
 		if (isDraggingMagnet && selectedMagnet) {
 			const pos = getPointerPos(e);
-			const magnet = selectedMagnet; // Store reference to magnet
+			const magnet = selectedMagnet;
 			magnet.x = pos.x - magnet.width / 2;
 			magnet.y = pos.y - magnet.height / 2;
 
-			// Animate scale down before creating stamp
 			gsap.to(magnet, {
 				scale: 1,
 				duration: 0.2,
@@ -273,66 +281,31 @@
 				},
 			});
 		}
-		isDrawing = false;
+		// Resume drawing on pointer up if we weren't dragging a magnet
+		if (!isDraggingMagnet) {
+			isDrawing = true;
+			// Reset last positions to avoid jumps
+			const pos = getPointerPos(e);
+			lastX = pos.x;
+			lastY = pos.y;
+		}
 	}
 
-	// Render all particles to the canvas
-	function renderParticles() {
-		const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-		ctx.fillStyle = CONFIG.backgroundColor;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-		ctx.putImageData(imageData, 0, 0);
-
-		// Draw stamp particles
-		stampParticles.forEach((particle) => {
-			// Use only the stored color for stamp particles
-			ctx.fillStyle = particle.color;
-			ctx.save();
-			ctx.translate(particle.x, particle.y);
-			ctx.rotate(particle.angle);
-			ctx.fillRect(
-				-particle.length / 2,
-				-particle.width / 2,
-				particle.length,
-				particle.width
-			);
-			ctx.restore();
-		});
-
-		// Draw regular particles
-		particles.forEach((particle) => {
-			ctx.fillStyle = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
-			ctx.save();
-			ctx.translate(particle.x, particle.y);
-			ctx.rotate(particle.angle);
-			ctx.fillRect(
-				-particle.length / 2,
-				-particle.width / 2,
-				particle.length,
-				particle.width
-			);
-			ctx.restore();
-		});
-
-		renderMagnets();
+	function handlePointerLeave(e) {
+		isDrawing = true;
 	}
 
-	// Clear the drawing
-	// Update clearCanvas to clear both arrays
-	function clearCanvas() {
-		ctx.fillStyle = CONFIG.backgroundColor;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-		drawHexagonGrid();
-		particles = [];
-		stampParticles = [];
-		lastX = 0;
-		lastY = 0;
+	function handlePointerEnter(e) {
+		if (mouseIsDown) {
+			isDrawing = false;
+		}
 	}
 
 	// Update handleWiperDown to set initial position
 	function handleWiperDown(e) {
 		isDraggingWiper = true;
 		lastWiperPosition = wiperPosition;
+		isDrawing = false;
 		updateWiperPosition(e);
 	}
 
@@ -345,6 +318,7 @@
 	function handleWiperUp() {
 		isDraggingWiper = false;
 		lastWiperPosition = wiperPosition;
+		isDrawing = true;
 	}
 
 	function updateWiperPosition(e) {
@@ -577,6 +551,8 @@
 		on:pointermove={handlePointerMove}
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerUp}
+		on:pointerleave={handlePointerLeave}
+		on:pointerenter={handlePointerEnter}
 	></canvas>
 	{#if isDraggingWiper}
 		<div
@@ -585,53 +561,54 @@
 			style:left={`${wiperPosition * 100}%`}
 		></div>
 	{/if}
-	<!-- <button class="clear-button" on:click={clearCanvas}> Clear </button> -->
 	<div class="wiper-container">
-		<div class="wiper-bar"></div>
-		<div
-			class="wiper-knob"
-			style:left={`calc(${wiperPosition * 100}% - ${wiperKnobWidth / 2}px)`}
-			on:pointerdown={handleWiperDown}
-		>
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60">
-				<!-- Main knob body -->
-				<rect x="5" y="10" width="30" height="40" rx="15" fill="#cc0000" />
-				<!-- Highlight -->
-				<rect
-					x="12"
-					y="15"
-					width="16"
-					height="30"
-					rx="8"
-					fill="#ff3333"
-					opacity="0.3"
-				/>
-				<!-- Grip lines -->
-				<line
-					x1="15"
-					y1="25"
-					x2="25"
-					y2="25"
-					stroke="#990000"
-					stroke-width="2"
-				/>
-				<line
-					x1="15"
-					y1="30"
-					x2="25"
-					y2="30"
-					stroke="#990000"
-					stroke-width="2"
-				/>
-				<line
-					x1="15"
-					y1="35"
-					x2="25"
-					y2="35"
-					stroke="#990000"
-					stroke-width="2"
-				/>
-			</svg>
+		<div class="wiper-container">
+			<div class="wiper-bar"></div>
+			<div
+				class="wiper-knob"
+				style:left={`calc(${wiperPosition * 100}% - ${wiperKnobWidth / 2}px)`}
+				on:pointerdown={handleWiperDown}
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60">
+					<!-- Main knob body -->
+					<rect x="5" y="10" width="30" height="40" rx="15" fill="#cc0000" />
+					<!-- Highlight -->
+					<rect
+						x="12"
+						y="15"
+						width="16"
+						height="30"
+						rx="8"
+						fill="#ff3333"
+						opacity="0.3"
+					/>
+					<!-- Grip lines -->
+					<line
+						x1="15"
+						y1="25"
+						x2="25"
+						y2="25"
+						stroke="#990000"
+						stroke-width="2"
+					/>
+					<line
+						x1="15"
+						y1="30"
+						x2="25"
+						y2="30"
+						stroke="#990000"
+						stroke-width="2"
+					/>
+					<line
+						x1="15"
+						y1="35"
+						x2="25"
+						y2="35"
+						stroke="#990000"
+						stroke-width="2"
+					/>
+				</svg>
+			</div>
 		</div>
 	</div>
 </div>
