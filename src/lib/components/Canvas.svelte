@@ -12,7 +12,7 @@
 	// Canvas setup
 	let canvas;
 	let ctx;
-	let isDrawing = true;
+	let shouldDraw = true;
 	let particles = [];
 	let stampParticles = []; // For magnet stamps
 	let lastX = null;
@@ -23,8 +23,6 @@
 	let wiperKnobWidth = 40; // Width of the knob in pixels
 	let selectedMagnet = null;
 	let isDraggingMagnet = false;
-
-	let mouseIsDown = false;
 
 	// Configuration for the drawing effect
 	const CONFIG = {
@@ -54,9 +52,6 @@
 	];
 	let magnetImage;
 
-	$: console.log(mouseIsDown);
-	$: mouseIsDown;
-
 	// Initialize the canvas and set up event listeners
 	onMount(() => {
 		ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -73,8 +68,6 @@
 
 		window.addEventListener('pointermove', handleWiperMove);
 		window.addEventListener('pointerup', handleWiperUp);
-		window.addEventListener('mousedown', () => (mouseIsDown = true));
-		window.addEventListener('mouseup', () => (mouseIsDown = false));
 
 		// Load magnet image
 		magnetImage = new window.Image();
@@ -95,8 +88,6 @@
 
 			window.removeEventListener('pointermove', handleWiperMove);
 			window.removeEventListener('pointerup', handleWiperUp);
-			window.removeEventListener('mousedown', () => (mouseIsDown = true));
-			window.removeEventListener('mouseup', () => (mouseIsDown = false));
 		};
 	});
 
@@ -214,13 +205,14 @@
 
 	// Handle mouse/touch events
 	function handlePointerDown(e) {
-		mouseIsDown = true;
+		shouldDraw = false;
 		const pos = getPointerPos(e);
 		// Check if clicking on a magnet first
 		const clickedMagnet = findClickedMagnet(pos);
 
 		if (clickedMagnet) {
 			// Start magnet drag
+			createMagnetStamp(clickedMagnet);
 			isDraggingMagnet = true;
 			selectedMagnet = clickedMagnet;
 			selectedMagnet.isPickedUp = true;
@@ -233,34 +225,11 @@
 				onUpdate: () => scheduleRender(),
 			});
 		} else {
-			isDrawing = false;
-		}
-	}
-
-	function handlePointerMove(e) {
-		const pos = getPointerPos(e);
-
-		if (isDraggingMagnet && selectedMagnet) {
-			selectedMagnet.x = pos.x - selectedMagnet.width / 2;
-			selectedMagnet.y = pos.y - selectedMagnet.height / 2;
-			renderAll(); // Use scheduleRender instead of renderAll
-			lastX = pos.x;
-			lastY = pos.y;
-		} else if (isDrawing && !mouseIsDown) {
-			generateParticles(
-				lastX === null ? pos.x : lastX,
-				lastY === null ? pos.y : lastY,
-				pos.x,
-				pos.y
-			);
-			scheduleRender();
-			lastX = pos.x;
-			lastY = pos.y;
+			shouldDraw = false;
 		}
 	}
 
 	function handlePointerUp(e) {
-		mouseIsDown = false;
 		if (isDraggingMagnet && selectedMagnet) {
 			const pos = getPointerPos(e);
 			const magnet = selectedMagnet;
@@ -281,31 +250,46 @@
 				},
 			});
 		}
-		// Resume drawing on pointer up if we weren't dragging a magnet
-		if (!isDraggingMagnet) {
-			isDrawing = true;
-			// Reset last positions to avoid jumps
-			const pos = getPointerPos(e);
+		shouldDraw = true;
+		// Reset last positions to prevent line connecting to previous position
+		lastX = null;
+		lastY = null;
+	}
+
+	function handlePointerMove(e) {
+		const pos = getPointerPos(e);
+
+		if (isDraggingMagnet && selectedMagnet) {
+			selectedMagnet.x = pos.x - selectedMagnet.width / 2;
+			selectedMagnet.y = pos.y - selectedMagnet.height / 2;
+			renderAll();
+			lastX = pos.x;
+			lastY = pos.y;
+		} else if (shouldDraw && !isDraggingWiper) {
+			if (lastX === null || lastY === null) {
+				lastX = pos.x;
+				lastY = pos.y;
+				return;
+			}
+			// Add check for wiper
+			generateParticles(lastX, lastY, pos.x, pos.y);
+			scheduleRender();
 			lastX = pos.x;
 			lastY = pos.y;
 		}
 	}
 
 	function handlePointerLeave(e) {
-		isDrawing = true;
-	}
-
-	function handlePointerEnter(e) {
-		if (mouseIsDown) {
-			isDrawing = false;
-		}
+		const pos = getPointerPos(e);
+		lastX = pos.x;
+		lastY = pos.y;
 	}
 
 	// Update handleWiperDown to set initial position
 	function handleWiperDown(e) {
 		isDraggingWiper = true;
 		lastWiperPosition = wiperPosition;
-		isDrawing = false;
+		shouldDraw = false;
 		updateWiperPosition(e);
 	}
 
@@ -318,7 +302,7 @@
 	function handleWiperUp() {
 		isDraggingWiper = false;
 		lastWiperPosition = wiperPosition;
-		isDrawing = true;
+		shouldDraw = true;
 	}
 
 	function updateWiperPosition(e) {
@@ -550,9 +534,7 @@
 		on:pointerdown={handlePointerDown}
 		on:pointermove={handlePointerMove}
 		on:pointerup={handlePointerUp}
-		on:pointerleave={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
-		on:pointerenter={handlePointerEnter}
 	></canvas>
 	{#if isDraggingWiper}
 		<div
