@@ -2,6 +2,11 @@
 	import { onMount } from 'svelte';
 	import { gsap } from 'gsap';
 	import letterF from '$lib/images/f.png';
+	import letterA from '$lib/images/a.png';
+	import letterT from '$lib/images/t.png';
+	import letterE from '$lib/images/e.png';
+	import letterM from '$lib/images/m.png';
+	import letterA2 from '$lib/images/a2.png';
 
 	let animationFrameId = null;
 	let pendingRender = false;
@@ -32,25 +37,14 @@
 		backgroundColor: '#e8e8e8',
 		gridColor: '#d4d4d4',
 		hexagonSize: 6,
-		particleColor: '#9E9E9E',
+		particleColor: '#636363',
 		stampParticleColor: '#1a1a1a',
 		stampWhiteParticleProbability: 0.1, // Separate probability for stamps
 		whiteParticleProbability: 0.3, // For magnet stamps
 	};
 
-	let magnets = [
-		{
-			id: 1,
-			x: 100, // Initial position
-			y: 100,
-			img: null, // Will store the image
-			width: 90,
-			height: 90,
-			isPickedUp: false,
-			scale: 1,
-		},
-	];
-	let magnetImage;
+	let magnets = [];
+	let magnetImages = {};
 
 	// Initialize the canvas and set up event listeners
 	onMount(() => {
@@ -61,6 +55,7 @@
 			canvas.width = window.innerWidth;
 			canvas.height = window.innerHeight;
 			drawHexagonGrid();
+			positionMagnets(); // Reposition magnets on resize
 		};
 
 		window.addEventListener('resize', resize);
@@ -69,15 +64,28 @@
 		window.addEventListener('pointermove', handleWiperMove);
 		window.addEventListener('pointerup', handleWiperUp);
 
-		// Load magnet image
-		magnetImage = new window.Image();
-		magnetImage.src = letterF; // Update with your image path
-		magnetImage.onload = () => {
-			magnets.forEach((magnet) => {
-				magnet.img = magnetImage;
-			});
-			renderMagnets();
-		};
+		// Load all magnet images
+		const letters = [
+			{ src: letterF, id: 'F' },
+			{ src: letterA, id: 'A' },
+			{ src: letterT, id: 'T' },
+			{ src: letterE, id: 'E' },
+			{ src: letterM, id: 'M' },
+			{ src: letterA2, id: 'A2' },
+		];
+
+		let loadedCount = 0;
+		letters.forEach((letter) => {
+			const img = new window.Image();
+			img.src = letter.src;
+			img.onload = () => {
+				magnetImages[letter.id] = img;
+				loadedCount++;
+				if (loadedCount === letters.length) {
+					initializeMagnets();
+				}
+			};
+		});
 
 		// Clean up
 		return () => {
@@ -379,37 +387,62 @@
 	function createMagnetStamp(magnet) {
 		const tempCanvas = document.createElement('canvas');
 		const tempCtx = tempCanvas.getContext('2d');
-		tempCanvas.width = magnet.width;
-		tempCanvas.height = magnet.height;
 
-		tempCtx.drawImage(magnet.img, 0, 0, magnet.width, magnet.height);
-		const imageData = tempCtx.getImageData(0, 0, magnet.width, magnet.height);
+		// Make the temp canvas large enough to handle rotated image
+		const diagonal = Math.sqrt(
+			magnet.width * magnet.width + magnet.height * magnet.height
+		);
+		tempCanvas.width = diagonal * 2;
+		tempCanvas.height = diagonal * 2;
+
+		// Draw the rotated image onto the temp canvas
+		tempCtx.save();
+		tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+		tempCtx.rotate(magnet.rotation || 0);
+		tempCtx.drawImage(
+			magnet.img,
+			-magnet.width / 2,
+			-magnet.height / 2,
+			magnet.width,
+			magnet.height
+		);
+		tempCtx.restore();
+
+		const imageData = tempCtx.getImageData(
+			0,
+			0,
+			tempCanvas.width,
+			tempCanvas.height
+		);
 		const data = imageData.data;
 
 		const points = [];
 		const alphaThreshold = 100;
 		const particleDensity = {
-			edge: 4, // Increased from 3 for sharper edges
-			fill: 0.9, // Increased from 0.8 for denser fill
+			edge: 2, // Reduced from 4 to make outline less pronounced
+			fill: 0.9,
 		};
 
-		// Adjusted particle size for sharpness
 		const particleSize = {
-			length: CONFIG.hexagonSize * 0.15, // Reduced from 0.2-0.5 range
-			width: CONFIG.hexagonSize * 0.03, // Reduced from 0.05
-			randomness: 0.2, // Reduced randomness factor
+			length: CONFIG.hexagonSize * 0.12, // Slightly reduced from 0.15
+			width: CONFIG.hexagonSize * 0.025, // Slightly reduced from 0.03
+			randomness: 0.15, // Reduced from 0.2 for more consistency
 		};
 
-		for (let y = 1; y < magnet.height - 1; y++) {
-			for (let x = 1; x < magnet.width - 1; x++) {
-				const idx = (y * magnet.width + x) * 4;
+		// Calculate offset to center the stamp particles around the magnet's position
+		const offsetX = (tempCanvas.width - magnet.width) / 2;
+		const offsetY = (tempCanvas.height - magnet.height) / 2;
+
+		for (let y = 1; y < tempCanvas.height - 1; y++) {
+			for (let x = 1; x < tempCanvas.width - 1; x++) {
+				const idx = (y * tempCanvas.width + x) * 4;
 				const alpha = data[idx + 3];
 
 				if (alpha > alphaThreshold) {
 					const leftAlpha = data[idx - 4 + 3];
 					const rightAlpha = data[idx + 4 + 3];
-					const topAlpha = data[idx - magnet.width * 4 + 3];
-					const bottomAlpha = data[idx + magnet.width * 4 + 3];
+					const topAlpha = data[idx - tempCanvas.width * 4 + 3];
+					const bottomAlpha = data[idx + tempCanvas.width * 4 + 3];
 
 					const isEdge =
 						leftAlpha <= alphaThreshold ||
@@ -418,28 +451,25 @@
 						bottomAlpha <= alphaThreshold;
 
 					if (isEdge) {
-						// Tighter particle placement for edges
+						// Reduced spread for edge particles
 						for (let i = 0; i < particleDensity.edge; i++) {
 							points.push({
-								x: magnet.x + x + (Math.random() - 0.5), // Reduced spread
-								y: magnet.y + y + (Math.random() - 0.5), // Reduced spread
+								x: magnet.x - offsetX + x + (Math.random() - 0.5) * 0.8, // Reduced spread
+								y: magnet.y - offsetY + y + (Math.random() - 0.5) * 0.8, // Reduced spread
 								isEdge: true,
 							});
 						}
-					} else {
-						if (Math.random() < particleDensity.fill) {
-							points.push({
-								x: magnet.x + x + (Math.random() - 0.5) * 1.5,
-								y: magnet.y + y + (Math.random() - 0.5) * 1.5,
-								isEdge: false,
-							});
-						}
+					} else if (Math.random() < particleDensity.fill) {
+						points.push({
+							x: magnet.x - offsetX + x + (Math.random() - 0.5) * 1.5,
+							y: magnet.y - offsetY + y + (Math.random() - 0.5) * 1.5,
+							isEdge: false,
+						});
 					}
 				}
 			}
 		}
 
-		// Create particles with sharper characteristics
 		points.forEach((point) => {
 			const particle = {
 				x: point.x,
@@ -459,7 +489,61 @@
 			stampParticles.push(particle);
 		});
 
-		scheduleRender(); // Use scheduleRender instead of renderAll
+		scheduleRender();
+	}
+
+	function initializeMagnets() {
+		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
+		const totalWidth = window.innerWidth * 0.4;
+		const spacing = totalWidth / (letters.length - 1);
+		const startX = (window.innerWidth - totalWidth) / 2;
+
+		// Calculate a consistent visual height
+		const targetHeight = window.innerHeight * 0.18; // 18vh base size
+
+		magnets = letters.map((letter, index) => {
+			const img = magnetImages[letter];
+			const aspectRatio = img.width / img.height;
+			// Scale height based on original image height to maintain consistent visual size
+			const height = targetHeight * (1 + Math.random() * 0.1); // Only 10% variation
+			const width = height * aspectRatio;
+
+			return {
+				id: letter,
+				x: startX + spacing * index - width / 2,
+				y: window.innerHeight * (0.3 + Math.random() * 0.2), // Moved up 10% (from 0.4 to 0.3)
+				img: img,
+				width,
+				height,
+				rotation: ((Math.random() * 60 - 30) * Math.PI) / 180,
+				isPickedUp: false,
+				scale: 1,
+			};
+		});
+
+		renderAll();
+	}
+
+	function positionMagnets() {
+		if (!magnets.length) return;
+
+		const totalWidth = window.innerWidth * 0.4;
+		const spacing = totalWidth / (magnets.length - 1);
+		const startX = (window.innerWidth - totalWidth) / 2;
+		const targetHeight = window.innerHeight * 0.18; // 18vh base size
+
+		magnets.forEach((magnet, index) => {
+			const aspectRatio = magnet.img.width / magnet.img.height;
+			const height = targetHeight * (1 + Math.random() * 0.1); // Only 10% variation
+			const width = height * aspectRatio;
+
+			magnet.width = width;
+			magnet.height = height;
+			magnet.x = startX + spacing * index - width / 2;
+			magnet.y = window.innerHeight * (0.3 + Math.random() * 0.2); // Moved up 10%
+		});
+
+		renderAll();
 	}
 
 	function renderMagnets() {
@@ -467,13 +551,14 @@
 			if (magnet.img) {
 				ctx.save();
 
-				// Calculate center point for scaling
+				// Calculate center point for scaling and rotation
 				const centerX = magnet.x + magnet.width / 2;
 				const centerY = magnet.y + magnet.height / 2;
 
 				// Apply transformations
 				ctx.translate(centerX, centerY);
-				ctx.scale(magnet.scale || 1, magnet.scale || 1); // Add fallback to 1
+				ctx.scale(magnet.scale || 1, magnet.scale || 1);
+				ctx.rotate(magnet.rotation || 0);
 				ctx.translate(-magnet.width / 2, -magnet.height / 2);
 
 				// Draw the magnet
