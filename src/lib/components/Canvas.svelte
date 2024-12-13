@@ -33,9 +33,15 @@
 	let isDraggingMagnet = false;
 	let isHoveringMagnet = false;
 	let isClicking = false;
+	let hoveredMagnet = null;
 
 	let cursorElement;
 	let m = { x: 0, y: 0 };
+
+	let lastMouseX = 0;
+	let lastMouseY = 0;
+	let mouseVelocityX = 0;
+	let mouseVelocityY = 0;
 
 	// Configuration for the drawing effect
 	const CONFIG = {
@@ -247,7 +253,6 @@
 
 		if (clickedMagnet) {
 			// Start magnet drag
-			createMagnetStamp(clickedMagnet);
 			isDraggingMagnet = true;
 			selectedMagnet = clickedMagnet;
 			selectedMagnet.isPickedUp = true;
@@ -259,6 +264,11 @@
 				ease: 'power2.out',
 				onUpdate: () => scheduleRender(),
 			});
+
+			lastMouseX = e.clientX;
+			lastMouseY = e.clientY;
+			mouseVelocityX = 0;
+			mouseVelocityY = 0;
 		} else {
 			shouldDraw = false;
 		}
@@ -278,7 +288,6 @@
 				onUpdate: () => scheduleRender(),
 				onComplete: () => {
 					magnet.isPickedUp = false;
-					createMagnetStamp(magnet);
 					isDraggingMagnet = false;
 					selectedMagnet = null;
 					scheduleRender();
@@ -295,11 +304,21 @@
 		const pos = getPointerPos(e);
 
 		if (isDraggingMagnet && selectedMagnet) {
-			selectedMagnet.x = pos.x - selectedMagnet.width / 2;
-			selectedMagnet.y = pos.y - selectedMagnet.height / 2;
-			renderAll();
-			lastX = pos.x;
-			lastY = pos.y;
+			updateMouseVelocity(e);
+			selectedMagnet.x = e.clientX + selectedMagnet.grabOffsetX;
+			selectedMagnet.y = e.clientY + selectedMagnet.grabOffsetY;
+
+			// Calculate rotation based on movement velocity
+			const velocityRotation = mouseVelocityX * 0.5; // Adjust multiplier for sensitivity
+			const targetRotation = Math.max(Math.min(velocityRotation, 25), -25); // Clamp between -25 and 25 degrees
+
+			gsap.to(selectedMagnet, {
+				rotation: targetRotation,
+				duration: 0.3,
+				ease: "power1.out"
+			});
+
+			scheduleRender();
 		} else if (shouldDraw && !isDraggingWiper) {
 			if (lastX === null || lastY === null) {
 				lastX = pos.x;
@@ -412,27 +431,21 @@
 	}
 
 	function createMagnetStamp(magnet) {
+		if (!magnet || !magnet.img || !magnet.img.complete) return;
+
 		const tempCanvas = document.createElement('canvas');
 		const tempCtx = tempCanvas.getContext('2d');
 
 		// Make the temp canvas large enough to handle rotated image
-		const diagonal = Math.sqrt(
-			magnet.width * magnet.width + magnet.height * magnet.height
-		);
-		tempCanvas.width = diagonal * 2;
-		tempCanvas.height = diagonal * 2;
+		const maxDimension = Math.ceil(Math.sqrt(magnet.width * magnet.width + magnet.height * magnet.height));
+		tempCanvas.width = maxDimension;
+		tempCanvas.height = maxDimension;
 
-		// Draw the rotated image onto the temp canvas
+		// Center and rotate
 		tempCtx.save();
-		tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-		tempCtx.rotate(magnet.rotation || 0);
-		tempCtx.drawImage(
-			magnet.img,
-			-magnet.width / 2,
-			-magnet.height / 2,
-			magnet.width,
-			magnet.height
-		);
+		tempCtx.translate(maxDimension / 2, maxDimension / 2);
+		tempCtx.rotate((magnet.rotation || 0) * Math.PI / 180);
+		tempCtx.drawImage(magnet.img, -magnet.width / 2, -magnet.height / 2, magnet.width, magnet.height);
 		tempCtx.restore();
 
 		const imageData = tempCtx.getImageData(
@@ -584,9 +597,11 @@
 				img: img,
 				width,
 				height,
-				rotation: 0,
+				rotation: 0, // Add initial rotation
 				isPickedUp: false,
 				scale: 1,
+				grabOffsetX: 0,
+				grabOffsetY: 0,
 			};
 		});
 
@@ -628,14 +643,39 @@
 				const centerY = magnet.y + magnet.height / 2;
 
 				// Apply transformations
-				ctx.translate(centerX, centerY);
-				ctx.scale(magnet.scale || 1, magnet.scale || 1);
-				ctx.rotate(magnet.rotation || 0);
-				ctx.translate(-magnet.width / 2, -magnet.height / 2);
-
-				// Draw the magnet
-				ctx.drawImage(magnet.img, 0, 0, magnet.width, magnet.height);
-
+				if (isDraggingMagnet && magnet === selectedMagnet) {
+					// For dragging magnet, rotate around cursor point
+					const cursorX = m.x;
+					const cursorY = m.y;
+					
+					ctx.translate(cursorX, cursorY);
+					ctx.rotate((magnet.rotation || 0) * Math.PI / 180);
+					ctx.scale(magnet.scale || 1, magnet.scale || 1);
+					ctx.translate(-cursorX, -cursorY);
+					
+					ctx.drawImage(
+						magnet.img,
+						magnet.x,
+						magnet.y,
+						magnet.width,
+						magnet.height
+					);
+				} else {
+					// For static magnets, rotate around center as before
+					ctx.translate(centerX, centerY);
+					ctx.rotate((magnet.rotation || 0) * Math.PI / 180);
+					ctx.scale(magnet.scale || 1, magnet.scale || 1);
+					ctx.translate(-magnet.width / 2, -magnet.height / 2);
+					
+					ctx.drawImage(
+						magnet.img,
+						0,
+						0,
+						magnet.width,
+						magnet.height
+					);
+				}
+				
 				ctx.restore();
 			}
 		});
@@ -710,47 +750,71 @@
 					y <= magnetBounds.bottom
 				);
 			});
+			hoveredMagnet = findClickedMagnet({x, y});
 		}
 	}
 
-	function handleMousedown() {
-		if (isHoveringMagnet) {
-			isClicking = true;
+	function handleMousedown(e) {
+		isClicking = true;
+
+		if (isHoveringMagnet && hoveredMagnet) {
+			isDraggingMagnet = true;
+			selectedMagnet = hoveredMagnet;
+			selectedMagnet.grabOffsetX = hoveredMagnet.x - e.clientX;
+			selectedMagnet.grabOffsetY = hoveredMagnet.y - e.clientY;
+			lastMouseX = e.clientX;
+			lastMouseY = e.clientY;
+			mouseVelocityX = 0;
+			mouseVelocityY = 0;
+			// Scale up animation on pickup
+			gsap.to(selectedMagnet, {
+				scale: 1.1,
+				duration: 0.2,
+				ease: "power2.out"
+			});
+			createMagnetStamp(hoveredMagnet);
 		}
 	}
 
-	function handleMouseup() {
+	function handleMouseup(e) {
 		isClicking = false;
+
+		if (isDraggingMagnet && selectedMagnet) {
+			const droppedMagnet = selectedMagnet;
+			isDraggingMagnet = false;
+			const finalX = e.clientX + droppedMagnet.grabOffsetX;
+			const finalY = e.clientY + droppedMagnet.grabOffsetY;
+			const finalRotation = Math.round(droppedMagnet.rotation / 5) * 5;
+			// Animate position, rotation, and scale together
+			gsap.to(droppedMagnet, {
+				x: finalX,
+				y: finalY,
+				rotation: finalRotation,
+				scale: 1.0,
+				duration: 0.4,
+				ease: "elastic.out(0.5, 0.3)",
+				onComplete: () => {
+					createMagnetStamp(droppedMagnet);
+					scheduleRender();
+				}
+			});
+
+			selectedMagnet = null;
+		}
 	}
 
-	onMount(() => {
-		if (!canvas) return;
-		ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-		console.log('Cursor URLs:', {
-			default: cursorDefault,
-			hover: cursorHover,
-			click: cursorClick,
-		});
-
-		// Set canvas to full screen
-		const resize = () => {
-			if (!canvas) return;
-			canvas.width = window.innerWidth;
-			canvas.height = window.innerHeight;
-			renderAll();
-		};
-
-		window.addEventListener('resize', resize);
-		resize();
-
-		// Initialize canvas
-		renderAll();
-
-		return () => {
-			window.removeEventListener('resize', resize);
-		};
-	});
+	function updateMouseVelocity(e) {
+		if (!lastMouseX || !lastMouseY) {
+			lastMouseX = e.clientX;
+			lastMouseY = e.clientY;
+			return;
+		}
+		
+		mouseVelocityX = e.clientX - lastMouseX;
+		mouseVelocityY = e.clientY - lastMouseY;
+		lastMouseX = e.clientX;
+		lastMouseY = e.clientY;
+	}
 </script>
 
 <svelte:window
