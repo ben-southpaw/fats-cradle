@@ -37,6 +37,8 @@
 
 	let cursorElement;
 	let m = { x: 0, y: 0 };
+	let hasMouseMoved = false;
+	let cursorOpacity = 0;
 
 	let lastMouseX = 0;
 	let lastMouseY = 0;
@@ -728,6 +730,18 @@
 	}
 
 	function handleMousemove(event) {
+		if (!hasMouseMoved) {
+			hasMouseMoved = true;
+			gsap.to(window, {
+				duration: 0.4,
+				ease: "power2.out",
+				onUpdate: () => {
+					cursorOpacity = gsap.getProperty(window, "cursorOpacity");
+				},
+				cursorOpacity: 1,
+			});
+		}
+
 		m.x = event.clientX;
 		m.y = event.clientY;
 
@@ -848,6 +862,20 @@
 		: isHoveringMagnet
 			? cursorHover
 			: cursorDefault}');
+		opacity: {cursorOpacity};
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 40px;
+		height: 40px;
+		pointer-events: none;
+		z-index: 9999;
+		background-size: contain;
+		background-repeat: no-repeat;
+		background-position: center;
+		transform-origin: top left;
+		will-change: transform;
+		transition: background-image 0.1s ease;
 	"
 ></div>
 
@@ -974,21 +1002,5 @@
 		width: 2px;
 		border-left: dashed rgba(0, 0, 0, 0.1) 1px;
 		pointer-events: none;
-	}
-
-	.custom-cursor {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 40px;
-		height: 40px;
-		pointer-events: none;
-		z-index: 9999;
-		background-size: contain;
-		background-repeat: no-repeat;
-		background-position: center;
-		transform-origin: top left;
-		will-change: transform;
-		transition: background-image 0.1s ease;
 	}
 </style>
