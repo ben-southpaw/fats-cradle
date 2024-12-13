@@ -276,19 +276,21 @@
 
 	function handlePointerUp(e) {
 		if (isDraggingMagnet && selectedMagnet) {
-			const pos = getPointerPos(e);
 			const magnet = selectedMagnet;
-			magnet.x = pos.x - magnet.width / 2;
-			magnet.y = pos.y - magnet.height / 2;
+			// Keep the magnet exactly where it is
+			magnet.x = e.clientX + magnet.grabOffsetX;
+			magnet.y = e.clientY + magnet.grabOffsetY;
 
 			gsap.to(magnet, {
 				scale: 1,
-				duration: 0.2,
-				ease: 'power2.in',
+				duration: 0.6,
+				ease: "power3.out",
 				onUpdate: () => scheduleRender(),
 				onComplete: () => {
 					magnet.isPickedUp = false;
 					isDraggingMagnet = false;
+					// Create stamp after animation completes with final position
+					createMagnetStamp(magnet);
 					selectedMagnet = null;
 					scheduleRender();
 				},
@@ -792,7 +794,7 @@
 				rotation: finalRotation,
 				scale: 1.0,
 				duration: 0.4,
-				ease: "elastic.out(0.5, 0.3)",
+				ease: "elastic.out(0.7, 0.5)",
 				onComplete: () => {
 					createMagnetStamp(droppedMagnet);
 					scheduleRender();
