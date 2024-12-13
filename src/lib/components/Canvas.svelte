@@ -1,12 +1,15 @@
 <script>
 	import { onMount } from 'svelte';
 	import { gsap } from 'gsap';
-	import letterF from '$lib/images/f.png';
-	import letterA from '$lib/images/a.png';
-	import letterT from '$lib/images/t.png';
-	import letterE from '$lib/images/e.png';
-	import letterM from '$lib/images/m.png';
-	import letterA2 from '$lib/images/a2.png';
+	import letterF from '$lib/images/f.png?url';
+	import letterA from '$lib/images/a.png?url';
+	import letterT from '$lib/images/t.png?url';
+	import letterE from '$lib/images/e.png?url';
+	import letterM from '$lib/images/m.png?url';
+	import letterA2 from '$lib/images/a2.png?url';
+	import cursorDefault from '$lib/images/cursor.png?url';
+	import cursorHover from '$lib/images/glove-heavy.png?url';
+	import cursorClick from '$lib/images/glove-clicked-heavy.png?url';
 
 	let animationFrameId = null;
 	let pendingRender = false;
@@ -28,6 +31,11 @@
 	let wiperKnobWidth = 40; // Width of the knob in pixels
 	let selectedMagnet = null;
 	let isDraggingMagnet = false;
+	let isHoveringMagnet = false;
+	let isClicking = false;
+
+	let cursorElement;
+	let m = { x: 0, y: 0 };
 
 	// Configuration for the drawing effect
 	const CONFIG = {
@@ -48,14 +56,22 @@
 
 	// Initialize the canvas and set up event listeners
 	onMount(() => {
+		if (!canvas) return;
 		ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+		// Set cursor styles
+		console.log('Cursor URLs:', {
+			default: cursorDefault,
+			hover: cursorHover,
+			click: cursorClick,
+		});
 
 		// Set canvas to full screen
 		const resize = () => {
+			if (!canvas) return;
 			canvas.width = window.innerWidth;
 			canvas.height = window.innerHeight;
-			drawHexagonGrid();
-			positionMagnets(); // Reposition magnets on resize
+			renderAll();
 		};
 
 		window.addEventListener('resize', resize);
@@ -142,6 +158,7 @@
 
 	// Update resize handler to clear cache
 	const resize = () => {
+		if (!canvas) return;
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
 		gridCache = null; // Clear cache on resize
@@ -192,11 +209,19 @@
 	}
 
 	// Get pointer position relative to canvas
+	const CURSOR_OFFSET_X = 0.62; // Increased X offset
+	const CURSOR_OFFSET_Y = 0.42; // Keep Y offset the same
+
 	function getPointerPos(e) {
 		const rect = canvas.getBoundingClientRect();
+		// Convert rem to pixels using current root font size
+		const remToPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+		const offsetXPx = CURSOR_OFFSET_X * remToPx;
+		const offsetYPx = CURSOR_OFFSET_Y * remToPx;
+		
 		return {
-			x: e.clientX - rect.left,
-			y: e.clientY - rect.top,
+			x: e.clientX - rect.left + offsetXPx,
+			y: e.clientY - rect.top + offsetYPx
 		};
 	}
 
@@ -215,6 +240,8 @@
 	function handlePointerDown(e) {
 		shouldDraw = false;
 		const pos = getPointerPos(e);
+		const x = pos.x;  
+		const y = pos.y;   
 		// Check if clicking on a magnet first
 		const clickedMagnet = findClickedMagnet(pos);
 
@@ -492,11 +519,53 @@
 		scheduleRender();
 	}
 
+	function getLetterHeight(letter) {
+		// Define height ranges for different letter groups - middle ground between previous versions
+		const heights = {
+			high: { base: 0.3, variance: 0.01 }, // 30-31vh from top
+			middle: { base: 0.35, variance: 0.01 }, // 35-36vh from top
+			low: { base: 0.4, variance: 0.01 }, // 40-41vh from top
+		};
+
+		switch (letter) {
+			case 'F':
+			case 'E':
+			case 'A2':
+				return heights.high.base + Math.random() * heights.high.variance;
+			case 'T':
+				return heights.middle.base + Math.random() * heights.middle.variance;
+			case 'A':
+			case 'M':
+				return heights.low.base + Math.random() * heights.low.variance;
+			default:
+				return 0.35; // fallback to middle
+		}
+	}
+
+	function getLetterOffset(letter, index) {
+		// Add specific offsets for F and A
+		switch (letter) {
+			case 'F':
+				return window.innerWidth * 0.03; // Move F right by 3vw
+			case 'A':
+				if (index === 1) {
+					// Only the first A
+					return window.innerWidth * 0.01; // Move A right by 6vw (3vw more than F to reduce gap)
+				}
+				return 0;
+			default:
+				return 0;
+		}
+	}
+
 	function initializeMagnets() {
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
 		const totalWidth = window.innerWidth * 0.4;
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (window.innerWidth - totalWidth) / 2;
+
+		// Compensate for the rightward shift from letter offsets
+		const groupOffset = window.innerWidth * -0.02; // Shift everything left by 2vw to recenter
 
 		// Calculate a consistent visual height
 		const targetHeight = window.innerHeight * 0.18; // 18vh base size
@@ -504,18 +573,18 @@
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
 			const aspectRatio = img.width / img.height;
-			// Scale height based on original image height to maintain consistent visual size
-			const height = targetHeight * (1 + Math.random() * 0.1); // Only 10% variation
+			const height = targetHeight * (1 + Math.random() * 0.1);
 			const width = height * aspectRatio;
+			const offset = getLetterOffset(letter, index);
 
 			return {
 				id: letter,
-				x: startX + spacing * index - width / 2,
-				y: window.innerHeight * (0.3 + Math.random() * 0.2), // Moved up 10% (from 0.4 to 0.3)
+				x: startX + spacing * index - width / 2 + offset + groupOffset,
+				y: window.innerHeight * getLetterHeight(letter),
 				img: img,
 				width,
 				height,
-				rotation: ((Math.random() * 60 - 30) * Math.PI) / 180,
+				rotation: 0,
 				isPickedUp: false,
 				scale: 1,
 			};
@@ -530,17 +599,20 @@
 		const totalWidth = window.innerWidth * 0.4;
 		const spacing = totalWidth / (magnets.length - 1);
 		const startX = (window.innerWidth - totalWidth) / 2;
-		const targetHeight = window.innerHeight * 0.18; // 18vh base size
+		const targetHeight = window.innerHeight * 0.18;
+		const groupOffset = window.innerWidth * -0.02; // Same offset as in initializeMagnets
 
 		magnets.forEach((magnet, index) => {
 			const aspectRatio = magnet.img.width / magnet.img.height;
-			const height = targetHeight * (1 + Math.random() * 0.1); // Only 10% variation
+			const height = targetHeight * (1 + Math.random() * 0.1);
 			const width = height * aspectRatio;
+			const offset = getLetterOffset(magnet.id, index);
 
 			magnet.width = width;
 			magnet.height = height;
-			magnet.x = startX + spacing * index - width / 2;
-			magnet.y = window.innerHeight * (0.3 + Math.random() * 0.2); // Moved up 10%
+			magnet.x = startX + spacing * index - width / 2 + offset + groupOffset;
+			magnet.y = window.innerHeight * getLetterHeight(magnet.id);
+			magnet.rotation = 0;
 		});
 
 		renderAll();
@@ -571,6 +643,7 @@
 
 	// Add a function to render everything
 	function renderAll() {
+		if (!ctx) return; // Guard against undefined ctx
 		// Clear and draw background
 		ctx.fillStyle = CONFIG.backgroundColor;
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -611,71 +684,161 @@
 		// Draw magnets last
 		renderMagnets();
 	}
+
+	function handleMousemove(event) {
+		m.x = event.clientX;
+		m.y = event.clientY;
+
+		// Check if hovering over any magnet
+		if (canvas) {
+			const rect = canvas.getBoundingClientRect();
+			const x = event.clientX - rect.left;
+			const y = event.clientY - rect.top;
+
+			isHoveringMagnet = magnets.some((magnet) => {
+				const magnetBounds = {
+					left: magnet.x - 10, // Add some padding for easier hovering
+					right: magnet.x + magnet.width + 10,
+					top: magnet.y - 10,
+					bottom: magnet.y + magnet.height + 10
+				};
+				
+				return (
+					x >= magnetBounds.left &&
+					x <= magnetBounds.right &&
+					y >= magnetBounds.top &&
+					y <= magnetBounds.bottom
+				);
+			});
+		}
+	}
+
+	function handleMousedown() {
+		if (isHoveringMagnet) {
+			isClicking = true;
+		}
+	}
+
+	function handleMouseup() {
+		isClicking = false;
+	}
+
+	onMount(() => {
+		if (!canvas) return;
+		ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+		console.log('Cursor URLs:', {
+			default: cursorDefault,
+			hover: cursorHover,
+			click: cursorClick,
+		});
+
+		// Set canvas to full screen
+		const resize = () => {
+			if (!canvas) return;
+			canvas.width = window.innerWidth;
+			canvas.height = window.innerHeight;
+			renderAll();
+		};
+
+		window.addEventListener('resize', resize);
+		resize();
+
+		// Initialize canvas
+		renderAll();
+
+		return () => {
+			window.removeEventListener('resize', resize);
+		};
+	});
 </script>
 
-<div class="canvas-container">
+<svelte:window
+	on:mousemove={handleMousemove}
+	on:mousedown={handleMousedown}
+	on:mouseup={handleMouseup}
+/>
+
+<div
+	class="canvas-container"
+	bind:this={canvasContainer}
+>
 	<canvas
 		bind:this={canvas}
 		on:pointerdown={handlePointerDown}
 		on:pointermove={handlePointerMove}
 		on:pointerup={handlePointerUp}
-		on:pointerleave={handlePointerLeave}
-	></canvas>
-	{#if isDraggingWiper}
-		<div
-			class="wiper-line"
-			style="height: 100%"
-			style:left={`${wiperPosition * 100}%`}
-		></div>
-	{/if}
+		on:pointerout={handlePointerUp}
+	/>
+</div>
+
+<div
+	class="custom-cursor"
+	bind:this={cursorElement}
+	style="
+		transform: translate({m.x}px, {m.y}px);
+		background-image: url('{isClicking
+		? cursorClick
+		: isHoveringMagnet
+			? cursorHover
+			: cursorDefault}');
+	"
+></div>
+
+{#if isDraggingWiper}
+	<div
+		class="wiper-line"
+		style="height: 100%"
+		style:left={`${wiperPosition * 100}%`}
+	></div>
+{/if}
+<div class="wiper-container">
 	<div class="wiper-container">
-		<div class="wiper-container">
-			<div class="wiper-bar"></div>
-			<div
-				class="wiper-knob"
-				style:left={`calc(${wiperPosition * 100}% - ${wiperKnobWidth / 2}px)`}
-				on:pointerdown={handleWiperDown}
-			>
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60">
-					<!-- Main knob body -->
-					<rect x="5" y="10" width="30" height="40" rx="15" fill="#cc0000" />
-					<!-- Highlight -->
-					<rect
-						x="12"
-						y="15"
-						width="16"
-						height="30"
-						rx="8"
-						fill="#ff3333"
-						opacity="0.3"
-					/>
-					<!-- Grip lines -->
-					<line
-						x1="15"
-						y1="25"
-						x2="25"
-						y2="25"
-						stroke="#990000"
-						stroke-width="2"
-					/>
-					<line
-						x1="15"
-						y1="30"
-						x2="25"
-						y2="30"
-						stroke="#990000"
-						stroke-width="2"
-					/>
-					<line
-						x1="15"
-						y1="35"
-						x2="25"
-						y2="35"
-						stroke="#990000"
-						stroke-width="2"
-					/>
-				</svg>
-			</div>
+		<div class="wiper-bar"></div>
+		<div
+			class="wiper-knob"
+			style:left={`calc(${wiperPosition * 100}% - ${wiperKnobWidth / 2}px)`}
+			on:pointerdown={handleWiperDown}
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60">
+				<!-- Main knob body -->
+				<rect x="5" y="10" width="30" height="40" rx="15" fill="#cc0000" />
+				<!-- Highlight -->
+				<rect
+					x="12"
+					y="15"
+					width="16"
+					height="30"
+					rx="8"
+					fill="#ff3333"
+					opacity="0.3"
+				/>
+				<!-- Grip lines -->
+				<line
+					x1="15"
+					y1="25"
+					x2="25"
+					y2="25"
+					stroke="#990000"
+					stroke-width="2"
+				/>
+				<line
+					x1="15"
+					y1="30"
+					x2="25"
+					y2="30"
+					stroke="#990000"
+					stroke-width="2"
+				/>
+				<line
+					x1="15"
+					y1="35"
+					x2="25"
+					y2="35"
+					stroke="#990000"
+					stroke-width="2"
+				/>
+			</svg>
 		</div>
 	</div>
 </div>
@@ -683,53 +846,32 @@
 <style lang="scss">
 	:global(body) {
 		margin: 0;
+		padding: 0;
 		overflow: hidden;
+		cursor: none; /* Hide the default cursor */
 	}
 
 	.canvas-container {
 		position: fixed;
 		top: 0;
 		left: 0;
-		width: 100%;
-		height: 100%;
+		width: 100vw;
+		height: 100vh;
 		overflow: hidden;
 	}
 
 	canvas {
 		touch-action: none;
 		background-color: #e8e8e8;
-		cursor: crosshair;
-		display: block;
-	}
-
-	.clear-button {
-		position: fixed;
-		bottom: 20px;
-		right: 20px;
-		padding: 10px 20px;
-		background: #ff4444;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 16px;
-		transition: transform 0.2s;
-		z-index: 10;
-
-		&:hover {
-			transform: scale(1.05);
-		}
-
-		&:active {
-			transform: scale(0.95);
-		}
+		width: 100%;
+		height: 100%;
 	}
 
 	.wiper-container {
 		position: fixed;
 		bottom: 40px;
 		left: 0;
-		width: 100%; // Full width
+		width: 100%;
 		height: 60px;
 		display: flex;
 		align-items: center;
@@ -766,5 +908,21 @@
 		width: 2px;
 		border-left: dashed rgba(0, 0, 0, 0.1) 1px;
 		pointer-events: none;
+	}
+
+	.custom-cursor {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 40px;
+		height: 40px;
+		pointer-events: none;
+		z-index: 9999;
+		background-size: contain;
+		background-repeat: no-repeat;
+		background-position: center;
+		transform-origin: top left;
+		will-change: transform;
+		transition: background-image 0.1s ease;
 	}
 </style>
