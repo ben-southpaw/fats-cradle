@@ -25,10 +25,6 @@
 	let stampParticles = []; // For magnet stamps
 	let lastX = null;
 	let lastY = null;
-	let wiperPosition = 0.5; // 0 to 1 range
-	let isDraggingWiper = false;
-	let lastWiperPosition = 0.5; // Add this at the top with other state variables
-	let wiperKnobWidth = 40; // Width of the knob in pixels
 	let selectedMagnet = null;
 	let isDraggingMagnet = false;
 	let isHoveringMagnet = false;
@@ -85,9 +81,6 @@
 		window.addEventListener('resize', resize);
 		resize();
 
-		window.addEventListener('pointermove', handleWiperMove);
-		window.addEventListener('pointerup', handleWiperUp);
-
 		// Load all magnet images
 		const letters = [
 			{ src: letterF, id: 'F' },
@@ -117,9 +110,6 @@
 			if (animationFrameId) {
 				cancelAnimationFrame(animationFrameId);
 			}
-
-			window.removeEventListener('pointermove', handleWiperMove);
-			window.removeEventListener('pointerup', handleWiperUp);
 		};
 	});
 
@@ -238,7 +228,7 @@
 			pendingRender = true;
 			animationFrameId = requestAnimationFrame((timestamp) => {
 				pendingRender = false;
-				renderAll(); // Use renderAll instead of renderParticles
+				renderAll();
 				lastRenderTime = timestamp;
 			});
 		}
@@ -323,13 +313,12 @@
 			});
 
 			scheduleRender();
-		} else if (shouldDraw && !isDraggingWiper) {
+		} else if (shouldDraw) {
 			if (lastX === null || lastY === null) {
 				lastX = pos.x;
 				lastY = pos.y;
 				return;
 			}
-			// Add check for wiper
 			generateParticles(lastX, lastY, pos.x, pos.y);
 			scheduleRender();
 			lastX = pos.x;
@@ -341,80 +330,6 @@
 		const pos = getPointerPos(e);
 		lastX = pos.x;
 		lastY = pos.y;
-	}
-
-	// Update handleWiperDown to set initial position
-	function handleWiperDown(e) {
-		isDraggingWiper = true;
-		lastWiperPosition = wiperPosition;
-		shouldDraw = false;
-		updateWiperPosition(e);
-	}
-
-	function handleWiperMove(e) {
-		if (!isDraggingWiper) return;
-		updateWiperPosition(e);
-	}
-
-	// Reset lastWiperPosition when dragging ends
-	function handleWiperUp() {
-		isDraggingWiper = false;
-		lastWiperPosition = wiperPosition;
-		shouldDraw = true;
-	}
-
-	function updateWiperPosition(e) {
-		const rect = canvas.getBoundingClientRect();
-		const newPosition = Math.max(
-			0,
-			Math.min(1, (e.clientX - rect.left) / rect.width)
-		);
-
-		// Clear the area between last position and new position
-		clearBetweenPositions(lastWiperPosition, newPosition);
-
-		lastWiperPosition = newPosition;
-		wiperPosition = newPosition;
-	}
-
-	function clearBetweenPositions(from, to) {
-		const x1 = Math.min(from, to) * canvas.width;
-		const x2 = Math.max(from, to) * canvas.width;
-
-		particles = particles.filter((p) => p.x < x1 - 1 || p.x > x2 + 1);
-		stampParticles = stampParticles.filter((p) => p.x < x1 - 1 || p.x > x2 + 1);
-
-		// If the width is 0 or too small, skip processing
-		if (x2 - x1 < 1) return;
-
-		// Clear the rectangle between positions
-		ctx.fillStyle = CONFIG.backgroundColor;
-		ctx.fillRect(x1, 0, x2 - x1, canvas.height);
-
-		// Create temporary canvas with minimum width of 1
-		const tempCanvas = document.createElement('canvas');
-		tempCanvas.width = Math.max(1, x2 - x1);
-		tempCanvas.height = canvas.height;
-		const tempCtx = tempCanvas.getContext('2d');
-
-		// Draw hexagons in the cleared area
-		const size = CONFIG.hexagonSize;
-		const h = size * Math.sqrt(3);
-		tempCtx.strokeStyle = CONFIG.gridColor;
-		tempCtx.lineWidth = 0.2;
-
-		for (let y = 0; y < canvas.height + h; y += h) {
-			for (let x = -size * 2; x < tempCanvas.width + size * 2; x += size * 3) {
-				drawHexagon(tempCtx, x, y, size);
-				drawHexagon(tempCtx, x + size * 1.5, y + h / 2, size);
-			}
-		}
-
-		// Copy the hexagon pattern back to main canvas
-		ctx.drawImage(tempCanvas, x1, 0);
-
-		// Use scheduleRender instead of renderParticles
-		scheduleRender();
 	}
 
 	function findClickedMagnet(pos) {
@@ -879,64 +794,6 @@
 	"
 ></div>
 
-{#if isDraggingWiper}
-	<div
-		class="wiper-line"
-		style="height: 100%"
-		style:left={`${wiperPosition * 100}%`}
-	></div>
-{/if}
-<div class="wiper-container">
-	<div class="wiper-container">
-		<div class="wiper-bar"></div>
-		<div
-			class="wiper-knob"
-			style:left={`calc(${wiperPosition * 100}% - ${wiperKnobWidth / 2}px)`}
-			on:pointerdown={handleWiperDown}
-		>
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60">
-				<!-- Main knob body -->
-				<rect x="5" y="10" width="30" height="40" rx="15" fill="#cc0000" />
-				<!-- Highlight -->
-				<rect
-					x="12"
-					y="15"
-					width="16"
-					height="30"
-					rx="8"
-					fill="#ff3333"
-					opacity="0.3"
-				/>
-				<!-- Grip lines -->
-				<line
-					x1="15"
-					y1="25"
-					x2="25"
-					y2="25"
-					stroke="#990000"
-					stroke-width="2"
-				/>
-				<line
-					x1="15"
-					y1="30"
-					x2="25"
-					y2="30"
-					stroke="#990000"
-					stroke-width="2"
-				/>
-				<line
-					x1="15"
-					y1="35"
-					x2="25"
-					y2="35"
-					stroke="#990000"
-					stroke-width="2"
-				/>
-			</svg>
-		</div>
-	</div>
-</div>
-
 <style lang="scss">
 	:global(body) {
 		margin: 0;
@@ -949,58 +806,14 @@
 		position: fixed;
 		top: 0;
 		left: 0;
-		width: 100vw;
-		height: 100vh;
-		overflow: hidden;
+		width: 100%;
+		height: 100%;
+		background-color: #e8e8e8;
 	}
 
 	canvas {
-		touch-action: none;
-		background-color: #e8e8e8;
+		display: block;
 		width: 100%;
 		height: 100%;
-	}
-
-	.wiper-container {
-		position: fixed;
-		bottom: 40px;
-		left: 0;
-		width: 100%;
-		height: 60px;
-		display: flex;
-		align-items: center;
-		touch-action: none;
-	}
-
-	.wiper-bar {
-		position: absolute;
-		width: 100%;
-		height: 8px;
-		background: #ddd;
-		border-radius: 4px;
-		box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-	}
-
-	.wiper-knob {
-		position: absolute;
-		width: 40px;
-		height: 60px;
-		cursor: grab;
-		user-select: none;
-		filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-
-		&:active {
-			cursor: grabbing;
-		}
-	}
-
-	.wiper-line {
-		position: absolute;
-		z-index: 10;
-		top: 0;
-		height: 100%;
-		width: 2px;
-		border-left: dashed rgba(0, 0, 0, 0.1) 1px;
-		pointer-events: none;
 	}
 </style>
