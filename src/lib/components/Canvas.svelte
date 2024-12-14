@@ -1,5 +1,5 @@
 <script>
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { gsap } from 'gsap';
 	import letterF from '$lib/images/f.png?url';
 	import letterA from '$lib/images/a.png?url';
@@ -10,6 +10,7 @@
 	import cursorDefault from '$lib/images/cursor.png?url';
 	import cursorHover from '$lib/images/glove-heavy.png?url';
 	import cursorClick from '$lib/images/glove-clicked-heavy.png?url';
+	import multiText from '$lib/images/multi-text.png';
 
 	let animationFrameId = null;
 	let pendingRender = false;
@@ -23,6 +24,7 @@
 	let shouldDraw = true;
 	let particles = [];
 	let stampParticles = []; // For magnet stamps
+	let preDrawnParticles = []; // For pre-drawn elements
 	let lastX = null;
 	let lastY = null;
 	let selectedMagnet = null;
@@ -43,16 +45,19 @@
 
 	// Configuration for the drawing effect
 	const CONFIG = {
-		particleSize: 0.3, // Reduced from 2
-		particleDensity: 15, // Increased for more particles
-		lineWidth: 6, // Reduced from 12
+		particleSize: 0.3,
+		particleDensity: 15,
+		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
 		gridColor: '#d4d4d4',
 		hexagonSize: 6,
 		particleColor: '#636363',
-		stampParticleColor: '#1a1a1a',
-		stampWhiteParticleProbability: 0.1, // Separate probability for stamps
-		whiteParticleProbability: 0.3, // For magnet stamps
+		preDrawnParticleSize: 1.0, // Increased size for text
+		preDrawnDensity: 40, // Higher density for text
+		preDrawnColor: '#2a2a2a',
+		stampParticleColor: '#1a1a1a', // Add back stamp colors
+		stampWhiteParticleProbability: 0.1,
+		whiteParticleProbability: 0.3
 	};
 
 	let magnets = [];
@@ -75,6 +80,10 @@
 			if (!canvas) return;
 			canvas.width = window.innerWidth;
 			canvas.height = window.innerHeight;
+			// Recreate pre-drawn elements after resize
+			preDrawnParticles = [];
+			createPreDrawnText();
+			createPreDrawnSmiley();
 			renderAll();
 		};
 
@@ -103,6 +112,13 @@
 				}
 			};
 		});
+
+		// Register GSAP plugin
+		gsap.registerPlugin();
+
+		// Add pre-drawn elements after canvas is initialized
+		createPreDrawnText();
+		createPreDrawnSmiley();
 
 		// Clean up
 		return () => {
@@ -213,13 +229,15 @@
 	function getPointerPos(e) {
 		const rect = canvas.getBoundingClientRect();
 		// Convert rem to pixels using current root font size
-		const remToPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+		const remToPx = parseFloat(
+			getComputedStyle(document.documentElement).fontSize
+		);
 		const offsetXPx = CURSOR_OFFSET_X * remToPx;
 		const offsetYPx = CURSOR_OFFSET_Y * remToPx;
-		
+
 		return {
 			x: e.clientX - rect.left + offsetXPx,
-			y: e.clientY - rect.top + offsetYPx
+			y: e.clientY - rect.top + offsetYPx,
 		};
 	}
 
@@ -238,8 +256,8 @@
 	function handlePointerDown(e) {
 		shouldDraw = false;
 		const pos = getPointerPos(e);
-		const x = pos.x;  
-		const y = pos.y;   
+		const x = pos.x;
+		const y = pos.y;
 		// Check if clicking on a magnet first
 		const clickedMagnet = findClickedMagnet(pos);
 
@@ -276,7 +294,7 @@
 			gsap.to(magnet, {
 				scale: 1,
 				duration: 0.6,
-				ease: "power3.out",
+				ease: 'power3.out',
 				onUpdate: () => scheduleRender(),
 				onComplete: () => {
 					magnet.isPickedUp = false;
@@ -309,7 +327,7 @@
 			gsap.to(selectedMagnet, {
 				rotation: targetRotation,
 				duration: 0.3,
-				ease: "power1.out"
+				ease: 'power1.out',
 			});
 
 			scheduleRender();
@@ -356,15 +374,23 @@
 		const tempCtx = tempCanvas.getContext('2d');
 
 		// Make the temp canvas large enough to handle rotated image
-		const maxDimension = Math.ceil(Math.sqrt(magnet.width * magnet.width + magnet.height * magnet.height));
+		const maxDimension = Math.ceil(
+			Math.sqrt(magnet.width * magnet.width + magnet.height * magnet.height)
+		);
 		tempCanvas.width = maxDimension;
 		tempCanvas.height = maxDimension;
 
 		// Center and rotate
 		tempCtx.save();
 		tempCtx.translate(maxDimension / 2, maxDimension / 2);
-		tempCtx.rotate((magnet.rotation || 0) * Math.PI / 180);
-		tempCtx.drawImage(magnet.img, -magnet.width / 2, -magnet.height / 2, magnet.width, magnet.height);
+		tempCtx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
+		tempCtx.drawImage(
+			magnet.img,
+			-magnet.width / 2,
+			-magnet.height / 2,
+			magnet.width,
+			magnet.height
+		);
 		tempCtx.restore();
 
 		const imageData = tempCtx.getImageData(
@@ -378,14 +404,14 @@
 		const points = [];
 		const alphaThreshold = 100;
 		const particleDensity = {
-			edge: 2, // Reduced from 4 to make outline less pronounced
+			edge: 2,
 			fill: 0.9,
 		};
 
 		const particleSize = {
-			length: CONFIG.hexagonSize * 0.12, // Slightly reduced from 0.15
-			width: CONFIG.hexagonSize * 0.025, // Slightly reduced from 0.03
-			randomness: 0.15, // Reduced from 0.2 for more consistency
+			length: CONFIG.hexagonSize * 0.12,
+			width: CONFIG.hexagonSize * 0.025,
+			randomness: 0.15,
 		};
 
 		// Calculate offset to center the stamp particles around the magnet's position
@@ -410,18 +436,17 @@
 						bottomAlpha <= alphaThreshold;
 
 					if (isEdge) {
-						// Reduced spread for edge particles
 						for (let i = 0; i < particleDensity.edge; i++) {
 							points.push({
-								x: magnet.x - offsetX + x + (Math.random() - 0.5) * 0.8, // Reduced spread
-								y: magnet.y - offsetY + y + (Math.random() - 0.5) * 0.8, // Reduced spread
+								x: magnet.x + (x - offsetX) + (Math.random() - 0.5) * 0.8,
+								y: magnet.y + (y - offsetY) + (Math.random() - 0.5) * 0.8,
 								isEdge: true,
 							});
 						}
 					} else if (Math.random() < particleDensity.fill) {
 						points.push({
-							x: magnet.x - offsetX + x + (Math.random() - 0.5) * 1.5,
-							y: magnet.y - offsetY + y + (Math.random() - 0.5) * 1.5,
+							x: magnet.x + (x - offsetX) + (Math.random() - 0.5) * 1.5,
+							y: magnet.y + (y - offsetY) + (Math.random() - 0.5) * 1.5,
 							isEdge: false,
 						});
 					}
@@ -439,10 +464,9 @@
 					Math.random() * particleSize.length * particleSize.randomness,
 				width: particleSize.width,
 				isStampParticle: true,
-				color:
-					Math.random() < CONFIG.stampWhiteParticleProbability
-						? '#ffffff'
-						: CONFIG.stampParticleColor,
+				color: Math.random() < CONFIG.stampWhiteParticleProbability
+					? '#ffffff'
+					: CONFIG.stampParticleColor
 			};
 
 			stampParticles.push(particle);
@@ -566,12 +590,12 @@
 					// For dragging magnet, rotate around cursor point
 					const cursorX = m.x;
 					const cursorY = m.y;
-					
+
 					ctx.translate(cursorX, cursorY);
-					ctx.rotate((magnet.rotation || 0) * Math.PI / 180);
+					ctx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
 					ctx.scale(magnet.scale || 1, magnet.scale || 1);
 					ctx.translate(-cursorX, -cursorY);
-					
+
 					ctx.drawImage(
 						magnet.img,
 						magnet.x,
@@ -582,20 +606,228 @@
 				} else {
 					// For static magnets, rotate around center as before
 					ctx.translate(centerX, centerY);
-					ctx.rotate((magnet.rotation || 0) * Math.PI / 180);
+					ctx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
 					ctx.scale(magnet.scale || 1, magnet.scale || 1);
 					ctx.translate(-magnet.width / 2, -magnet.height / 2);
-					
-					ctx.drawImage(
-						magnet.img,
-						0,
-						0,
-						magnet.width,
-						magnet.height
-					);
+
+					ctx.drawImage(magnet.img, 0, 0, magnet.width, magnet.height);
 				}
-				
+
 				ctx.restore();
+			}
+		});
+	}
+
+	// Function to create particles along a path
+	function createParticlesAlongPath(points, options = {}) {
+		const defaultOptions = {
+			particleSize: CONFIG.particleSize,
+			density: CONFIG.particleDensity,
+			randomOffset: CONFIG.lineWidth * 0.3,
+		};
+		const opts = { ...defaultOptions, ...options };
+
+		for (let i = 1; i < points.length; i++) {
+			const start = points[i - 1];
+			const end = points[i];
+			const distance = Math.sqrt(
+				Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
+			);
+			const particleCount = Math.floor(distance * opts.density);
+
+			for (let j = 0; j < particleCount; j++) {
+				const ratio = j / particleCount;
+				const x = start.x + (end.x - start.x) * ratio;
+				const y = start.y + (end.y - start.y) * ratio;
+
+				const offset = (Math.random() - 0.5) * opts.randomOffset;
+				const angle =
+					Math.atan2(end.y - start.y, end.x - start.x) + Math.PI / 2;
+
+				preDrawnParticles.push({
+					x: x + (Math.random() - 0.5) * opts.randomOffset,
+					y: y + (Math.random() - 0.5) * opts.randomOffset,
+					angle: angle + (Math.random() - 0.5) * 0.2,
+					length: opts.particleSize * (0.8 + Math.random() * 0.4),
+					width: opts.particleSize * 0.3,
+					color: CONFIG.preDrawnColor,
+				});
+			}
+		}
+	}
+
+	function createPreDrawnText() {
+		const img = new Image();
+		img.onload = () => {
+			// Create temporary canvas for image
+			const tempCanvas = document.createElement('canvas');
+			const tempCtx = tempCanvas.getContext('2d');
+
+			// Calculate scaled dimensions while maintaining aspect ratio
+			const scale = 0.35;
+			const aspectRatio = img.width / img.height;
+			const maxWidth = canvas.width * 0.8; // Max 80% of canvas width
+			const maxHeight = canvas.height * 0.8; // Max 80% of canvas height
+
+			let scaledWidth = img.width * scale;
+			let scaledHeight = img.height * scale;
+
+			// Ensure dimensions don't exceed canvas bounds while maintaining aspect ratio
+			if (scaledWidth > maxWidth) {
+				scaledWidth = maxWidth;
+				scaledHeight = scaledWidth / aspectRatio;
+			}
+			if (scaledHeight > maxHeight) {
+				scaledHeight = maxHeight;
+				scaledWidth = scaledHeight * aspectRatio;
+			}
+
+			// Draw image at original size first
+			tempCanvas.width = img.width;
+			tempCanvas.height = img.height;
+			tempCtx.drawImage(img, 0, 0);
+
+			// Get image data
+			const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+			const data = imageData.data;
+
+			// Position in bottom right with padding
+			const padding = 120;
+			const startX = canvas.width - scaledWidth - padding;
+			const startY = canvas.height - padding;
+
+			// Calculate sampling parameters based on scale
+			const pixelStep = Math.max(1, Math.floor(1 / scale)); // Skip pixels based on scale
+			const particleSpacing = 1.2;
+
+			// Track sampled positions to avoid duplicates
+			const sampledPositions = new Set();
+
+			for (let y = 0; y < img.height; y += pixelStep) {
+				for (let x = 0; x < img.width; x += pixelStep) {
+					const i = (y * img.width + x) * 4;
+					if (data[i + 3] > 50) {
+						// If pixel is visible enough
+						// Calculate scaled position
+						const scaledX = (x / img.width) * scaledWidth;
+						const scaledY = (y / img.height) * scaledHeight;
+
+						// Create unique key for this position
+						const posKey = `${Math.floor(scaledX)},${Math.floor(scaledY)}`;
+
+						// Only create particle if position hasn't been sampled
+						if (
+							!sampledPositions.has(posKey) &&
+							Math.random() < 1 / particleSpacing
+						) {
+							sampledPositions.add(posKey);
+
+							const wobble = 0.8;
+							const offsetX = (Math.random() - 0.5) * wobble;
+							const offsetY = (Math.random() - 0.5) * wobble;
+
+							const sizeVariation = 0.7 + Math.random() * 0.6;
+
+							preDrawnParticles.push({
+								x: startX + scaledX + offsetX,
+								y: startY + scaledY + offsetY - scaledHeight,
+								angle: Math.random() * Math.PI * 2,
+								length: CONFIG.preDrawnParticleSize * sizeVariation,
+								width: CONFIG.preDrawnParticleSize * 0.5 * sizeVariation,
+								color: CONFIG.preDrawnColor,
+							});
+						}
+					}
+				}
+			}
+
+			// Force a render after loading image
+			renderAll();
+		};
+
+		img.src = multiText;
+	}
+
+	function createPreDrawnSmiley() {
+		// Position smiley to the right of the text
+		const centerX = canvas.width - 60;
+		const centerY = canvas.height - 70;
+		const radius = 15; // Smaller radius
+
+		// Create slightly wobbly circle points
+		const circlePoints = [];
+		const circleSteps = 40;
+		for (let i = 0; i <= circleSteps; i++) {
+			const angle = (i / circleSteps) * Math.PI * 2;
+			const wobble = 0.8; // Amount of natural variation
+			const r = radius + (Math.random() - 0.5) * wobble;
+			circlePoints.push({
+				x: centerX + Math.cos(angle) * r,
+				y: centerY + Math.sin(angle) * r,
+			});
+		}
+
+		// Create natural-looking smile (slight curve up)
+		const smilePoints = [];
+		const smileSteps = 15;
+		for (let i = 0; i <= smileSteps; i++) {
+			const progress = i / smileSteps;
+			const angle = Math.PI * (0.2 + 0.6 * progress);
+			const wobble = 0.4;
+			smilePoints.push({
+				x: centerX + Math.cos(angle) * (radius * 0.6),
+				y:
+					centerY +
+					Math.sin(angle) * (radius * 0.6) -
+					radius * 0.1 +
+					Math.random() * wobble,
+			});
+		}
+
+		// Create simple dot eyes
+		const eyePoints = [
+			[
+				{ x: centerX - radius * 0.3, y: centerY - radius * 0.2 },
+				{ x: centerX - radius * 0.3, y: centerY - radius * 0.15 },
+			],
+			[
+				{ x: centerX + radius * 0.3, y: centerY - radius * 0.2 },
+				{ x: centerX + radius * 0.3, y: centerY - radius * 0.15 },
+			],
+		];
+
+		// Draw with thinner, more natural-looking strokes
+		const options = {
+			particleSize: CONFIG.preDrawnParticleSize * 0.8,
+			density: CONFIG.preDrawnDensity,
+			randomOffset: 0.3,
+		};
+
+		[circlePoints, smilePoints, ...eyePoints].forEach((points) => {
+			for (let i = 1; i < points.length; i++) {
+				const start = points[i - 1];
+				const end = points[i];
+				const distance = Math.sqrt(
+					(end.x - start.x) ** 2 + (end.y - start.y) ** 2
+				);
+				const count = Math.floor(distance * options.density);
+
+				for (let j = 0; j < count; j++) {
+					const ratio = j / count;
+					const x = start.x + (end.x - start.x) * ratio;
+					const y = start.y + (end.y - start.y) * ratio;
+					const angle =
+						Math.atan2(end.y - start.y, end.x - start.x) + Math.PI / 2;
+
+					preDrawnParticles.push({
+						x: x + (Math.random() - 0.5) * options.randomOffset,
+						y: y + (Math.random() - 0.5) * options.randomOffset,
+						angle: angle + (Math.random() - 0.5) * 0.2,
+						length: options.particleSize * (0.8 + Math.random() * 0.4),
+						width: options.particleSize * 0.3,
+						color: CONFIG.preDrawnColor,
+					});
+				}
 			}
 		});
 	}
@@ -613,6 +845,21 @@
 		// Draw stamp particles first (always with their stored color)
 		stampParticles.forEach((particle) => {
 			ctx.fillStyle = particle.color;
+			ctx.save();
+			ctx.translate(particle.x, particle.y);
+			ctx.rotate(particle.angle);
+			ctx.fillRect(
+				-particle.length / 2,
+				-particle.width / 2,
+				particle.length,
+				particle.width
+			);
+			ctx.restore();
+		});
+
+		// Draw pre-drawn particles
+		preDrawnParticles.forEach((particle) => {
+			ctx.fillStyle = particle.color || CONFIG.particleColor;
 			ctx.save();
 			ctx.translate(particle.x, particle.y);
 			ctx.rotate(particle.angle);
@@ -649,9 +896,9 @@
 			hasMouseMoved = true;
 			gsap.to(window, {
 				duration: 0.4,
-				ease: "power2.out",
+				ease: 'power2.out',
 				onUpdate: () => {
-					cursorOpacity = gsap.getProperty(window, "cursorOpacity");
+					cursorOpacity = gsap.getProperty(window, 'cursorOpacity') || 1;
 				},
 				cursorOpacity: 1,
 			});
@@ -671,9 +918,9 @@
 					left: magnet.x - 10, // Add some padding for easier hovering
 					right: magnet.x + magnet.width + 10,
 					top: magnet.y - 10,
-					bottom: magnet.y + magnet.height + 10
+					bottom: magnet.y + magnet.height + 10,
 				};
-				
+
 				return (
 					x >= magnetBounds.left &&
 					x <= magnetBounds.right &&
@@ -681,7 +928,7 @@
 					y <= magnetBounds.bottom
 				);
 			});
-			hoveredMagnet = findClickedMagnet({x, y});
+			hoveredMagnet = findClickedMagnet({ x, y });
 		}
 	}
 
@@ -701,9 +948,8 @@
 			gsap.to(selectedMagnet, {
 				scale: 1.1,
 				duration: 0.2,
-				ease: "power2.out"
+				ease: 'power2.out',
 			});
-			createMagnetStamp(hoveredMagnet);
 		}
 	}
 
@@ -723,11 +969,11 @@
 				rotation: finalRotation,
 				scale: 1.0,
 				duration: 0.4,
-				ease: "elastic.out(0.7, 0.5)",
+				ease: 'elastic.out(0.7, 0.5)',
 				onComplete: () => {
 					createMagnetStamp(droppedMagnet);
 					scheduleRender();
-				}
+				},
 			});
 
 			selectedMagnet = null;
@@ -740,7 +986,7 @@
 			lastMouseY = e.clientY;
 			return;
 		}
-		
+
 		mouseVelocityX = e.clientX - lastMouseX;
 		mouseVelocityY = e.clientY - lastMouseY;
 		lastMouseX = e.clientX;
@@ -754,10 +1000,7 @@
 	on:mouseup={handleMouseup}
 />
 
-<div
-	class="canvas-container"
-	bind:this={canvasContainer}
->
+<div class="canvas-container" bind:this={canvasContainer}>
 	<canvas
 		bind:this={canvas}
 		on:pointerdown={handlePointerDown}
