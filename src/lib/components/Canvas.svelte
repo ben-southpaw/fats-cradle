@@ -51,13 +51,13 @@
 		backgroundColor: '#e8e8e8',
 		gridColor: '#d4d4d4',
 		hexagonSize: 6,
-		particleColor: '#636363',
+		particleColor: '#333333',
 		preDrawnParticleSize: 1.0, // Increased size for text
 		preDrawnDensity: 40, // Higher density for text
-		preDrawnColor: '#2a2a2a',
+		preDrawnColor: '#404040', // Lightened from #2a2a2a
 		stampParticleColor: '#1a1a1a', // Add back stamp colors
 		stampWhiteParticleProbability: 0.1,
-		whiteParticleProbability: 0.3
+		whiteParticleProbability: 0.3,
 	};
 
 	let magnets = [];
@@ -83,7 +83,6 @@
 			// Recreate pre-drawn elements after resize
 			preDrawnParticles = [];
 			createPreDrawnText();
-			createPreDrawnSmiley();
 			renderAll();
 		};
 
@@ -118,7 +117,6 @@
 
 		// Add pre-drawn elements after canvas is initialized
 		createPreDrawnText();
-		createPreDrawnSmiley();
 
 		// Clean up
 		return () => {
@@ -464,9 +462,10 @@
 					Math.random() * particleSize.length * particleSize.randomness,
 				width: particleSize.width,
 				isStampParticle: true,
-				color: Math.random() < CONFIG.stampWhiteParticleProbability
-					? '#ffffff'
-					: CONFIG.stampParticleColor
+				color:
+					Math.random() < CONFIG.stampWhiteParticleProbability
+						? '#ffffff'
+						: CONFIG.stampParticleColor,
 			};
 
 			stampParticles.push(particle);
@@ -748,90 +747,6 @@
 		img.src = multiText;
 	}
 
-	function createPreDrawnSmiley() {
-		// Position smiley to the right of the text
-		const centerX = canvas.width - 60;
-		const centerY = canvas.height - 70;
-		const radius = 15; // Smaller radius
-
-		// Create slightly wobbly circle points
-		const circlePoints = [];
-		const circleSteps = 40;
-		for (let i = 0; i <= circleSteps; i++) {
-			const angle = (i / circleSteps) * Math.PI * 2;
-			const wobble = 0.8; // Amount of natural variation
-			const r = radius + (Math.random() - 0.5) * wobble;
-			circlePoints.push({
-				x: centerX + Math.cos(angle) * r,
-				y: centerY + Math.sin(angle) * r,
-			});
-		}
-
-		// Create natural-looking smile (slight curve up)
-		const smilePoints = [];
-		const smileSteps = 15;
-		for (let i = 0; i <= smileSteps; i++) {
-			const progress = i / smileSteps;
-			const angle = Math.PI * (0.2 + 0.6 * progress);
-			const wobble = 0.4;
-			smilePoints.push({
-				x: centerX + Math.cos(angle) * (radius * 0.6),
-				y:
-					centerY +
-					Math.sin(angle) * (radius * 0.6) -
-					radius * 0.1 +
-					Math.random() * wobble,
-			});
-		}
-
-		// Create simple dot eyes
-		const eyePoints = [
-			[
-				{ x: centerX - radius * 0.3, y: centerY - radius * 0.2 },
-				{ x: centerX - radius * 0.3, y: centerY - radius * 0.15 },
-			],
-			[
-				{ x: centerX + radius * 0.3, y: centerY - radius * 0.2 },
-				{ x: centerX + radius * 0.3, y: centerY - radius * 0.15 },
-			],
-		];
-
-		// Draw with thinner, more natural-looking strokes
-		const options = {
-			particleSize: CONFIG.preDrawnParticleSize * 0.8,
-			density: CONFIG.preDrawnDensity,
-			randomOffset: 0.3,
-		};
-
-		[circlePoints, smilePoints, ...eyePoints].forEach((points) => {
-			for (let i = 1; i < points.length; i++) {
-				const start = points[i - 1];
-				const end = points[i];
-				const distance = Math.sqrt(
-					(end.x - start.x) ** 2 + (end.y - start.y) ** 2
-				);
-				const count = Math.floor(distance * options.density);
-
-				for (let j = 0; j < count; j++) {
-					const ratio = j / count;
-					const x = start.x + (end.x - start.x) * ratio;
-					const y = start.y + (end.y - start.y) * ratio;
-					const angle =
-						Math.atan2(end.y - start.y, end.x - start.x) + Math.PI / 2;
-
-					preDrawnParticles.push({
-						x: x + (Math.random() - 0.5) * options.randomOffset,
-						y: y + (Math.random() - 0.5) * options.randomOffset,
-						angle: angle + (Math.random() - 0.5) * 0.2,
-						length: options.particleSize * (0.8 + Math.random() * 0.4),
-						width: options.particleSize * 0.3,
-						color: CONFIG.preDrawnColor,
-					});
-				}
-			}
-		});
-	}
-
 	// Add a function to render everything
 	function renderAll() {
 		if (!ctx) return; // Guard against undefined ctx
@@ -944,6 +859,8 @@
 			lastMouseY = e.clientY;
 			mouseVelocityX = 0;
 			mouseVelocityY = 0;
+			// Create initial stamp before scaling up
+			createMagnetStamp(hoveredMagnet);
 			// Scale up animation on pickup
 			gsap.to(selectedMagnet, {
 				scale: 1.1,
@@ -1015,7 +932,7 @@
 	bind:this={cursorElement}
 	style="
 		transform: translate({m.x}px, {m.y}px);
-		background-image: url('{isClicking
+		background-image: url('{(isClicking && isHoveringMagnet)
 		? cursorClick
 		: isHoveringMagnet
 			? cursorHover
