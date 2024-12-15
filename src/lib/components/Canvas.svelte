@@ -55,7 +55,7 @@
 		preDrawnParticleSize: 1.0, // Increased size for text
 		preDrawnDensity: 40, // Higher density for text
 		preDrawnColor: '#404040', // Lightened from #2a2a2a
-		stampParticleColor: '#1a1a1a', // Add back stamp colors
+		stampParticleColor: '#333333', // Match the drawing color
 		stampWhiteParticleProbability: 0.1,
 		whiteParticleProbability: 0.3,
 	};
@@ -407,8 +407,8 @@
 		};
 
 		const particleSize = {
-			length: CONFIG.hexagonSize * 0.12,
-			width: CONFIG.hexagonSize * 0.025,
+			length: CONFIG.hexagonSize * (0.2 + Math.random() * 0.3), // Match drawing particles
+			width: CONFIG.hexagonSize * 0.05, // Match drawing particles
 			randomness: 0.15,
 		};
 
@@ -453,19 +453,17 @@
 		}
 
 		points.forEach((point) => {
+			const angle = Math.random() * Math.PI * 2;
 			const particle = {
 				x: point.x,
 				y: point.y,
-				angle: Math.random() * Math.PI * 2,
-				length:
-					particleSize.length +
-					Math.random() * particleSize.length * particleSize.randomness,
-				width: particleSize.width,
+				angle: angle + ((Math.random() - 0.5) * Math.PI) / 6, // Match drawing particle angle variation
+				length: CONFIG.hexagonSize * (0.2 + Math.random() * 0.3), // Match drawing particle length
+				width: CONFIG.hexagonSize * 0.05, // Match drawing particle width
 				isStampParticle: true,
-				color:
-					Math.random() < CONFIG.stampWhiteParticleProbability
-						? '#ffffff'
-						: CONFIG.stampParticleColor,
+				color: Math.random() < CONFIG.whiteParticleProbability // Use same white probability as drawing
+					? '#ffffff'
+					: CONFIG.particleColor, // Use same color as drawing
 			};
 
 			stampParticles.push(particle);
