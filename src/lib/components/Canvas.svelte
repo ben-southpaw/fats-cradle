@@ -11,6 +11,7 @@
 	import cursorHover from '$lib/images/glove-heavy.png?url';
 	import cursorClick from '$lib/images/glove-clicked-heavy.png?url';
 	import multiText from '$lib/images/multi-text.png';
+	import scrollToExplore from '$lib/images/scrolltoexplore.svg?url';
 
 	let animationFrameId = null;
 	let pendingRender = false;
@@ -890,6 +891,11 @@
 		on:pointerup={handlePointerUp}
 		on:pointerout={handlePointerUp}
 	/>
+	<img 
+		src={scrollToExplore} 
+		alt="Scroll to explore"
+		class="scroll-indicator"
+	/>
 </div>
 
 <div
@@ -934,6 +940,15 @@
 		width: 100%;
 		height: 100%;
 		background-color: #e8e8e8;
+	}
+
+	.scroll-indicator {
+		position: fixed;
+		top: 40px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 13.4vw;
+		pointer-events: none;
 	}
 
 	canvas {
