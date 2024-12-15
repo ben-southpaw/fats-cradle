@@ -61,6 +61,31 @@
 
 	let magnets = [];
 	let magnetImages = {};
+	let selectedMagnetIndex = -1; // Track the original index of selected magnet
+
+	function bringMagnetToFront(magnet) {
+		// Remove the magnet from its current position
+		const magnetIndex = magnets.indexOf(magnet);
+		if (magnetIndex > -1) {
+			magnets.splice(magnetIndex, 1);
+			// Add it to the end of the array (top of render stack)
+			magnets.push(magnet);
+		}
+		scheduleRender();
+	}
+
+	function restoreMagnetPosition(magnet, originalIndex) {
+		if (originalIndex === -1) return;
+		
+		// Remove the magnet from its current position
+		const magnetIndex = magnets.indexOf(magnet);
+		if (magnetIndex > -1) {
+			magnets.splice(magnetIndex, 1);
+			// Insert it back at its original position
+			magnets.splice(originalIndex, 0, magnet);
+		}
+		scheduleRender();
+	}
 
 	// Initialize the canvas and set up event listeners
 	onMount(() => {
@@ -265,6 +290,8 @@
 			isDraggingMagnet = true;
 			selectedMagnet = clickedMagnet;
 			selectedMagnet.isPickedUp = true;
+			selectedMagnetIndex = magnets.indexOf(clickedMagnet);
+			bringMagnetToFront(clickedMagnet);
 
 			// Animate scale up
 			gsap.to(selectedMagnet, {
@@ -300,7 +327,9 @@
 					isDraggingMagnet = false;
 					// Create stamp after animation completes with final position
 					createMagnetStamp(magnet);
+					restoreMagnetPosition(magnet, selectedMagnetIndex);
 					selectedMagnet = null;
+					selectedMagnetIndex = -1;
 					scheduleRender();
 				},
 			});
@@ -622,7 +651,9 @@
 
 			// If we're at max particles, remove oldest ones
 			if (preDrawnParticles.length + particleCount > MAX_PARTICLES) {
-				preDrawnParticles = preDrawnParticles.slice(-(MAX_PARTICLES - particleCount));
+				preDrawnParticles = preDrawnParticles.slice(
+					-(MAX_PARTICLES - particleCount)
+				);
 			}
 
 			for (let j = 0; j < particleCount; j++) {
@@ -740,7 +771,8 @@
 
 	// Shared particle rendering function
 	function renderParticle(ctx, particle) {
-		ctx.fillStyle = particle.color || (particle.isWhite ? '#ffffff' : CONFIG.particleColor);
+		ctx.fillStyle =
+			particle.color || (particle.isWhite ? '#ffffff' : CONFIG.particleColor);
 		ctx.save();
 		ctx.translate(particle.x, particle.y);
 		ctx.rotate(particle.angle);
@@ -764,9 +796,11 @@
 		drawHexagonGrid();
 
 		// Draw all particles in order
-		[...stampParticles, ...preDrawnParticles, ...particles].forEach(particle => {
-			renderParticle(ctx, particle);
-		});
+		[...stampParticles, ...preDrawnParticles, ...particles].forEach(
+			(particle) => {
+				renderParticle(ctx, particle);
+			}
+		);
 
 		// Draw magnets last
 		renderMagnets();
@@ -891,11 +925,7 @@
 		on:pointerup={handlePointerUp}
 		on:pointerout={handlePointerUp}
 	/>
-	<img 
-		src={scrollToExplore} 
-		alt="Scroll to explore"
-		class="scroll-indicator"
-	/>
+	<img src={scrollToExplore} alt="Scroll to explore" class="scroll-indicator" />
 </div>
 
 <div
@@ -903,7 +933,7 @@
 	bind:this={cursorElement}
 	style="
 		transform: translate({m.x}px, {m.y}px);
-		background-image: url('{(isClicking && isHoveringMagnet)
+		background-image: url('{isClicking && isHoveringMagnet
 		? cursorClick
 		: isHoveringMagnet
 			? cursorHover
