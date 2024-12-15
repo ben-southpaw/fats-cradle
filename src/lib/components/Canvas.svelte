@@ -55,8 +55,6 @@
 		preDrawnParticleSize: 1.0, // Increased size for text
 		preDrawnDensity: 40, // Higher density for text
 		preDrawnColor: '#404040', // Lightened from #2a2a2a
-		stampParticleColor: '#333333', // Match the drawing color
-		stampWhiteParticleProbability: 0.1,
 		whiteParticleProbability: 0.3,
 	};
 
@@ -177,6 +175,20 @@
 		drawHexagonGrid();
 	};
 
+	// Shared particle creation function
+	function createParticle(x, y, isStampParticle = false) {
+		const angle = Math.random() * Math.PI * 2;
+		return {
+			x,
+			y,
+			angle: angle + ((Math.random() - 0.5) * Math.PI) / 6,
+			length: CONFIG.hexagonSize * (0.2 + Math.random() * 0.3),
+			width: CONFIG.hexagonSize * 0.05,
+			isStampParticle,
+			isWhite: Math.random() < CONFIG.whiteParticleProbability,
+		};
+	}
+
 	// Generate magnetic particles along the line
 	const MAX_PARTICLES = 800000; // Adjust based on needs
 	function generateParticles(x1, y1, x2, y2) {
@@ -204,19 +216,7 @@
 			const perpX = Math.cos(angle) * offset;
 			const perpY = Math.sin(angle) * offset;
 
-			// Randomize particle length (0.2-0.5 times hexagon size)
-			const length = CONFIG.hexagonSize * (0.2 + Math.random() * 0.3);
-			// Very thin width (0.05 times hexagon size)
-			const width = CONFIG.hexagonSize * 0.05;
-
-			particles.push({
-				x: x + perpX,
-				y: y + perpY,
-				angle: angle + ((Math.random() - 0.5) * Math.PI) / 6, // Slight random rotation
-				length: length,
-				width: width,
-				isWhite: Math.random() < CONFIG.whiteParticleProbability,
-			});
+			particles.push(createParticle(x + perpX, y + perpY));
 		}
 	}
 
@@ -453,20 +453,7 @@
 		}
 
 		points.forEach((point) => {
-			const angle = Math.random() * Math.PI * 2;
-			const particle = {
-				x: point.x,
-				y: point.y,
-				angle: angle + ((Math.random() - 0.5) * Math.PI) / 6, // Match drawing particle angle variation
-				length: CONFIG.hexagonSize * (0.2 + Math.random() * 0.3), // Match drawing particle length
-				width: CONFIG.hexagonSize * 0.05, // Match drawing particle width
-				isStampParticle: true,
-				color: Math.random() < CONFIG.whiteParticleProbability // Use same white probability as drawing
-					? '#ffffff'
-					: CONFIG.particleColor, // Use same color as drawing
-			};
-
-			stampParticles.push(particle);
+			stampParticles.push(createParticle(point.x, point.y, true));
 		});
 
 		scheduleRender();
@@ -632,6 +619,11 @@
 			);
 			const particleCount = Math.floor(distance * opts.density);
 
+			// If we're at max particles, remove oldest ones
+			if (preDrawnParticles.length + particleCount > MAX_PARTICLES) {
+				preDrawnParticles = preDrawnParticles.slice(-(MAX_PARTICLES - particleCount));
+			}
+
 			for (let j = 0; j < particleCount; j++) {
 				const ratio = j / particleCount;
 				const x = start.x + (end.x - start.x) * ratio;
@@ -745,6 +737,21 @@
 		img.src = multiText;
 	}
 
+	// Shared particle rendering function
+	function renderParticle(ctx, particle) {
+		ctx.fillStyle = particle.color || (particle.isWhite ? '#ffffff' : CONFIG.particleColor);
+		ctx.save();
+		ctx.translate(particle.x, particle.y);
+		ctx.rotate(particle.angle);
+		ctx.fillRect(
+			-particle.length / 2,
+			-particle.width / 2,
+			particle.length,
+			particle.width
+		);
+		ctx.restore();
+	}
+
 	// Add a function to render everything
 	function renderAll() {
 		if (!ctx) return; // Guard against undefined ctx
@@ -755,49 +762,9 @@
 		// Draw hexagon grid
 		drawHexagonGrid();
 
-		// Draw stamp particles first (always with their stored color)
-		stampParticles.forEach((particle) => {
-			ctx.fillStyle = particle.color;
-			ctx.save();
-			ctx.translate(particle.x, particle.y);
-			ctx.rotate(particle.angle);
-			ctx.fillRect(
-				-particle.length / 2,
-				-particle.width / 2,
-				particle.length,
-				particle.width
-			);
-			ctx.restore();
-		});
-
-		// Draw pre-drawn particles
-		preDrawnParticles.forEach((particle) => {
-			ctx.fillStyle = particle.color || CONFIG.particleColor;
-			ctx.save();
-			ctx.translate(particle.x, particle.y);
-			ctx.rotate(particle.angle);
-			ctx.fillRect(
-				-particle.length / 2,
-				-particle.width / 2,
-				particle.length,
-				particle.width
-			);
-			ctx.restore();
-		});
-
-		// Draw regular particles
-		particles.forEach((particle) => {
-			ctx.fillStyle = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
-			ctx.save();
-			ctx.translate(particle.x, particle.y);
-			ctx.rotate(particle.angle);
-			ctx.fillRect(
-				-particle.length / 2,
-				-particle.width / 2,
-				particle.length,
-				particle.width
-			);
-			ctx.restore();
+		// Draw all particles in order
+		[...stampParticles, ...preDrawnParticles, ...particles].forEach(particle => {
+			renderParticle(ctx, particle);
 		});
 
 		// Draw magnets last
