@@ -902,12 +902,12 @@
 				// Find free space for the bottom magnet
 				const newPosition = findFreeSpace(collidedMagnet, magnets);
 				if (newPosition) {
-					// Move the bottom magnet
+					// Move the bottom magnet with more subtle animation
 					gsap.to(collidedMagnet, {
 						x: newPosition.x,
 						y: newPosition.y,
 						duration: 0.4,
-						ease: 'elastic.out(0.7, 0.5)',
+						ease: 'power2.out',
 						onUpdate: () => scheduleRender(),
 					});
 				}
@@ -919,8 +919,8 @@
 				y: finalY,
 				rotation: finalRotation,
 				scale: 1.0,
-				duration: 0.4,
-				ease: 'elastic.out(0.7, 0.5)',
+				duration: 0.2,
+				ease: 'power2.out',
 				onComplete: () => {
 					createMagnetStamp(droppedMagnet);
 					scheduleRender();
@@ -960,13 +960,14 @@
 	}
 
 	function findFreeSpace(magnet, otherMagnets) {
-		const spacingRem = 0.3125; // Work with rem values directly
+		const spacingRem = 0.2; // Work with rem values directly
 		let x = magnet.x;
 		let y = magnet.y;
 		let radiusRem = spacingRem;
 		let angle = 0;
 
-		while (radiusRem < 25) { // Keep using rem values for the radius check
+		while (radiusRem < 25) {
+			// Keep using rem values for the radius check
 			// Convert rem to pixels only for the actual position calculation
 			const radiusPixels = remToPixels(radiusRem);
 			x = magnet.x + radiusPixels * Math.cos(angle);
