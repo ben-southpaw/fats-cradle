@@ -12,6 +12,8 @@
 	import cursorClick from '$lib/images/glove-clicked-heavy.png?url';
 	import multiText from '$lib/images/multi-text.png';
 	import scrollToExplore from '$lib/images/scrolltoexplore.svg?url';
+	import menuBtn from '$lib/images/menu-btn.png?url';
+	import cvBtn from '$lib/images/cv-btn.png?url';
 
 	let animationFrameId = null;
 	let pendingRender = false;
@@ -1007,6 +1009,11 @@
 	on:mouseup={handleMouseup}
 />
 
+<div class="header">
+	<img src={menuBtn} alt="Menu" class="header-btn" />
+	<img src={cvBtn} alt="CV" class="header-btn" />
+</div>
+
 <div class="canvas-container" bind:this={canvasContainer}>
 	<!-- svelte-ignore element_invalid_self_closing_tag -->
 	<canvas
@@ -1014,7 +1021,7 @@
 		on:pointerdown={handlePointerDown}
 		on:pointermove={handlePointerMove}
 		on:pointerup={handlePointerUp}
-		on:pointerout={handlePointerUp}
+		on:pointerleave={handlePointerLeave}
 	/>
 	<img src={scrollToExplore} alt="Scroll to explore" class="scroll-indicator" />
 </div>
@@ -1052,6 +1059,25 @@
 		padding: 0;
 		overflow: hidden;
 		cursor: none; /* Hide the default cursor */
+	}
+
+	.header {
+		position: fixed;
+		top: 40px;
+		left: 0;
+		right: 0;
+		height: 7.5vh;
+		display: flex;
+		justify-content: space-between;
+		padding: 0 3.5rem;
+		z-index: 1000;
+	}
+
+	.header-btn {
+		height: 100%;
+		width: auto;
+		cursor: pointer;
+		object-fit: contain;
 	}
 
 	.canvas-container {
