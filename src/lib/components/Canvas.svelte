@@ -76,7 +76,7 @@
 
 	function restoreMagnetPosition(magnet, originalIndex) {
 		if (originalIndex === -1) return;
-		
+
 		// Remove the magnet from its current position
 		const magnetIndex = magnets.indexOf(magnet);
 		if (magnetIndex > -1) {
@@ -879,6 +879,40 @@
 			const finalX = e.clientX + droppedMagnet.grabOffsetX;
 			const finalY = e.clientY + droppedMagnet.grabOffsetY;
 			const finalRotation = Math.round(droppedMagnet.rotation / 5) * 5;
+
+			// Check for collisions with other magnets
+			let collidedMagnet = null;
+			for (const other of magnets) {
+				if (other === droppedMagnet) continue;
+
+				const testPosition = {
+					x: finalX,
+					y: finalY,
+					width: droppedMagnet.width,
+					height: droppedMagnet.height,
+				};
+
+				if (checkCollision(testPosition, other)) {
+					collidedMagnet = other;
+					break;
+				}
+			}
+
+			if (collidedMagnet) {
+				// Find free space for the bottom magnet
+				const newPosition = findFreeSpace(collidedMagnet, magnets);
+				if (newPosition) {
+					// Move the bottom magnet
+					gsap.to(collidedMagnet, {
+						x: newPosition.x,
+						y: newPosition.y,
+						duration: 0.4,
+						ease: 'elastic.out(0.7, 0.5)',
+						onUpdate: () => scheduleRender(),
+					});
+				}
+			}
+
 			// Animate position, rotation, and scale together
 			gsap.to(droppedMagnet, {
 				x: finalX,
@@ -908,6 +942,55 @@
 		mouseVelocityY = e.clientY - lastMouseY;
 		lastMouseX = e.clientX;
 		lastMouseY = e.clientY;
+	}
+
+	function checkCollision(magnet1, magnet2) {
+		return !(magnet1.x > magnet2.x + magnet2.width ||
+			magnet1.x + magnet1.width < magnet2.x ||
+			magnet1.y > magnet2.y + magnet2.height ||
+			magnet1.y + magnet1.height < magnet2.y);
+	}
+
+	function remToPixels(rem) {
+		return rem * parseFloat(getComputedStyle(document.documentElement).fontSize);
+	}
+
+	function findFreeSpace(magnet, otherMagnets) {
+		const spacing = remToPixels(0.3125); // 0.3125rem = 5px
+		let x = magnet.x;
+		let y = magnet.y;
+		let radius = spacing;
+		let angle = 0;
+
+		while (radius < remToPixels(20)) { // 20rem max radius
+			x = magnet.x + radius * Math.cos(angle);
+			y = magnet.y + radius * Math.sin(angle);
+
+			// Create temporary magnet at test position
+			const testMagnet = { ...magnet, x, y };
+
+			// Check if this position collides with any other magnet
+			let hasCollision = false;
+			for (const other of otherMagnets) {
+				if (other === magnet) continue;
+				if (checkCollision(testMagnet, other)) {
+					hasCollision = true;
+					break;
+				}
+			}
+
+			if (!hasCollision) {
+				return { x, y };
+			}
+
+			angle += Math.PI/4;  // 45-degree increments
+			if (angle >= Math.PI * 2) {
+				angle = 0;
+				radius += spacing;
+			}
+		}
+
+		return null; // No free space found
 	}
 </script>
 
