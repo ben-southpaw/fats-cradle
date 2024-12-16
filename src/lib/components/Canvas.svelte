@@ -945,26 +945,32 @@
 	}
 
 	function checkCollision(magnet1, magnet2) {
-		return !(magnet1.x > magnet2.x + magnet2.width ||
+		return !(
+			magnet1.x > magnet2.x + magnet2.width ||
 			magnet1.x + magnet1.width < magnet2.x ||
 			magnet1.y > magnet2.y + magnet2.height ||
-			magnet1.y + magnet1.height < magnet2.y);
+			magnet1.y + magnet1.height < magnet2.y
+		);
 	}
 
 	function remToPixels(rem) {
-		return rem * parseFloat(getComputedStyle(document.documentElement).fontSize);
+		return (
+			rem * parseFloat(getComputedStyle(document.documentElement).fontSize)
+		);
 	}
 
 	function findFreeSpace(magnet, otherMagnets) {
-		const spacing = remToPixels(0.3125); // 0.3125rem = 5px
+		const spacingRem = 0.3125; // Work with rem values directly
 		let x = magnet.x;
 		let y = magnet.y;
-		let radius = spacing;
+		let radiusRem = spacingRem;
 		let angle = 0;
 
-		while (radius < remToPixels(20)) { // 20rem max radius
-			x = magnet.x + radius * Math.cos(angle);
-			y = magnet.y + radius * Math.sin(angle);
+		while (radiusRem < 25) { // Keep using rem values for the radius check
+			// Convert rem to pixels only for the actual position calculation
+			const radiusPixels = remToPixels(radiusRem);
+			x = magnet.x + radiusPixels * Math.cos(angle);
+			y = magnet.y + radiusPixels * Math.sin(angle);
 
 			// Create temporary magnet at test position
 			const testMagnet = { ...magnet, x, y };
@@ -983,10 +989,10 @@
 				return { x, y };
 			}
 
-			angle += Math.PI/4;  // 45-degree increments
+			angle += Math.PI / 4; // 45-degree increments
 			if (angle >= Math.PI * 2) {
 				angle = 0;
-				radius += spacing;
+				radiusRem += spacingRem; // Increment using rem values
 			}
 		}
 
@@ -1001,6 +1007,7 @@
 />
 
 <div class="canvas-container" bind:this={canvasContainer}>
+	<!-- svelte-ignore element_invalid_self_closing_tag -->
 	<canvas
 		bind:this={canvas}
 		on:pointerdown={handlePointerDown}
