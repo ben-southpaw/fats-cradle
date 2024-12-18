@@ -21,7 +21,7 @@
 		particleDensity: 15,
 		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
-		gridColor: '#C2C2C2',
+		gridColor: '#DADADA', // Lighter grid color
 		hexagonSize: 2,
 		particleLength: 6,
 		particleWidth: 0.3,
@@ -31,6 +31,11 @@
 		preDrawnColor: '#333333',
 		whiteParticleProbability: 0.3,
 		targetFPS: 60,
+		hexagonSpacing: 2 * 3, // Size * multiplier
+		hexagonAvoidanceDistance: 0.75, // Slightly stronger for drawn elements
+		predrawnAvoidanceDistance: 0.3, // More subtle for predrawn elements
+		stampAvoidanceDistance: 0.5, // Stamp elements
+		hexagonLineWidth: 0.5, // Width of the hexagon line effect
 	};
 
 	const FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
@@ -230,7 +235,7 @@
 	};
 
 	// Shared particle creation function
-	function createParticle(x, y, isStampParticle = false) {
+	function createParticle(x, y, isStampParticle = false, isPredrawn = false) {
 		const angle = Math.random() * Math.PI * 2;
 		return {
 			x,
@@ -239,8 +244,91 @@
 			length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
 			width: CONFIG.particleWidth,
 			isStampParticle,
+			isPredrawn,
 			isWhite: Math.random() < CONFIG.whiteParticleProbability,
 		};
+	}
+
+	// Function to check if a point is near a hexagon line
+	function isNearHexagonLine(x, y, avoidanceDistance) {
+		const size = CONFIG.hexagonSize * 3;
+		const hexHeight = size * Math.sqrt(3);
+		
+		// Get nearest hexagon centers (check multiple nearby hexagons)
+		for (let colOffset = -1; colOffset <= 1; colOffset++) {
+			for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+				// Offset every other column for proper hexagonal tiling
+				const isOddRow = Math.round(y / hexHeight) % 2 === 1;
+				const colAdjustment = isOddRow ? 0.5 : 0;
+				
+				const col = Math.round(x / (size * 1.5) - colAdjustment) + colOffset;
+				const row = Math.round(y / hexHeight) + rowOffset;
+				
+				// Calculate center with offset for odd rows
+				const centerX = (col + (isOddRow ? colAdjustment : 0)) * size * 1.5;
+				const centerY = row * hexHeight;
+				
+				// Check distance to each vertex of the hexagon
+				const vertices = [];
+				for (let i = 0; i < 6; i++) {
+					const angle = (i * Math.PI) / 3 - Math.PI / 6;
+					vertices.push({
+						x: centerX + size * Math.cos(angle),
+						y: centerY + size * Math.sin(angle)
+					});
+				}
+				
+				// Check each edge of the hexagon
+				for (let i = 0; i < 6; i++) {
+					const v1 = vertices[i];
+					const v2 = vertices[(i + 1) % 6];
+					
+					// Calculate distance from point to line segment
+					const edgeX = v2.x - v1.x;
+					const edgeY = v2.y - v1.y;
+					const edgeLength = Math.sqrt(edgeX * edgeX + edgeY * edgeY);
+					
+					// Calculate normalized edge vector
+					const edgeNormalX = edgeX / edgeLength;
+					const edgeNormalY = edgeY / edgeLength;
+					
+					// Calculate vector from point to first vertex
+					const pointX = x - v1.x;
+					const pointY = y - v1.y;
+					
+					// Project point onto edge
+					const projection = pointX * edgeNormalX + pointY * edgeNormalY;
+					
+					// Find closest point on edge
+					let closestX, closestY;
+					if (projection <= 0) {
+						closestX = v1.x;
+						closestY = v1.y;
+					} else if (projection >= edgeLength) {
+						closestX = v2.x;
+						closestY = v2.y;
+					} else {
+						closestX = v1.x + edgeNormalX * projection;
+						closestY = v1.y + edgeNormalY * projection;
+					}
+					
+					// Calculate distance to closest point
+					const dx = x - closestX;
+					const dy = y - closestY;
+					const distance = Math.sqrt(dx * dx + dy * dy);
+					
+					if (distance < avoidanceDistance) {
+						return {
+							isNear: true,
+							dx: dx / distance,
+							dy: dy / distance
+						};
+					}
+				}
+			}
+		}
+		
+		return { isNear: false };
 	}
 
 	// Generate magnetic particles along the line
@@ -703,6 +791,7 @@
 					length: opts.particleSize * (0.8 + Math.random() * 0.4),
 					width: opts.particleSize * 0.3,
 					color: CONFIG.preDrawnColor,
+					isPredrawn: true,
 				});
 			}
 		}
@@ -787,6 +876,7 @@
 								length: CONFIG.preDrawnParticleSize * sizeVariation,
 								width: CONFIG.preDrawnParticleSize * 0.5 * sizeVariation,
 								color: CONFIG.preDrawnColor,
+								isPredrawn: true,
 							});
 						}
 					}
@@ -802,6 +892,22 @@
 
 	// Shared particle rendering function
 	function renderParticle(ctx, particle) {
+		let avoidanceDistance;
+		if (particle.isPredrawn) {
+			avoidanceDistance = CONFIG.predrawnAvoidanceDistance;
+		} else if (particle.isStampParticle) {
+			avoidanceDistance = CONFIG.stampAvoidanceDistance;
+		} else {
+			avoidanceDistance = CONFIG.hexagonAvoidanceDistance;
+		}
+			
+		const hexCheck = isNearHexagonLine(particle.x, particle.y, avoidanceDistance);
+		
+		if (hexCheck.isNear) {
+			// If near a hexagon line, don't render the particle
+			return;
+		}
+		
 		ctx.fillStyle =
 			particle.color || (particle.isWhite ? '#ffffff' : CONFIG.particleColor);
 		ctx.save();
@@ -918,15 +1024,7 @@
 			let collidedMagnet = null;
 			for (const other of magnets) {
 				if (other === droppedMagnet) continue;
-
-				const testPosition = {
-					x: finalX,
-					y: finalY,
-					width: droppedMagnet.width,
-					height: droppedMagnet.height,
-				};
-
-				if (checkCollision(testPosition, other)) {
+				if (checkCollision({ x: finalX, y: finalY, width: droppedMagnet.width, height: droppedMagnet.height }, other)) {
 					collidedMagnet = other;
 					break;
 				}
