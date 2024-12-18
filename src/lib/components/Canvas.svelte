@@ -100,7 +100,7 @@
 			preDrawnParticles = [];
 
 			// First create pre-drawn text
-			createPreDrawnText();
+			createPreDrawnElements();
 
 			// Then recreate stamps for any existing magnets
 			if (magnets.length > 0) {
@@ -144,7 +144,7 @@
 		gsap.registerPlugin();
 
 		// Add pre-drawn elements after canvas is initialized
-		createPreDrawnText();
+		createPreDrawnElements();
 
 		// Start the render loop with proper timing
 		function renderLoop() {
@@ -691,7 +691,7 @@
 		}
 	}
 
-	function createPreDrawnText() {
+	function createPreDrawnElements() {
 		const img = new Image();
 		img.onload = () => {
 			// Create temporary canvas for image
@@ -1032,6 +1032,7 @@
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
 	/>
+	<img src={scrollToExplore} alt="scroll to explore" class="scroll-indicator" />
 </div>
 
 <div
@@ -1083,8 +1084,9 @@
 		top: 40px;
 		left: 50%;
 		transform: translateX(-50%);
-		width: 13.4vw;
+		width: 16vw;
 		pointer-events: none;
+		z-index: 10;
 	}
 
 	canvas {
