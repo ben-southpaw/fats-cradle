@@ -36,6 +36,16 @@
 		predrawnAvoidanceDistance: 0.3, // More subtle for predrawn elements
 		stampAvoidanceDistance: 0.5, // Stamp elements
 		hexagonLineWidth: 0.5, // Width of the hexagon line effect
+		initialStampOpacity: 0.95, // Darker initial stamps
+		subsequentStampOpacity: 0.6, // Lighter subsequent stamps
+		initialStampDensity: { // Higher density for initial stamps
+			edge: 2.5,
+			fill: 1.2
+		},
+		subsequentStampDensity: { // Lower density for subsequent stamps
+			edge: 1.8,
+			fill: 0.7
+		}
 	};
 
 	const FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
@@ -67,6 +77,86 @@
 	let magnets = [];
 	let magnetImages = {};
 	let selectedMagnetIndex = -1; // Track the original index of selected magnet
+
+	// Add spatial hash grid system
+	class SpatialHashGrid {
+		constructor(cellSize) {
+			this.cellSize = cellSize;
+			this.grid = new Map();
+		}
+
+		// Get grid cell key for a position
+		getCellKey(x, y) {
+			const gridX = Math.floor(x / this.cellSize);
+			const gridY = Math.floor(y / this.cellSize);
+			return `${gridX},${gridY}`;
+		}
+
+		// Get all neighboring cell keys
+		getNeighborKeys(x, y) {
+			const gridX = Math.floor(x / this.cellSize);
+			const gridY = Math.floor(y / this.cellSize);
+			const keys = [];
+			
+			// Get 9 neighboring cells (including current cell)
+			for (let i = -1; i <= 1; i++) {
+				for (let j = -1; j <= 1; j++) {
+					keys.push(`${gridX + i},${gridY + j}`);
+				}
+			}
+			return keys;
+		}
+
+		// Add particle to grid
+		addParticle(particle) {
+			const key = this.getCellKey(particle.x, particle.y);
+			if (!this.grid.has(key)) {
+				this.grid.set(key, new Set());
+			}
+			this.grid.get(key).add(particle);
+		}
+
+		// Remove particle from grid
+		removeParticle(particle) {
+			const key = this.getCellKey(particle.x, particle.y);
+			const cell = this.grid.get(key);
+			if (cell) {
+				cell.delete(particle);
+				if (cell.size === 0) {
+					this.grid.delete(key);
+				}
+			}
+		}
+
+		// Query particles in proximity
+		queryParticles(x, y, radius) {
+			const nearbyParticles = new Set();
+			const neighborKeys = this.getNeighborKeys(x, y);
+			
+			for (const key of neighborKeys) {
+				const cell = this.grid.get(key);
+				if (cell) {
+					for (const particle of cell) {
+						const dx = particle.x - x;
+						const dy = particle.y - y;
+						const distSq = dx * dx + dy * dy;
+						if (distSq < radius * radius) {
+							nearbyParticles.add(particle);
+						}
+					}
+				}
+			}
+			return nearbyParticles;
+		}
+
+		// Clear all particles
+		clear() {
+			this.grid.clear();
+		}
+	}
+
+	// Initialize spatial hash grid with cell size slightly larger than proximity threshold
+	const spatialGrid = new SpatialHashGrid(2);
 
 	function bringMagnetToFront(magnet) {
 		// Remove the magnet from its current position
@@ -237,9 +327,18 @@
 	// Shared particle creation function
 	function createParticle(x, y, isStampParticle = false, isPredrawn = false) {
 		const angle = Math.random() * Math.PI * 2;
+		
+		// Apply noise at creation time instead of render time
+		let finalX = x;
+		let finalY = y;
+		if (!isStampParticle) {
+			finalX += (Math.random() - 0.5) * 1.5;
+			finalY += (Math.random() - 0.5) * 1.5;
+		}
+
 		return {
-			x,
-			y,
+			x: finalX,
+			y: finalY,
 			angle: angle + ((Math.random() - 0.5) * Math.PI) / 6,
 			length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
 			width: CONFIG.particleWidth,
@@ -253,52 +352,52 @@
 	function isNearHexagonLine(x, y, avoidanceDistance) {
 		const size = CONFIG.hexagonSize * 3;
 		const hexHeight = size * Math.sqrt(3);
-		
+
 		// Get nearest hexagon centers (check multiple nearby hexagons)
 		for (let colOffset = -1; colOffset <= 1; colOffset++) {
 			for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
 				// Offset every other column for proper hexagonal tiling
 				const isOddRow = Math.round(y / hexHeight) % 2 === 1;
 				const colAdjustment = isOddRow ? 0.5 : 0;
-				
+
 				const col = Math.round(x / (size * 1.5) - colAdjustment) + colOffset;
 				const row = Math.round(y / hexHeight) + rowOffset;
-				
+
 				// Calculate center with offset for odd rows
 				const centerX = (col + (isOddRow ? colAdjustment : 0)) * size * 1.5;
 				const centerY = row * hexHeight;
-				
+
 				// Check distance to each vertex of the hexagon
 				const vertices = [];
 				for (let i = 0; i < 6; i++) {
 					const angle = (i * Math.PI) / 3 - Math.PI / 6;
 					vertices.push({
 						x: centerX + size * Math.cos(angle),
-						y: centerY + size * Math.sin(angle)
+						y: centerY + size * Math.sin(angle),
 					});
 				}
-				
+
 				// Check each edge of the hexagon
 				for (let i = 0; i < 6; i++) {
 					const v1 = vertices[i];
 					const v2 = vertices[(i + 1) % 6];
-					
+
 					// Calculate distance from point to line segment
 					const edgeX = v2.x - v1.x;
 					const edgeY = v2.y - v1.y;
 					const edgeLength = Math.sqrt(edgeX * edgeX + edgeY * edgeY);
-					
+
 					// Calculate normalized edge vector
 					const edgeNormalX = edgeX / edgeLength;
 					const edgeNormalY = edgeY / edgeLength;
-					
+
 					// Calculate vector from point to first vertex
 					const pointX = x - v1.x;
 					const pointY = y - v1.y;
-					
+
 					// Project point onto edge
 					const projection = pointX * edgeNormalX + pointY * edgeNormalY;
-					
+
 					// Find closest point on edge
 					let closestX, closestY;
 					if (projection <= 0) {
@@ -311,23 +410,23 @@
 						closestX = v1.x + edgeNormalX * projection;
 						closestY = v1.y + edgeNormalY * projection;
 					}
-					
+
 					// Calculate distance to closest point
 					const dx = x - closestX;
 					const dy = y - closestY;
 					const distance = Math.sqrt(dx * dx + dy * dy);
-					
+
 					if (distance < avoidanceDistance) {
 						return {
 							isNear: true,
 							dx: dx / distance,
-							dy: dy / distance
+							dy: dy / distance,
 						};
 					}
 				}
 			}
 		}
-		
+
 		return { isNear: false };
 	}
 
@@ -517,6 +616,13 @@
 	function createMagnetStamp(magnet) {
 		if (!magnet || !magnet.img || !magnet.img.complete) return;
 
+		// Skip if magnet is currently being stamped
+		if (magnet.isStamping) {
+			return;
+		}
+		
+		magnet.isStamping = true;
+
 		const tempCanvas = document.createElement('canvas');
 		const tempCtx = tempCanvas.getContext('2d');
 
@@ -550,20 +656,31 @@
 
 		const points = [];
 		const alphaThreshold = 100;
-		const particleDensity = {
-			edge: 2,
-			fill: 0.9,
-		};
+		
+		// Determine if this is the initial stamp for this magnet
+		const isInitialStamp = !stampParticles.some(p => p.magnetId === magnet.id);
+		
+		// Use different densities based on whether this is the initial stamp
+		const particleDensity = isInitialStamp 
+			? CONFIG.initialStampDensity 
+			: CONFIG.subsequentStampDensity;
 
 		const particleSize = {
-			length: CONFIG.particleLength * (0.2 + Math.random() * 0.3), // Match drawing particles
-			width: CONFIG.particleWidth, // Match drawing particles
+			length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
+			width: CONFIG.particleWidth,
 			randomness: 0.15,
 		};
 
 		// Calculate offset to center the stamp particles around the magnet's position
 		const offsetX = (tempCanvas.width - magnet.width) / 2;
 		const offsetY = (tempCanvas.height - magnet.height) / 2;
+
+		// Function to check if a point already has a stamp nearby using spatial grid
+		const proximityThreshold = 1.5;
+		function hasNearbyStamp(x, y) {
+			const nearbyParticles = spatialGrid.queryParticles(x, y, proximityThreshold);
+			return nearbyParticles.size > 0;
+		}
 
 		for (let y = 1; y < tempCanvas.height - 1; y++) {
 			for (let x = 1; x < tempCanvas.width - 1; x++) {
@@ -582,28 +699,48 @@
 						topAlpha <= alphaThreshold ||
 						bottomAlpha <= alphaThreshold;
 
+					const newX = magnet.x + (x - offsetX);
+					const newY = magnet.y + (y - offsetY);
+
 					if (isEdge) {
 						for (let i = 0; i < particleDensity.edge; i++) {
-							points.push({
-								x: magnet.x + (x - offsetX) + (Math.random() - 0.5) * 0.8,
-								y: magnet.y + (y - offsetY) + (Math.random() - 0.5) * 0.8,
-								isEdge: true,
-							});
+							const finalX = newX + (Math.random() - 0.5) * 0.8;
+							const finalY = newY + (Math.random() - 0.5) * 0.8;
+							if (!hasNearbyStamp(finalX, finalY)) {
+								points.push({
+									x: finalX,
+									y: finalY,
+									isEdge: true,
+								});
+							}
 						}
 					} else if (Math.random() < particleDensity.fill) {
-						points.push({
-							x: magnet.x + (x - offsetX) + (Math.random() - 0.5) * 1.5,
-							y: magnet.y + (y - offsetY) + (Math.random() - 0.5) * 1.5,
-							isEdge: false,
-						});
+						const finalX = newX + (Math.random() - 0.5) * 1.5;
+						const finalY = newY + (Math.random() - 0.5) * 1.5;
+						if (!hasNearbyStamp(finalX, finalY)) {
+							points.push({
+								x: finalX,
+								y: finalY,
+								isEdge: false,
+							});
+						}
 					}
 				}
 			}
 		}
 
 		points.forEach((point) => {
-			stampParticles.push(createParticle(point.x, point.y, true));
+			const particle = createParticle(point.x, point.y, true);
+			particle.magnetId = magnet.id;
+			particle.opacity = isInitialStamp ? CONFIG.initialStampOpacity : CONFIG.subsequentStampOpacity;
+			stampParticles.push(particle);
+			spatialGrid.addParticle(particle);  // Add to spatial grid
 		});
+
+		// Reset the stamping flag after a delay
+		setTimeout(() => {
+			magnet.isStamping = false;
+		}, 300);
 
 		scheduleRender();
 	}
@@ -709,46 +846,138 @@
 		renderAll();
 	}
 
-	function renderMagnets() {
-		magnets.forEach((magnet) => {
-			if (magnet.img) {
-				ctx.save();
+	// Add batch rendering utilities
+	class ParticleBatch {
+		constructor() {
+			this.particles = new Map(); // Map of opacity -> particles array
+		}
 
-				// Calculate center point for scaling and rotation
-				const centerX = magnet.x + magnet.width / 2;
-				const centerY = magnet.y + magnet.height / 2;
-
-				// Apply transformations
-				if (isDraggingMagnet && magnet === selectedMagnet) {
-					// For dragging magnet, rotate around cursor point
-					const cursorX = m.x;
-					const cursorY = m.y;
-
-					ctx.translate(cursorX, cursorY);
-					ctx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
-					ctx.scale(magnet.scale || 1, magnet.scale || 1);
-					ctx.translate(-cursorX, -cursorY);
-
-					ctx.drawImage(
-						magnet.img,
-						magnet.x,
-						magnet.y,
-						magnet.width,
-						magnet.height
-					);
-				} else {
-					// For static magnets, rotate around center as before
-					ctx.translate(centerX, centerY);
-					ctx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
-					ctx.scale(magnet.scale || 1, magnet.scale || 1);
-					ctx.translate(-magnet.width / 2, -magnet.height / 2);
-
-					ctx.drawImage(magnet.img, 0, 0, magnet.width, magnet.height);
-				}
-
-				ctx.restore();
+		add(particle) {
+			const key = particle.opacity || 1;
+			if (!this.particles.has(key)) {
+				this.particles.set(key, []);
 			}
-		});
+			this.particles.get(key).push(particle);
+		}
+
+		clear() {
+			this.particles.clear();
+		}
+
+		// Render all particles in batch with same opacity
+		render(ctx) {
+			for (const [opacity, particles] of this.particles) {
+				// Draw all particles with this opacity
+				for (const particle of particles) {
+					// Skip if particle is outside viewport
+					if (!isInViewport(particle)) continue;
+
+					// Check hexagon line avoidance
+					let avoidanceDistance;
+					if (particle.isPredrawn) {
+						avoidanceDistance = CONFIG.predrawnAvoidanceDistance;
+					} else if (particle.isStampParticle) {
+						avoidanceDistance = CONFIG.stampAvoidanceDistance;
+					} else {
+						avoidanceDistance = CONFIG.hexagonAvoidanceDistance;
+					}
+
+					const hexCheck = isNearHexagonLine(
+						particle.x,
+						particle.y,
+						avoidanceDistance
+					);
+
+					if (hexCheck.isNear) {
+						continue;
+					}
+
+					// Set color and opacity
+					const color = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
+					const r = parseInt(color.slice(1,3), 16);
+					const g = parseInt(color.slice(3,5), 16);
+					const b = parseInt(color.slice(5,7), 16);
+					const finalOpacity = particle.opacity !== undefined ? particle.opacity : opacity;
+					ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${finalOpacity})`;
+
+					ctx.save();
+					ctx.translate(particle.x, particle.y);
+					ctx.rotate(particle.angle);
+					ctx.fillRect(
+						-particle.length / 2,
+						-particle.width / 2,
+						particle.length,
+						particle.width
+					);
+					ctx.restore();
+				}
+			}
+		}
+	}
+
+	// Viewport check utility
+	function isInViewport(particle) {
+		// Add padding to account for particle size and rotation
+		const padding = Math.max(particle.length, particle.width) * 2;
+		return (
+			particle.x + padding >= 0 &&
+			particle.x - padding <= canvas.width &&
+			particle.y + padding >= 0 &&
+			particle.y - padding <= canvas.height
+		);
+	}
+
+	// Create batch renderers for different particle types
+	const stampBatch = new ParticleBatch();
+	const drawingBatch = new ParticleBatch();
+	const predrawnBatch = new ParticleBatch();
+
+	// Update renderAll to use batch rendering
+	function renderAll() {
+		if (!ctx) return;
+
+		// Clear and draw background
+		ctx.fillStyle = CONFIG.backgroundColor;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+		// Draw hexagon grid (already cached)
+		drawHexagonGrid();
+
+		// Clear batches
+		stampBatch.clear();
+		drawingBatch.clear();
+		predrawnBatch.clear();
+
+		// Sort particles into batches
+		if (stampParticles.length > 0) {
+			for (const particle of stampParticles) {
+				stampBatch.add(particle);
+			}
+		}
+
+		if (preDrawnParticles.length > 0) {
+			for (const particle of preDrawnParticles) {
+				predrawnBatch.add(particle);
+			}
+		}
+
+		if (particles.length > 0) {
+			for (const particle of particles) {
+				drawingBatch.add(particle);
+			}
+		}
+
+		// Render batches
+		ctx.save();
+		stampBatch.render(ctx);
+		predrawnBatch.render(ctx);
+		drawingBatch.render(ctx);
+		ctx.restore();
+
+		// Draw magnets last
+		if (magnets.length > 0) {
+			renderMagnets();
+		}
 	}
 
 	// Function to create particles along a path
@@ -890,74 +1119,50 @@
 		img.src = multiText;
 	}
 
-	// Shared particle rendering function
-	function renderParticle(ctx, particle) {
-		let avoidanceDistance;
-		if (particle.isPredrawn) {
-			avoidanceDistance = CONFIG.predrawnAvoidanceDistance;
-		} else if (particle.isStampParticle) {
-			avoidanceDistance = CONFIG.stampAvoidanceDistance;
-		} else {
-			avoidanceDistance = CONFIG.hexagonAvoidanceDistance;
-		}
-			
-		const hexCheck = isNearHexagonLine(particle.x, particle.y, avoidanceDistance);
-		
-		if (hexCheck.isNear) {
-			// If near a hexagon line, don't render the particle
-			return;
-		}
-		
-		ctx.fillStyle =
-			particle.color || (particle.isWhite ? '#ffffff' : CONFIG.particleColor);
-		ctx.save();
-		ctx.translate(particle.x, particle.y);
-		ctx.rotate(particle.angle);
-		ctx.fillRect(
-			-particle.length / 2,
-			-particle.width / 2,
-			particle.length,
-			particle.width
-		);
-		ctx.restore();
+	// Render magnets
+	function renderMagnets() {
+		magnets.forEach((magnet) => {
+			if (magnet.img) {
+				ctx.save();
+
+				// Calculate center point for scaling and rotation
+				const centerX = magnet.x + magnet.width / 2;
+				const centerY = magnet.y + magnet.height / 2;
+
+				// Apply transformations
+				if (isDraggingMagnet && magnet === selectedMagnet) {
+					// For dragging magnet, rotate around cursor point
+					const cursorX = m.x;
+					const cursorY = m.y;
+
+					ctx.translate(cursorX, cursorY);
+					ctx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
+					ctx.scale(magnet.scale || 1, magnet.scale || 1);
+					ctx.translate(-cursorX, -cursorY);
+
+					ctx.drawImage(
+						magnet.img,
+						magnet.x,
+						magnet.y,
+						magnet.width,
+						magnet.height
+					);
+				} else {
+					// For static magnets, rotate around center as before
+					ctx.translate(centerX, centerY);
+					ctx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
+					ctx.scale(magnet.scale || 1, magnet.scale || 1);
+					ctx.translate(-magnet.width / 2, -magnet.height / 2);
+
+					ctx.drawImage(magnet.img, 0, 0, magnet.width, magnet.height);
+				}
+
+				ctx.restore();
+			}
+		});
 	}
 
-	// Add a function to render everything
-	function renderAll() {
-		if (!ctx) return;
-
-		// Clear and draw background only if needed
-		ctx.fillStyle = CONFIG.backgroundColor;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-		// Draw hexagon grid (already cached)
-		drawHexagonGrid();
-
-		// Render particles in batches for better performance
-		if (stampParticles.length > 0) {
-			ctx.save();
-			stampParticles.forEach((particle) => renderParticle(ctx, particle));
-			ctx.restore();
-		}
-
-		if (preDrawnParticles.length > 0) {
-			ctx.save();
-			preDrawnParticles.forEach((particle) => renderParticle(ctx, particle));
-			ctx.restore();
-		}
-
-		if (particles.length > 0) {
-			ctx.save();
-			particles.forEach((particle) => renderParticle(ctx, particle));
-			ctx.restore();
-		}
-
-		// Draw magnets last
-		if (magnets.length > 0) {
-			renderMagnets();
-		}
-	}
-
+	// Handle mouse events
 	function handleMousemove(event) {
 		m.x = event.clientX;
 		m.y = event.clientY;
@@ -1024,7 +1229,17 @@
 			let collidedMagnet = null;
 			for (const other of magnets) {
 				if (other === droppedMagnet) continue;
-				if (checkCollision({ x: finalX, y: finalY, width: droppedMagnet.width, height: droppedMagnet.height }, other)) {
+				if (
+					checkCollision(
+						{
+							x: finalX,
+							y: finalY,
+							width: droppedMagnet.width,
+							height: droppedMagnet.height,
+						},
+						other
+					)
+				) {
 					collidedMagnet = other;
 					break;
 				}
