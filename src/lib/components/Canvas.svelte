@@ -21,12 +21,14 @@
 		particleDensity: 15,
 		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
-		gridColor: '#d4d4d4',
-		hexagonSize: 6,
+		gridColor: '#C2C2C2',
+		hexagonSize: 2,
+		particleLength: 6,
+		particleWidth: 0.3,
 		particleColor: '#333333',
 		preDrawnParticleSize: 1.0,
 		preDrawnDensity: 40,
-		preDrawnColor: '#404040',
+		preDrawnColor: '#333333',
 		whiteParticleProbability: 0.3,
 		targetFPS: 60,
 	};
@@ -170,37 +172,52 @@
 			gridCache = document.createElement('canvas');
 			gridCache.width = canvas.width;
 			gridCache.height = canvas.height;
-			const gridCtx = gridCache.getContext('2d');
+			const ctx = gridCache.getContext('2d');
 
-			const size = CONFIG.hexagonSize;
-			const h = size * Math.sqrt(3);
+			// Set up line style
+			ctx.strokeStyle = CONFIG.gridColor;
+			ctx.lineWidth = 1;
 
-			gridCtx.strokeStyle = CONFIG.gridColor;
-			gridCtx.lineWidth = 0.2;
+			const size = CONFIG.hexagonSize * 3; // Back to 3x multiplier
+			const width = size * Math.sqrt(3);
+			const height = size * 2;
+			const verticalSpacing = height * 0.75;
 
-			for (let y = 0; y < canvas.height + h; y += h) {
-				for (let x = 0; x < canvas.width + size * 2; x += size * 3) {
-					drawHexagon(gridCtx, x, y, size);
-					drawHexagon(gridCtx, x + size * 1.5, y + h / 2, size);
+			// Calculate number of hexagons needed
+			const columns = Math.ceil(canvas.width / width) + 1;
+			const rows = Math.ceil(canvas.height / verticalSpacing) + 1;
+
+			// Draw each hexagon
+			for (let row = 0; row < rows; row++) {
+				const isOddRow = row % 2 === 1;
+				const offsetX = isOddRow ? width / 2 : 0;
+
+				for (let col = -1; col < columns; col++) {
+					const x = col * width + offsetX;
+					const y = row * verticalSpacing;
+					drawHexagon(ctx, x, y, size);
 				}
 			}
 		}
 
+		// Draw the cached grid
 		ctx.drawImage(gridCache, 0, 0);
 	}
 
-	// Update drawHexagon to accept context parameter
-	function drawHexagon(context, x, y, size) {
-		context.beginPath();
+	function drawHexagon(ctx, x, y, size) {
+		ctx.beginPath();
 		for (let i = 0; i < 6; i++) {
-			const angle = (i * Math.PI) / 3;
-			const xPos = x + size * Math.cos(angle);
-			const yPos = y + size * Math.sin(angle);
-			if (i === 0) context.moveTo(xPos, yPos);
-			else context.lineTo(xPos, yPos);
+			const angle = (i * Math.PI) / 3 - Math.PI / 6; // Rotate to flat-top orientation
+			const px = x + size * Math.cos(angle);
+			const py = y + size * Math.sin(angle);
+			if (i === 0) {
+				ctx.moveTo(px, py);
+			} else {
+				ctx.lineTo(px, py);
+			}
 		}
-		context.closePath();
-		context.stroke();
+		ctx.closePath();
+		ctx.stroke();
 	}
 
 	// Update resize handler to clear cache
@@ -219,8 +236,8 @@
 			x,
 			y,
 			angle: angle + ((Math.random() - 0.5) * Math.PI) / 6,
-			length: CONFIG.hexagonSize * (0.2 + Math.random() * 0.3),
-			width: CONFIG.hexagonSize * 0.05,
+			length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
+			width: CONFIG.particleWidth,
 			isStampParticle,
 			isWhite: Math.random() < CONFIG.whiteParticleProbability,
 		};
@@ -451,8 +468,8 @@
 		};
 
 		const particleSize = {
-			length: CONFIG.hexagonSize * (0.2 + Math.random() * 0.3), // Match drawing particles
-			width: CONFIG.hexagonSize * 0.05, // Match drawing particles
+			length: CONFIG.particleLength * (0.2 + Math.random() * 0.3), // Match drawing particles
+			width: CONFIG.particleWidth, // Match drawing particles
 			randomness: 0.15,
 		};
 
