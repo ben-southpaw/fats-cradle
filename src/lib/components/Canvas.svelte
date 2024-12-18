@@ -12,14 +12,26 @@
 	import cursorClick from '$lib/images/glove-clicked-heavy.png?url';
 	import multiText from '$lib/images/multi-text.png';
 	import scrollToExplore from '$lib/images/scrolltoexplore.svg?url';
-	import menuBtn from '$lib/images/menu-btn.png?url';
-	import cvBtn from '$lib/images/cv-btn.png?url';
 
 	let animationFrameId = null;
 	let pendingRender = false;
 	let lastRenderTime = 0;
-	const FRAME_RATE = 60; // Target FPS
-	const FRAME_INTERVAL = 1000 / FRAME_RATE;
+	const CONFIG = {
+		particleSize: 0.3,
+		particleDensity: 15,
+		lineWidth: 6,
+		backgroundColor: '#e8e8e8',
+		gridColor: '#d4d4d4',
+		hexagonSize: 6,
+		particleColor: '#333333',
+		preDrawnParticleSize: 1.0,
+		preDrawnDensity: 40,
+		preDrawnColor: '#404040',
+		whiteParticleProbability: 0.3,
+		targetFPS: 60,
+	};
+
+	const FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
 
 	// Canvas setup
 	let canvas;
@@ -38,28 +50,12 @@
 
 	let cursorElement;
 	let m = { x: 0, y: 0 };
-	let hasMouseMoved = false;
-	let cursorOpacity = 0;
+	let cursorOpacity = 1;
 
 	let lastMouseX = 0;
 	let lastMouseY = 0;
 	let mouseVelocityX = 0;
 	let mouseVelocityY = 0;
-
-	// Configuration for the drawing effect
-	const CONFIG = {
-		particleSize: 0.3,
-		particleDensity: 15,
-		lineWidth: 6,
-		backgroundColor: '#e8e8e8',
-		gridColor: '#d4d4d4',
-		hexagonSize: 6,
-		particleColor: '#333333',
-		preDrawnParticleSize: 1.0, // Increased size for text
-		preDrawnDensity: 40, // Higher density for text
-		preDrawnColor: '#404040', // Lightened from #2a2a2a
-		whiteParticleProbability: 0.3,
-	};
 
 	let magnets = [];
 	let magnetImages = {};
@@ -94,21 +90,26 @@
 		if (!canvas) return;
 		ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-		// Set cursor styles
-		console.log('Cursor URLs:', {
-			default: cursorDefault,
-			hover: cursorHover,
-			click: cursorClick,
-		});
-
 		// Set canvas to full screen
 		const resize = () => {
 			if (!canvas) return;
 			canvas.width = window.innerWidth;
 			canvas.height = window.innerHeight;
 			// Recreate pre-drawn elements after resize
+			gridCache = null; // Clear grid cache on resize
 			preDrawnParticles = [];
+
+			// First create pre-drawn text
 			createPreDrawnText();
+
+			// Then recreate stamps for any existing magnets
+			if (magnets.length > 0) {
+				magnets.forEach((magnet) => {
+					createMagnetStamp(magnet);
+				});
+			}
+
+			// Finally render everything
 			renderAll();
 		};
 
@@ -134,6 +135,7 @@
 				loadedCount++;
 				if (loadedCount === letters.length) {
 					initializeMagnets();
+					scheduleRender();
 				}
 			};
 		});
@@ -143,6 +145,13 @@
 
 		// Add pre-drawn elements after canvas is initialized
 		createPreDrawnText();
+
+		// Start the render loop with proper timing
+		function renderLoop() {
+			scheduleRender();
+			animationFrameId = requestAnimationFrame(renderLoop);
+		}
+		renderLoop();
 
 		// Clean up
 		return () => {
@@ -268,12 +277,15 @@
 	}
 
 	function scheduleRender() {
-		if (!pendingRender) {
+		const currentTime = performance.now();
+		const timeSinceLastRender = currentTime - lastRenderTime;
+
+		if (!pendingRender && timeSinceLastRender >= FRAME_INTERVAL) {
 			pendingRender = true;
-			animationFrameId = requestAnimationFrame((timestamp) => {
+			animationFrameId = requestAnimationFrame(() => {
 				pendingRender = false;
 				renderAll();
-				lastRenderTime = timestamp;
+				lastRenderTime = performance.now();
 			});
 		}
 	}
@@ -789,38 +801,41 @@
 
 	// Add a function to render everything
 	function renderAll() {
-		if (!ctx) return; // Guard against undefined ctx
-		// Clear and draw background
+		if (!ctx) return;
+
+		// Clear and draw background only if needed
 		ctx.fillStyle = CONFIG.backgroundColor;
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-		// Draw hexagon grid
+		// Draw hexagon grid (already cached)
 		drawHexagonGrid();
 
-		// Draw all particles in order
-		[...stampParticles, ...preDrawnParticles, ...particles].forEach(
-			(particle) => {
-				renderParticle(ctx, particle);
-			}
-		);
+		// Render particles in batches for better performance
+		if (stampParticles.length > 0) {
+			ctx.save();
+			stampParticles.forEach((particle) => renderParticle(ctx, particle));
+			ctx.restore();
+		}
+
+		if (preDrawnParticles.length > 0) {
+			ctx.save();
+			preDrawnParticles.forEach((particle) => renderParticle(ctx, particle));
+			ctx.restore();
+		}
+
+		if (particles.length > 0) {
+			ctx.save();
+			particles.forEach((particle) => renderParticle(ctx, particle));
+			ctx.restore();
+		}
 
 		// Draw magnets last
-		renderMagnets();
+		if (magnets.length > 0) {
+			renderMagnets();
+		}
 	}
 
 	function handleMousemove(event) {
-		if (!hasMouseMoved) {
-			hasMouseMoved = true;
-			gsap.to(window, {
-				duration: 0.4,
-				ease: 'power2.out',
-				onUpdate: () => {
-					cursorOpacity = gsap.getProperty(window, 'cursorOpacity') || 1;
-				},
-				cursorOpacity: 1,
-			});
-		}
-
 		m.x = event.clientX;
 		m.y = event.clientY;
 
@@ -1009,13 +1024,7 @@
 	on:mouseup={handleMouseup}
 />
 
-<div class="header">
-	<img src={menuBtn} alt="Menu" class="header-btn" />
-	<img src={cvBtn} alt="CV" class="header-btn" />
-</div>
-
 <div class="canvas-container" bind:this={canvasContainer}>
-	<!-- svelte-ignore element_invalid_self_closing_tag -->
 	<canvas
 		bind:this={canvas}
 		on:pointerdown={handlePointerDown}
@@ -1023,7 +1032,6 @@
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
 	/>
-	<img src={scrollToExplore} alt="Scroll to explore" class="scroll-indicator" />
 </div>
 
 <div
@@ -1061,25 +1069,6 @@
 		cursor: none; /* Hide the default cursor */
 	}
 
-	.header {
-		position: fixed;
-		top: 40px;
-		left: 0;
-		right: 0;
-		height: 7.5vh;
-		display: flex;
-		justify-content: space-between;
-		padding: 0 3.5rem;
-		z-index: 1000;
-	}
-
-	.header-btn {
-		height: 100%;
-		width: auto;
-		cursor: pointer;
-		object-fit: contain;
-	}
-
 	.canvas-container {
 		position: fixed;
 		top: 0;
@@ -1099,8 +1088,11 @@
 	}
 
 	canvas {
-		display: block;
+		position: fixed;
+		top: 0;
+		left: 0;
 		width: 100%;
 		height: 100%;
+		touch-action: none;
 	}
 </style>
