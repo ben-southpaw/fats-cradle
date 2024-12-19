@@ -32,8 +32,8 @@
 		whiteParticleProbability: 0.3,
 		targetFPS: 60,
 		hexagonSpacing: 2 * 3, // Size * multiplier
-		hexagonAvoidanceDistance: 0.75, // Slightly stronger for drawn elements
-		predrawnAvoidanceDistance: 0.3, // More subtle for predrawn elements
+		hexagonAvoidanceDistance: 0.5, // Slightly stronger for drawn elements
+		predrawnAvoidanceDistance: 0.4, // More subtle for predrawn elements
 		stampAvoidanceDistance: 0.5, // Stamp elements
 		hexagonLineWidth: 0.5, // Width of the hexagon line effect
 		initialStampOpacity: 0.95, // Darker initial stamps
@@ -41,12 +41,12 @@
 		initialStampDensity: {
 			// Higher density for initial stamps
 			edge: 2.5,
-			fill: 1.2,
+			fill: 2.8,
 		},
 		subsequentStampDensity: {
 			// Lower density for subsequent stamps
 			edge: 1.8,
-			fill: 0.7,
+			fill: 1.5,
 		},
 	};
 
@@ -1376,7 +1376,6 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="canvas-container"
-	bind:this={canvasContainer}
 	on:mouseenter={handleCanvasMouseEnter}
 	on:mouseleave={handleCanvasMouseLeave}
 >
