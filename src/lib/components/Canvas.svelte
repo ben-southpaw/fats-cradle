@@ -38,14 +38,16 @@
 		hexagonLineWidth: 0.5, // Width of the hexagon line effect
 		initialStampOpacity: 0.95, // Darker initial stamps
 		subsequentStampOpacity: 0.6, // Lighter subsequent stamps
-		initialStampDensity: { // Higher density for initial stamps
+		initialStampDensity: {
+			// Higher density for initial stamps
 			edge: 2.5,
-			fill: 1.2
+			fill: 1.2,
 		},
-		subsequentStampDensity: { // Lower density for subsequent stamps
+		subsequentStampDensity: {
+			// Lower density for subsequent stamps
 			edge: 1.8,
-			fill: 0.7
-		}
+			fill: 0.7,
+		},
 	};
 
 	const FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
@@ -97,7 +99,7 @@
 			const gridX = Math.floor(x / this.cellSize);
 			const gridY = Math.floor(y / this.cellSize);
 			const keys = [];
-			
+
 			// Get 9 neighboring cells (including current cell)
 			for (let i = -1; i <= 1; i++) {
 				for (let j = -1; j <= 1; j++) {
@@ -132,7 +134,7 @@
 		queryParticles(x, y, radius) {
 			const nearbyParticles = new Set();
 			const neighborKeys = this.getNeighborKeys(x, y);
-			
+
 			for (const key of neighborKeys) {
 				const cell = this.grid.get(key);
 				if (cell) {
@@ -327,7 +329,7 @@
 	// Shared particle creation function
 	function createParticle(x, y, isStampParticle = false, isPredrawn = false) {
 		const angle = Math.random() * Math.PI * 2;
-		
+
 		// Apply noise at creation time instead of render time
 		let finalX = x;
 		let finalY = y;
@@ -620,7 +622,7 @@
 		if (magnet.isStamping) {
 			return;
 		}
-		
+
 		magnet.isStamping = true;
 
 		const tempCanvas = document.createElement('canvas');
@@ -656,13 +658,15 @@
 
 		const points = [];
 		const alphaThreshold = 100;
-		
+
 		// Determine if this is the initial stamp for this magnet
-		const isInitialStamp = !stampParticles.some(p => p.magnetId === magnet.id);
-		
+		const isInitialStamp = !stampParticles.some(
+			(p) => p.magnetId === magnet.id
+		);
+
 		// Use different densities based on whether this is the initial stamp
-		const particleDensity = isInitialStamp 
-			? CONFIG.initialStampDensity 
+		const particleDensity = isInitialStamp
+			? CONFIG.initialStampDensity
 			: CONFIG.subsequentStampDensity;
 
 		const particleSize = {
@@ -678,7 +682,11 @@
 		// Function to check if a point already has a stamp nearby using spatial grid
 		const proximityThreshold = 1.5;
 		function hasNearbyStamp(x, y) {
-			const nearbyParticles = spatialGrid.queryParticles(x, y, proximityThreshold);
+			const nearbyParticles = spatialGrid.queryParticles(
+				x,
+				y,
+				proximityThreshold
+			);
 			return nearbyParticles.size > 0;
 		}
 
@@ -732,9 +740,11 @@
 		points.forEach((point) => {
 			const particle = createParticle(point.x, point.y, true);
 			particle.magnetId = magnet.id;
-			particle.opacity = isInitialStamp ? CONFIG.initialStampOpacity : CONFIG.subsequentStampOpacity;
+			particle.opacity = isInitialStamp
+				? CONFIG.initialStampOpacity
+				: CONFIG.subsequentStampOpacity;
 			stampParticles.push(particle);
-			spatialGrid.addParticle(particle);  // Add to spatial grid
+			spatialGrid.addParticle(particle); // Add to spatial grid
 		});
 
 		// Reset the stamping flag after a delay
@@ -894,10 +904,11 @@
 
 					// Set color and opacity
 					const color = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
-					const r = parseInt(color.slice(1,3), 16);
-					const g = parseInt(color.slice(3,5), 16);
-					const b = parseInt(color.slice(5,7), 16);
-					const finalOpacity = particle.opacity !== undefined ? particle.opacity : opacity;
+					const r = parseInt(color.slice(1, 3), 16);
+					const g = parseInt(color.slice(3, 5), 16);
+					const b = parseInt(color.slice(5, 7), 16);
+					const finalOpacity =
+						particle.opacity !== undefined ? particle.opacity : opacity;
 					ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${finalOpacity})`;
 
 					ctx.save();
