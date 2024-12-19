@@ -69,41 +69,119 @@
 
 	let cursorElement;
 	let m = { x: 0, y: 0 };
-	let cursorVisible = true;
+	let cursorOpacity = 0;
 
-	// Function to handle cursor visibility
-	function fadeOutCursor() {
-		if (!cursorElement) return;
-		cursorVisible = false;
-		gsap.to(cursorElement, {
-			opacity: 0,
-			duration: 0.2,
-			ease: 'power2.out',
-			onComplete: () => {
-				if (!cursorVisible) {
-					cursorElement.style.display = 'none';
+	let lastMouseX = 0;
+	let lastMouseY = 0;
+	let mouseVelocityX = 0;
+	let mouseVelocityY = 0;
+
+	let magnets = [];
+	let magnetImages = {};
+	let selectedMagnetIndex = -1; // Track the original index of selected magnet
+
+	// Add spatial hash grid system
+	class SpatialHashGrid {
+		constructor(cellSize) {
+			this.cellSize = cellSize;
+			this.grid = new Map();
+		}
+
+		// Get grid cell key for a position
+		getCellKey(x, y) {
+			const gridX = Math.floor(x / this.cellSize);
+			const gridY = Math.floor(y / this.cellSize);
+			return `${gridX},${gridY}`;
+		}
+
+		// Get all neighboring cell keys
+		getNeighborKeys(x, y) {
+			const gridX = Math.floor(x / this.cellSize);
+			const gridY = Math.floor(y / this.cellSize);
+			const keys = [];
+
+			// Get 9 neighboring cells (including current cell)
+			for (let i = -1; i <= 1; i++) {
+				for (let j = -1; j <= 1; j++) {
+					keys.push(`${gridX + i},${gridY + j}`);
 				}
 			}
-		});
+			return keys;
+		}
+
+		// Add particle to grid
+		addParticle(particle) {
+			const key = this.getCellKey(particle.x, particle.y);
+			if (!this.grid.has(key)) {
+				this.grid.set(key, new Set());
+			}
+			this.grid.get(key).add(particle);
+		}
+
+		// Remove particle from grid
+		removeParticle(particle) {
+			const key = this.getCellKey(particle.x, particle.y);
+			const cell = this.grid.get(key);
+			if (cell) {
+				cell.delete(particle);
+				if (cell.size === 0) {
+					this.grid.delete(key);
+				}
+			}
+		}
+
+		// Query particles in proximity
+		queryParticles(x, y, radius) {
+			const nearbyParticles = new Set();
+			const neighborKeys = this.getNeighborKeys(x, y);
+
+			for (const key of neighborKeys) {
+				const cell = this.grid.get(key);
+				if (cell) {
+					for (const particle of cell) {
+						const dx = particle.x - x;
+						const dy = particle.y - y;
+						const distSq = dx * dx + dy * dy;
+						if (distSq < radius * radius) {
+							nearbyParticles.add(particle);
+						}
+					}
+				}
+			}
+			return nearbyParticles;
+		}
+
+		// Clear all particles
+		clear() {
+			this.grid.clear();
+		}
 	}
 
-	function fadeInCursor() {
-		if (!cursorElement) return;
-		cursorVisible = true;
-		cursorElement.style.display = 'block';
-		gsap.to(cursorElement, {
-			opacity: 1,
-			duration: 0.2,
-			ease: 'power2.out'
-		});
+	// Initialize spatial hash grid with cell size slightly larger than proximity threshold
+	const spatialGrid = new SpatialHashGrid(2);
+
+	function bringMagnetToFront(magnet) {
+		// Remove the magnet from its current position
+		const magnetIndex = magnets.indexOf(magnet);
+		if (magnetIndex > -1) {
+			magnets.splice(magnetIndex, 1);
+			// Add it to the end of the array (top of render stack)
+			magnets.push(magnet);
+		}
+		scheduleRender();
 	}
 
-	function handleCanvasMouseLeave() {
-		fadeOutCursor();
-	}
+	function restoreMagnetPosition(magnet, originalIndex) {
+		if (originalIndex === -1) return;
 
-	function handleCanvasMouseEnter() {
-		fadeInCursor();
+		// Remove the magnet from its current position
+		const magnetIndex = magnets.indexOf(magnet);
+		if (magnetIndex > -1) {
+			magnets.splice(magnetIndex, 1);
+			// Insert it back at its original position
+			magnets.splice(originalIndex, 0, magnet);
+		}
+		scheduleRender();
 	}
 
 	// Initialize the canvas and set up event listeners
@@ -209,10 +287,10 @@
 			// Draw each hexagon
 			for (let row = 0; row < rows; row++) {
 				const isOddRow = row % 2 === 1;
-				const colAdjustment = isOddRow ? 0.5 : 0;
+				const offsetX = isOddRow ? width / 2 : 0;
 
 				for (let col = -1; col < columns; col++) {
-					const x = col * width + (isOddRow ? width / 2 : 0);
+					const x = col * width + offsetX;
 					const y = row * verticalSpacing;
 					drawHexagon(ctx, x, y, size);
 				}
@@ -716,17 +794,16 @@
 		}
 	}
 
-	let magnets = [];
-	let magnetImages = {};
-	let selectedMagnetIndex = -1; // Track the original index of selected magnet
-
 	function initializeMagnets() {
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
 		const totalWidth = window.innerWidth * 0.4;
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (window.innerWidth - totalWidth) / 2;
+
+		// Compensate for the rightward shift from letter offsets
 		const groupOffset = window.innerWidth * -0.02; // Shift everything left by 2vw to recenter
 
+		// Calculate a consistent visual height
 		const targetHeight = window.innerHeight * 0.18; // 18vh base size
 
 		magnets = letters.map((letter, index) => {
@@ -1097,11 +1174,6 @@
 	}
 
 	// Handle mouse events
-	let lastMouseX = 0;
-	let lastMouseY = 0;
-	let mouseVelocityX = 0;
-	let mouseVelocityY = 0;
-
 	function handleMousemove(event) {
 		m.x = event.clientX;
 		m.y = event.clientY;
@@ -1286,108 +1358,29 @@
 		return null; // No free space found
 	}
 
-	// Add spatial hash grid system
-	class SpatialHashGrid {
-		constructor(cellSize) {
-			this.cellSize = cellSize;
-			this.grid = new Map();
-		}
-
-		// Get grid cell key for a position
-		getCellKey(x, y) {
-			const gridX = Math.floor(x / this.cellSize);
-			const gridY = Math.floor(y / this.cellSize);
-			return `${gridX},${gridY}`;
-		}
-
-		// Get all neighboring cell keys
-		getNeighborKeys(x, y) {
-			const gridX = Math.floor(x / this.cellSize);
-			const gridY = Math.floor(y / this.cellSize);
-			const keys = [];
-
-			// Get 9 neighboring cells (including current cell)
-			for (let i = -1; i <= 1; i++) {
-				for (let j = -1; j <= 1; j++) {
-					keys.push(`${gridX + i},${gridY + j}`);
-				}
-			}
-			return keys;
-		}
-
-		// Add particle to grid
-		addParticle(particle) {
-			const key = this.getCellKey(particle.x, particle.y);
-			if (!this.grid.has(key)) {
-				this.grid.set(key, new Set());
-			}
-			this.grid.get(key).add(particle);
-		}
-
-		// Remove particle from grid
-		removeParticle(particle) {
-			const key = this.getCellKey(particle.x, particle.y);
-			const cell = this.grid.get(key);
-			if (cell) {
-				cell.delete(particle);
-				if (cell.size === 0) {
-					this.grid.delete(key);
-				}
-			}
-		}
-
-		// Query particles in proximity
-		queryParticles(x, y, radius) {
-			const nearbyParticles = new Set();
-			const neighborKeys = this.getNeighborKeys(x, y);
-
-			for (const key of neighborKeys) {
-				const cell = this.grid.get(key);
-				if (cell) {
-					for (const particle of cell) {
-						const dx = particle.x - x;
-						const dy = particle.y - y;
-						const distSq = dx * dx + dy * dy;
-						if (distSq < radius * radius) {
-							nearbyParticles.add(particle);
-						}
-					}
-				}
-			}
-			return nearbyParticles;
-		}
-
-		// Clear all particles
-		clear() {
-			this.grid.clear();
-		}
+	// Function to handle cursor visibility
+	function fadeOutCursor() {
+		gsap.to(cursorElement, {
+			opacity: 0,
+			duration: 0.2,
+			ease: 'power2.out',
+		});
 	}
 
-	// Initialize spatial hash grid with cell size slightly larger than proximity threshold
-	const spatialGrid = new SpatialHashGrid(2);
-
-	function bringMagnetToFront(magnet) {
-		// Remove the magnet from its current position
-		const magnetIndex = magnets.indexOf(magnet);
-		if (magnetIndex > -1) {
-			magnets.splice(magnetIndex, 1);
-			// Add it to the end of the array (top of render stack)
-			magnets.push(magnet);
-		}
-		scheduleRender();
+	function fadeInCursor() {
+		gsap.to(cursorElement, {
+			opacity: 1,
+			duration: 0.2,
+			ease: 'power2.out',
+		});
 	}
 
-	function restoreMagnetPosition(magnet, originalIndex) {
-		if (originalIndex === -1) return;
+	function handleCanvasMouseEnter() {
+		cursorOpacity = 1;
+	}
 
-		// Remove the magnet from its current position
-		const magnetIndex = magnets.indexOf(magnet);
-		if (magnetIndex > -1) {
-			magnets.splice(magnetIndex, 1);
-			// Insert it back at its original position
-			magnets.splice(originalIndex, 0, magnet);
-		}
-		scheduleRender();
+	function handleCanvasMouseLeave() {
+		cursorOpacity = 0;
 	}
 </script>
 
@@ -1395,6 +1388,8 @@
 	on:mousemove={handleMousemove}
 	on:mousedown={handleMousedown}
 	on:mouseup={handleMouseup}
+	on:mouseleave={fadeOutCursor}
+	on:mouseenter={fadeInCursor}
 />
 
 <div 
@@ -1409,7 +1404,7 @@
 		on:pointermove={handlePointerMove}
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
-	/>
+	></canvas>
 	<img src={scrollToExplore} alt="scroll to explore" class="scroll-indicator" />
 </div>
 
@@ -1423,7 +1418,7 @@
 		: isHoveringMagnet
 			? cursorHover
 			: cursorDefault}');
-		opacity: 1;
+		opacity: {cursorOpacity};
 		position: fixed;
 		top: 0;
 		left: 0;
