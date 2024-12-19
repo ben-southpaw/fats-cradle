@@ -69,7 +69,7 @@
 
 	let cursorElement;
 	let m = { x: 0, y: 0 };
-	let cursorOpacity = 0;
+	let cursorOpacity = 1;
 
 	let lastMouseX = 0;
 	let lastMouseY = 0;
@@ -1358,23 +1358,6 @@
 		return null; // No free space found
 	}
 
-	// Function to handle cursor visibility
-	function fadeOutCursor() {
-		gsap.to(cursorElement, {
-			opacity: 0,
-			duration: 0.2,
-			ease: 'power2.out',
-		});
-	}
-
-	function fadeInCursor() {
-		gsap.to(cursorElement, {
-			opacity: 1,
-			duration: 0.2,
-			ease: 'power2.out',
-		});
-	}
-
 	function handleCanvasMouseEnter() {
 		cursorOpacity = 1;
 	}
@@ -1388,12 +1371,11 @@
 	on:mousemove={handleMousemove}
 	on:mousedown={handleMousedown}
 	on:mouseup={handleMouseup}
-	on:mouseleave={fadeOutCursor}
-	on:mouseenter={fadeInCursor}
 />
 
-<div 
-	class="canvas-container" 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+	class="canvas-container"
 	bind:this={canvasContainer}
 	on:mouseenter={handleCanvasMouseEnter}
 	on:mouseleave={handleCanvasMouseLeave}
@@ -1430,8 +1412,8 @@
 		background-repeat: no-repeat;
 		background-position: center;
 		transform-origin: top left;
-		will-change: transform;
-		transition: background-image 0.1s ease;
+		will-change: transform, opacity;
+		transition: background-image 0.1s ease, opacity 0.2s ease;
 	"
 ></div>
 
