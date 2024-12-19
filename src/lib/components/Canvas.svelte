@@ -1400,19 +1400,6 @@
 			? cursorHover
 			: cursorDefault}');
 		opacity: {cursorOpacity};
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 28px;
-		height: 28px;
-		pointer-events: none;
-		z-index: 9999;
-		background-size: contain;
-		background-repeat: no-repeat;
-		background-position: center;
-		transform-origin: top left;
-		will-change: transform, opacity;
-		transition: background-image 0.1s ease, opacity 0.2s ease;
 	"
 ></div>
 
@@ -1450,5 +1437,23 @@
 		width: 100%;
 		height: 100%;
 		touch-action: none;
+	}
+
+	.custom-cursor {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 28px;
+		height: 28px;
+		pointer-events: none;
+		z-index: 9999;
+		background-size: contain;
+		background-repeat: no-repeat;
+		background-position: center;
+		transform-origin: top left;
+		will-change: transform, opacity;
+		transition:
+			background-image 0.1s ease,
+			opacity 0.2s ease;
 	}
 </style>
