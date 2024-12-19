@@ -17,34 +17,28 @@
 	let pendingRender = false;
 	let lastRenderTime = 0;
 	const CONFIG = {
-		particleSize: 0.3,
 		particleDensity: 15,
 		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
-		gridColor: '#DADADA', // Lighter grid color
+		gridColor: '#DADADA',
 		hexagonSize: 2,
 		particleLength: 6,
 		particleWidth: 0.3,
 		particleColor: '#333333',
 		preDrawnParticleSize: 1.0,
-		preDrawnDensity: 40,
 		preDrawnColor: '#333333',
 		whiteParticleProbability: 0.3,
 		targetFPS: 60,
-		hexagonSpacing: 2 * 3, // Size * multiplier
-		hexagonAvoidanceDistance: 0.5, // Slightly stronger for drawn elements
-		predrawnAvoidanceDistance: 0.4, // More subtle for predrawn elements
-		stampAvoidanceDistance: 0.5, // Stamp elements
-		hexagonLineWidth: 0.5, // Width of the hexagon line effect
-		initialStampOpacity: 0.95, // Darker initial stamps
-		subsequentStampOpacity: 0.6, // Lighter subsequent stamps
+		hexagonAvoidanceDistance: 0.5,
+		predrawnAvoidanceDistance: 0.4,
+		stampAvoidanceDistance: 0.5,
+		initialStampOpacity: 0.95,
+		subsequentStampOpacity: 0.6,
 		initialStampDensity: {
-			// Higher density for initial stamps
 			edge: 2.5,
 			fill: 2.8,
 		},
 		subsequentStampDensity: {
-			// Lower density for subsequent stamps
 			edge: 1.8,
 			fill: 1.5,
 		},
@@ -59,8 +53,6 @@
 	let particles = [];
 	let stampParticles = []; // For magnet stamps
 	let preDrawnParticles = []; // For pre-drawn elements
-	let lastX = null;
-	let lastY = null;
 	let selectedMagnet = null;
 	let isDraggingMagnet = false;
 	let isHoveringMagnet = false;
@@ -73,8 +65,6 @@
 
 	let lastMouseX = 0;
 	let lastMouseY = 0;
-	let mouseVelocityX = 0;
-	let mouseVelocityY = 0;
 
 	let magnets = [];
 	let magnetImages = {};
@@ -523,8 +513,6 @@
 
 			lastMouseX = e.clientX;
 			lastMouseY = e.clientY;
-			mouseVelocityX = 0;
-			mouseVelocityY = 0;
 		} else {
 			shouldDraw = false;
 		}
@@ -555,47 +543,42 @@
 			});
 		}
 		shouldDraw = true;
-		// Reset last positions to prevent line connecting to previous position
-		lastX = null;
-		lastY = null;
 	}
 
 	function handlePointerMove(e) {
 		const pos = getPointerPos(e);
 
 		if (isDraggingMagnet && selectedMagnet) {
-			updateMouseVelocity(e);
 			selectedMagnet.x = e.clientX + selectedMagnet.grabOffsetX;
 			selectedMagnet.y = e.clientY + selectedMagnet.grabOffsetY;
 
-			// Calculate rotation based on movement velocity
-			const velocityRotation = mouseVelocityX * 0.5; // Adjust multiplier for sensitivity
-			const targetRotation = Math.max(Math.min(velocityRotation, 25), -25); // Clamp between -25 and 25 degrees
+			// Calculate rotation based on movement direction
+			if (Math.abs(e.clientX - lastMouseX) > 1) {
+				const moveDirection = e.clientX - lastMouseX;
+				const targetRotation = Math.max(Math.min(moveDirection * 0.5, 25), -25); // Clamp between -25 and 25 degrees
 
-			gsap.to(selectedMagnet, {
-				rotation: targetRotation,
-				duration: 0.3,
-				ease: 'power1.out',
-			});
+				gsap.to(selectedMagnet, {
+					rotation: targetRotation,
+					duration: 0.3,
+					ease: 'power1.out',
+				});
+			}
+
+			lastMouseX = e.clientX;
+			lastMouseY = e.clientY;
 
 			scheduleRender();
 		} else if (shouldDraw) {
-			if (lastX === null || lastY === null) {
-				lastX = pos.x;
-				lastY = pos.y;
-				return;
-			}
-			generateParticles(lastX, lastY, pos.x, pos.y);
+			generateParticles(lastMouseX, lastMouseY, pos.x, pos.y);
 			scheduleRender();
-			lastX = pos.x;
-			lastY = pos.y;
+			lastMouseX = pos.x;
+			lastMouseY = pos.y;
 		}
 	}
 
 	function handlePointerLeave(e) {
-		const pos = getPointerPos(e);
-		lastX = pos.x;
-		lastY = pos.y;
+		lastMouseX = e.clientX;
+		lastMouseY = e.clientY;
 	}
 
 	function findClickedMagnet(pos) {
@@ -994,7 +977,7 @@
 	// Function to create particles along a path
 	function createParticlesAlongPath(points, options = {}) {
 		const defaultOptions = {
-			particleSize: CONFIG.particleSize,
+			particleSize: CONFIG.particleLength,
 			density: CONFIG.particleDensity,
 			randomOffset: CONFIG.lineWidth * 0.3,
 		};
@@ -1213,8 +1196,6 @@
 			selectedMagnet.grabOffsetY = hoveredMagnet.y - e.clientY;
 			lastMouseX = e.clientX;
 			lastMouseY = e.clientY;
-			mouseVelocityX = 0;
-			mouseVelocityY = 0;
 			// Create initial stamp before scaling up
 			createMagnetStamp(hoveredMagnet);
 			// Scale up animation on pickup
@@ -1287,19 +1268,6 @@
 
 			selectedMagnet = null;
 		}
-	}
-
-	function updateMouseVelocity(e) {
-		if (!lastMouseX || !lastMouseY) {
-			lastMouseX = e.clientX;
-			lastMouseY = e.clientY;
-			return;
-		}
-
-		mouseVelocityX = e.clientX - lastMouseX;
-		mouseVelocityY = e.clientY - lastMouseY;
-		lastMouseX = e.clientX;
-		lastMouseY = e.clientY;
 	}
 
 	function checkCollision(magnet1, magnet2) {
