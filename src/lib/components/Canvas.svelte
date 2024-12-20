@@ -17,28 +17,34 @@
 	let pendingRender = false;
 	let lastRenderTime = 0;
 	const CONFIG = {
+		particleSize: 0.3,
 		particleDensity: 15,
 		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
-		gridColor: '#DADADA',
+		gridColor: '#DADADA', // Lighter grid color
 		hexagonSize: 2,
 		particleLength: 6,
 		particleWidth: 0.3,
 		particleColor: '#333333',
 		preDrawnParticleSize: 1.0,
+		preDrawnDensity: 40,
 		preDrawnColor: '#333333',
 		whiteParticleProbability: 0.3,
 		targetFPS: 60,
-		hexagonAvoidanceDistance: 0.5,
-		predrawnAvoidanceDistance: 0.4,
-		stampAvoidanceDistance: 0.5,
-		initialStampOpacity: 0.95,
-		subsequentStampOpacity: 0.6,
+		hexagonSpacing: 2 * 3, // Size * multiplier
+		hexagonAvoidanceDistance: 0.5, // Slightly stronger for drawn elements
+		predrawnAvoidanceDistance: 0.4, // More subtle for predrawn elements
+		stampAvoidanceDistance: 0.5, // Stamp elements
+		hexagonLineWidth: 0.5, // Width of the hexagon line effect
+		initialStampOpacity: 0.95, // Darker initial stamps
+		subsequentStampOpacity: 0.6, // Lighter subsequent stamps
 		initialStampDensity: {
+			// Higher density for initial stamps
 			edge: 2.5,
 			fill: 2.8,
 		},
 		subsequentStampDensity: {
+			// Lower density for subsequent stamps
 			edge: 1.8,
 			fill: 1.5,
 		},
@@ -53,6 +59,8 @@
 	let particles = [];
 	let stampParticles = []; // For magnet stamps
 	let preDrawnParticles = []; // For pre-drawn elements
+	let lastX = null;
+	let lastY = null;
 	let selectedMagnet = null;
 	let isDraggingMagnet = false;
 	let isHoveringMagnet = false;
@@ -65,6 +73,8 @@
 
 	let lastMouseX = 0;
 	let lastMouseY = 0;
+	let mouseVelocityX = 0;
+	let mouseVelocityY = 0;
 
 	let magnets = [];
 	let magnetImages = {};
@@ -458,8 +468,6 @@
 	const CURSOR_OFFSET_Y = 0.42; // Keep Y offset the same
 
 	function getPointerPos(e) {
-		if (!canvas) return { x: 0, y: 0 };
-
 		const rect = canvas.getBoundingClientRect();
 		// Convert rem to pixels using current root font size
 		const remToPx = parseFloat(
@@ -489,156 +497,105 @@
 	}
 
 	// Handle mouse/touch events
-	function handlePointerMove(e) {
-		const pos = getPointerPos(e);
-		m.x = e.clientX;
-		m.y = e.clientY;
-
-		// Check if hovering over any magnet
-		if (canvas) {
-			const rect = canvas.getBoundingClientRect();
-			const x = e.clientX - rect.left;
-			const y = e.clientY - rect.top;
-
-			isHoveringMagnet = magnets.some((magnet) => {
-				const magnetBounds = {
-					left: magnet.x - 10,
-					right: magnet.x + magnet.width + 10,
-					top: magnet.y - 10,
-					bottom: magnet.y + magnet.height + 10,
-				};
-
-				return (
-					x >= magnetBounds.left &&
-					x <= magnetBounds.right &&
-					y >= magnetBounds.top &&
-					y <= magnetBounds.bottom
-				);
-			});
-			hoveredMagnet = findClickedMagnet({ x, y });
-		}
-
-		if (isDraggingMagnet && selectedMagnet) {
-			selectedMagnet.x = e.clientX + selectedMagnet.grabOffsetX;
-			selectedMagnet.y = e.clientY + selectedMagnet.grabOffsetY;
-
-			// Calculate rotation based on movement direction
-			if (Math.abs(e.clientX - lastMouseX) > 1) {
-				const moveDirection = e.clientX - lastMouseX;
-				const targetRotation = Math.max(Math.min(moveDirection * 0.5, 25), -25);
-
-				gsap.to(selectedMagnet, {
-					rotation: targetRotation,
-					duration: 0.3,
-					ease: 'power1.out',
-				});
-			}
-
-			lastMouseX = e.clientX;
-			lastMouseY = e.clientY;
-
-			scheduleRender();
-		} else if (shouldDraw) {
-			generateParticles(lastMouseX, lastMouseY, pos.x, pos.y);
-			scheduleRender();
-			lastMouseX = pos.x;
-			lastMouseY = pos.y;
-		}
-	}
-
 	function handlePointerDown(e) {
 		shouldDraw = false;
-		isClicking = true;
 		const pos = getPointerPos(e);
+		const x = pos.x;
+		const y = pos.y;
+		// Check if clicking on a magnet first
+		const clickedMagnet = findClickedMagnet(pos);
 
-		if (isHoveringMagnet && hoveredMagnet) {
+		if (clickedMagnet) {
+			// Start magnet drag
 			isDraggingMagnet = true;
-			selectedMagnet = hoveredMagnet;
-			selectedMagnet.grabOffsetX = hoveredMagnet.x - e.clientX;
-			selectedMagnet.grabOffsetY = hoveredMagnet.y - e.clientY;
-			lastMouseX = e.clientX;
-			lastMouseY = e.clientY;
-			
-			// Create initial stamp before scaling up
-			createMagnetStamp(hoveredMagnet);
-			// Scale up animation on pickup
+			selectedMagnet = clickedMagnet;
+			selectedMagnet.isPickedUp = true;
+			selectedMagnetIndex = magnets.indexOf(clickedMagnet);
+			bringMagnetToFront(clickedMagnet);
+
+			// Animate scale up
 			gsap.to(selectedMagnet, {
 				scale: 1.1,
 				duration: 0.2,
 				ease: 'power2.out',
+				onUpdate: () => scheduleRender(),
 			});
+
+			lastMouseX = e.clientX;
+			lastMouseY = e.clientY;
+			mouseVelocityX = 0;
+			mouseVelocityY = 0;
+		} else {
+			shouldDraw = false;
 		}
 	}
 
 	function handlePointerUp(e) {
-		shouldDraw = true;
-		isClicking = false;
-
 		if (isDraggingMagnet && selectedMagnet) {
-			const droppedMagnet = selectedMagnet;
-			isDraggingMagnet = false;
-			const finalX = e.clientX + droppedMagnet.grabOffsetX;
-			const finalY = e.clientY + droppedMagnet.grabOffsetY;
-			const finalRotation = Math.round(droppedMagnet.rotation / 5) * 5;
+			const magnet = selectedMagnet;
+			// Keep the magnet exactly where it is
+			magnet.x = e.clientX + magnet.grabOffsetX;
+			magnet.y = e.clientY + magnet.grabOffsetY;
 
-			// Check for collisions with other magnets
-			let collidedMagnet = null;
-			for (const other of magnets) {
-				if (other === droppedMagnet) continue;
-				if (
-					checkCollision(
-						{
-							x: finalX,
-							y: finalY,
-							width: droppedMagnet.width,
-							height: droppedMagnet.height,
-						},
-						other
-					)
-				) {
-					collidedMagnet = other;
-					break;
-				}
-			}
-
-			if (collidedMagnet) {
-				// Find free space for the bottom magnet
-				const newPosition = findFreeSpace(collidedMagnet, magnets);
-				if (newPosition) {
-					// Move the bottom magnet with more subtle animation
-					gsap.to(collidedMagnet, {
-						x: newPosition.x,
-						y: newPosition.y,
-						duration: 0.4,
-						ease: 'power2.out',
-						onUpdate: () => scheduleRender(),
-					});
-				}
-			}
-
-			// Animate position, rotation, and scale together
-			gsap.to(droppedMagnet, {
-				x: finalX,
-				y: finalY,
-				rotation: finalRotation,
-				scale: 1.0,
-				duration: 0.2,
-				ease: 'power2.out',
+			gsap.to(magnet, {
+				scale: 1,
+				duration: 0.6,
+				ease: 'power3.out',
+				onUpdate: () => scheduleRender(),
 				onComplete: () => {
-					createMagnetStamp(droppedMagnet);
+					magnet.isPickedUp = false;
+					isDraggingMagnet = false;
+					// Create stamp after animation completes with final position
+					createMagnetStamp(magnet);
+					restoreMagnetPosition(magnet, selectedMagnetIndex);
+					selectedMagnet = null;
+					selectedMagnetIndex = -1;
 					scheduleRender();
 				},
 			});
+		}
+		shouldDraw = true;
+		// Reset last positions to prevent line connecting to previous position
+		lastX = null;
+		lastY = null;
+	}
 
-			selectedMagnet = null;
+	function handlePointerMove(e) {
+		const pos = getPointerPos(e);
+
+		if (isDraggingMagnet && selectedMagnet) {
+			updateMouseVelocity(e);
+			selectedMagnet.x = e.clientX + selectedMagnet.grabOffsetX;
+			selectedMagnet.y = e.clientY + selectedMagnet.grabOffsetY;
+
+			// Calculate rotation based on movement velocity
+			const velocityRotation = mouseVelocityX * 0.5; // Adjust multiplier for sensitivity
+			const targetRotation = Math.max(Math.min(velocityRotation, 25), -25); // Clamp between -25 and 25 degrees
+
+			gsap.to(selectedMagnet, {
+				rotation: targetRotation,
+				duration: 0.3,
+				ease: 'power1.out',
+			});
+
+			scheduleRender();
+		} else if (shouldDraw) {
+			if (lastX === null || lastY === null) {
+				lastX = pos.x;
+				lastY = pos.y;
+				return;
+			}
+			generateParticles(lastX, lastY, pos.x, pos.y);
+			scheduleRender();
+			lastX = pos.x;
+			lastY = pos.y;
 		}
 	}
 
 	function handlePointerLeave(e) {
-		shouldDraw = true;
-		lastMouseX = e.clientX;
-		lastMouseY = e.clientY;
-		cursorOpacity = 0;
+		const pos = getPointerPos(e);
+		lastX = pos.x;
+		lastY = pos.y;
 	}
 
 	function findClickedMagnet(pos) {
@@ -1037,7 +994,7 @@
 	// Function to create particles along a path
 	function createParticlesAlongPath(points, options = {}) {
 		const defaultOptions = {
-			particleSize: CONFIG.particleLength,
+			particleSize: CONFIG.particleSize,
 			density: CONFIG.particleDensity,
 			randomOffset: CONFIG.lineWidth * 0.3,
 		};
@@ -1217,6 +1174,190 @@
 	}
 
 	// Handle mouse events
+	function handleMousemove(event) {
+		m.x = event.clientX;
+		m.y = event.clientY;
+
+		// Check if hovering over any magnet
+		if (canvas) {
+			const rect = canvas.getBoundingClientRect();
+			const x = event.clientX - rect.left;
+			const y = event.clientY - rect.top;
+
+			isHoveringMagnet = magnets.some((magnet) => {
+				const magnetBounds = {
+					left: magnet.x - 10, // Add some padding for easier hovering
+					right: magnet.x + magnet.width + 10,
+					top: magnet.y - 10,
+					bottom: magnet.y + magnet.height + 10,
+				};
+
+				return (
+					x >= magnetBounds.left &&
+					x <= magnetBounds.right &&
+					y >= magnetBounds.top &&
+					y <= magnetBounds.bottom
+				);
+			});
+			hoveredMagnet = findClickedMagnet({ x, y });
+		}
+	}
+
+	function handleMousedown(e) {
+		isClicking = true;
+
+		if (isHoveringMagnet && hoveredMagnet) {
+			isDraggingMagnet = true;
+			selectedMagnet = hoveredMagnet;
+			selectedMagnet.grabOffsetX = hoveredMagnet.x - e.clientX;
+			selectedMagnet.grabOffsetY = hoveredMagnet.y - e.clientY;
+			lastMouseX = e.clientX;
+			lastMouseY = e.clientY;
+			mouseVelocityX = 0;
+			mouseVelocityY = 0;
+			// Create initial stamp before scaling up
+			createMagnetStamp(hoveredMagnet);
+			// Scale up animation on pickup
+			gsap.to(selectedMagnet, {
+				scale: 1.1,
+				duration: 0.2,
+				ease: 'power2.out',
+			});
+		}
+	}
+
+	function handleMouseup(e) {
+		isClicking = false;
+
+		if (isDraggingMagnet && selectedMagnet) {
+			const droppedMagnet = selectedMagnet;
+			isDraggingMagnet = false;
+			const finalX = e.clientX + droppedMagnet.grabOffsetX;
+			const finalY = e.clientY + droppedMagnet.grabOffsetY;
+			const finalRotation = Math.round(droppedMagnet.rotation / 5) * 5;
+
+			// Check for collisions with other magnets
+			let collidedMagnet = null;
+			for (const other of magnets) {
+				if (other === droppedMagnet) continue;
+				if (
+					checkCollision(
+						{
+							x: finalX,
+							y: finalY,
+							width: droppedMagnet.width,
+							height: droppedMagnet.height,
+						},
+						other
+					)
+				) {
+					collidedMagnet = other;
+					break;
+				}
+			}
+
+			if (collidedMagnet) {
+				// Find free space for the bottom magnet
+				const newPosition = findFreeSpace(collidedMagnet, magnets);
+				if (newPosition) {
+					// Move the bottom magnet with more subtle animation
+					gsap.to(collidedMagnet, {
+						x: newPosition.x,
+						y: newPosition.y,
+						duration: 0.4,
+						ease: 'power2.out',
+						onUpdate: () => scheduleRender(),
+					});
+				}
+			}
+
+			// Animate position, rotation, and scale together
+			gsap.to(droppedMagnet, {
+				x: finalX,
+				y: finalY,
+				rotation: finalRotation,
+				scale: 1.0,
+				duration: 0.2,
+				ease: 'power2.out',
+				onComplete: () => {
+					createMagnetStamp(droppedMagnet);
+					scheduleRender();
+				},
+			});
+
+			selectedMagnet = null;
+		}
+	}
+
+	function updateMouseVelocity(e) {
+		if (!lastMouseX || !lastMouseY) {
+			lastMouseX = e.clientX;
+			lastMouseY = e.clientY;
+			return;
+		}
+
+		mouseVelocityX = e.clientX - lastMouseX;
+		mouseVelocityY = e.clientY - lastMouseY;
+		lastMouseX = e.clientX;
+		lastMouseY = e.clientY;
+	}
+
+	function checkCollision(magnet1, magnet2) {
+		return !(
+			magnet1.x > magnet2.x + magnet2.width ||
+			magnet1.x + magnet1.width < magnet2.x ||
+			magnet1.y > magnet2.y + magnet2.height ||
+			magnet1.y + magnet1.height < magnet2.y
+		);
+	}
+
+	function remToPixels(rem) {
+		return (
+			rem * parseFloat(getComputedStyle(document.documentElement).fontSize)
+		);
+	}
+
+	function findFreeSpace(magnet, otherMagnets) {
+		const spacingRem = 0.2; // Work with rem values directly
+		let x = magnet.x;
+		let y = magnet.y;
+		let radiusRem = spacingRem;
+		let angle = 0;
+
+		while (radiusRem < 25) {
+			// Keep using rem values for the radius check
+			// Convert rem to pixels only for the actual position calculation
+			const radiusPixels = remToPixels(radiusRem);
+			x = magnet.x + radiusPixels * Math.cos(angle);
+			y = magnet.y + radiusPixels * Math.sin(angle);
+
+			// Create temporary magnet at test position
+			const testMagnet = { ...magnet, x, y };
+
+			// Check if this position collides with any other magnet
+			let hasCollision = false;
+			for (const other of otherMagnets) {
+				if (other === magnet) continue;
+				if (checkCollision(testMagnet, other)) {
+					hasCollision = true;
+					break;
+				}
+			}
+
+			if (!hasCollision) {
+				return { x, y };
+			}
+
+			angle += Math.PI / 4; // 45-degree increments
+			if (angle >= Math.PI * 2) {
+				angle = 0;
+				radiusRem += spacingRem; // Increment using rem values
+			}
+		}
+
+		return null; // No free space found
+	}
+
 	function handleCanvasMouseEnter() {
 		cursorOpacity = 1;
 	}
@@ -1227,9 +1368,9 @@
 </script>
 
 <svelte:window
-	on:pointermove={handlePointerMove}
-	on:pointerdown={handlePointerDown}
-	on:pointerup={handlePointerUp}
+	on:mousemove={handleMousemove}
+	on:mousedown={handleMousedown}
+	on:mouseup={handleMouseup}
 />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
