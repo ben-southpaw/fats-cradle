@@ -12,6 +12,7 @@
 	import cursorClick from '$lib/images/glove-clicked-heavy.png?url';
 	import multiText from '$lib/images/multi-text.png';
 	import scrollToExplore from '$lib/images/scrolltoexplore.svg?url';
+	import ThreeScene from './ThreeScene.svelte';
 
 	let animationFrameId = null;
 	let pendingRender = false;
@@ -1365,12 +1366,25 @@
 	function handleCanvasMouseLeave() {
 		cursorOpacity = 0;
 	}
+
+	let threeSceneComponent;
+	let hasTriggeredTransition = false;
+
+	function handleWheel(event) {
+		if (!hasTriggeredTransition && Math.abs(event.deltaY) > 0) {
+			hasTriggeredTransition = true;
+			if (threeSceneComponent) {
+				threeSceneComponent.startTransition();
+			}
+		}
+	}
 </script>
 
 <svelte:window
 	on:mousemove={handleMousemove}
 	on:mousedown={handleMousedown}
 	on:mouseup={handleMouseup}
+	on:wheel={handleWheel}
 />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1402,6 +1416,8 @@
 		opacity: {cursorOpacity};
 	"
 ></div>
+
+<ThreeScene bind:this={threeSceneComponent} />
 
 <style lang="scss">
 	:global(body) {
