@@ -14,13 +14,11 @@ let mixer;
 
 // Animation state
 let isTransitioning = false;
-let currentScale = 0;
-let targetScale = 1;
+let initialModelScale = new THREE.Vector3(3, 3, 3); // Start larger
+let finalModelScale = new THREE.Vector3(1, 1, 1); // End at normal scale
 
 // Model state
 let modelLoaded = false;
-let initialModelScale = new THREE.Vector3(1, 1, 1);
-let finalModelScale = new THREE.Vector3(1.5, 1.5, 1.5);
 
 export function startTransition() {
     if (!modelLoaded) return;
@@ -29,30 +27,25 @@ export function startTransition() {
     // Animation sequence
     const timeline = gsap.timeline();
     
-    // 1. Scale up with rotation
-    timeline.to(model.scale, {
-        x: 2.5,
-        y: 2.5,
-        z: 2.5,
-        duration: 1,
-        ease: "power2.out"
-    });
-    
-    // 2. Rotate while scaling
-    timeline.to(model.rotation, {
-        y: Math.PI * 2,
-        duration: 2,
-        ease: "power1.inOut"
-    }, "-=0.5"); // Start slightly before scale finishes
-    
-    // 3. Scale down to final position
-    timeline.to(model.scale, {
-        x: finalModelScale.x,
-        y: finalModelScale.y,
-        z: finalModelScale.z,
-        duration: 1,
-        ease: "elastic.out(1, 0.5)"
-    });
+    // Fade in while rotating and scaling down
+    timeline
+        .to(container, {
+            opacity: 1,
+            duration: 1.5,
+            ease: "power2.inOut"
+        })
+        .to(model.rotation, {
+            y: model.rotation.y + Math.PI * 2, // Full rotation
+            duration: 2,
+            ease: "power1.inOut"
+        }, 0) // Start at the same time as opacity
+        .to(model.scale, {
+            x: finalModelScale.x,
+            y: finalModelScale.y,
+            z: finalModelScale.z,
+            duration: 2,
+            ease: "power2.inOut"
+        }, 0); // Start at the same time as opacity
 }
 
 onMount(async () => {
@@ -98,6 +91,28 @@ onMount(async () => {
         }
         
         modelLoaded = true;
+        
+        // Start subtle rotation animation
+        const subtleRotate = () => {
+            if (model && !isTransitioning) {
+                model.rotation.y += 0.005;
+            }
+        };
+        
+        // Animation loop
+        const clock = new THREE.Clock();
+        const animate = () => {
+            animationFrameId = requestAnimationFrame(animate);
+            
+            if (mixer) {
+                mixer.update(clock.getDelta());
+            }
+            
+            subtleRotate();
+            renderer.render(scene, camera);
+        };
+        animate();
+        
     } catch (error) {
         console.error('Error loading model:', error);
     }
@@ -109,23 +124,6 @@ onMount(async () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
     };
     window.addEventListener('resize', handleResize);
-    
-    // Animation loop
-    const clock = new THREE.Clock();
-    const animate = () => {
-        animationFrameId = requestAnimationFrame(animate);
-        
-        if (mixer) {
-            mixer.update(clock.getDelta());
-        }
-        
-        if (model) {
-            model.rotation.y += 0.001; // Subtle continuous rotation
-        }
-        
-        renderer.render(scene, camera);
-    };
-    animate();
     
     return () => {
         window.removeEventListener('resize', handleResize);
@@ -163,8 +161,7 @@ onDestroy(() => {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    opacity: 1;
-    transition: opacity 0.5s ease-in-out;
+    opacity: 0;
 }
 
 .three-container.transitioning {
