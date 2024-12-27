@@ -197,10 +197,10 @@
 		);
 		camera.lookAt(0, 0, 0);
 
-		renderer = new THREE.WebGLRenderer({ 
+		renderer = new THREE.WebGLRenderer({
 			canvas,
-			antialias: true, 
-			alpha: true 
+			antialias: true,
+			alpha: true,
 		});
 		renderer.setSize(window.innerWidth, window.innerHeight);
 		renderer.setPixelRatio(window.devicePixelRatio);
@@ -211,7 +211,6 @@
 			CONFIG.camera.initial.position.y,
 			CONFIG.camera.initial.position.z
 		);
-		console.log('Camera position:', camera.position);
 
 		// Lighting
 		const ambientLight = new THREE.AmbientLight(
@@ -237,25 +236,37 @@
 		);
 		const loader = new GLTFLoader();
 		try {
-			console.log('Loading model...');
 			const modelPath = new URL(
 				'../3d/MagnaSketch_3dModel.gltf',
 				import.meta.url
 			).href;
-			console.log('Model path:', modelPath);
 			const gltf = await loader.loadAsync(modelPath);
-			console.log('Model loaded:', gltf);
 			model = gltf.scene;
 
 			// Find screen mesh
 			model.traverse((child) => {
 				if (child.name === 'Screen') {
-					console.log('Found screen mesh:', child);
 					screenMesh = child;
-					// Log its material and texture info
-					console.log('Material:', child.material);
-					if (child.material && child.material.map) {
-						console.log('Current texture:', child.material.map);
+
+					// Create a test texture to verify mapping
+					const canvas = document.createElement('canvas');
+					canvas.width = 512;
+					canvas.height = 512;
+					const ctx = canvas.getContext('2d');
+
+					// Create a distinctive pattern
+					ctx.fillStyle = '#ffffff';
+					ctx.fillRect(0, 0, 512, 512);
+					ctx.fillStyle = '#ff0000';
+					ctx.fillRect(0, 0, 256, 256);
+					ctx.fillStyle = '#0000ff';
+					ctx.fillRect(256, 256, 256, 256);
+
+					// Apply test texture
+					const texture = new THREE.CanvasTexture(canvas);
+					if (child.material) {
+						child.material.map = texture;
+						child.material.needsUpdate = true;
 					}
 				}
 			});
@@ -310,10 +321,6 @@
 			animate();
 		} catch (error) {
 			console.error('Error loading model:', error);
-			console.error('Error details:', {
-				message: error.message,
-				stack: error.stack,
-			});
 		}
 
 		// Handle window resize
@@ -369,11 +376,7 @@
 	});
 </script>
 
-<div 
-	class="three-container"
-	class:visible={isVisible}
-	bind:this={container}
->
+<div class="three-container" class:visible={isVisible} bind:this={container}>
 	<canvas bind:this={canvas}></canvas>
 </div>
 
