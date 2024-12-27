@@ -55,6 +55,8 @@
 
 	// Canvas setup
 	let canvas;
+	let screenCanvas;
+	export let onScreenCanvasReady = () => {};
 	let ctx;
 	let shouldDraw = true;
 	let particles = [];
@@ -189,6 +191,12 @@
 	onMount(() => {
 		if (!canvas) return;
 		ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+		// Initialize screen canvas
+		screenCanvas = document.createElement('canvas');
+		screenCanvas.width = window.innerWidth;
+		screenCanvas.height = window.innerHeight;
+		onScreenCanvasReady(screenCanvas);
 
 		// Set canvas to full screen
 		const resize = () => {
@@ -989,6 +997,15 @@
 		// Draw magnets last
 		if (magnets.length > 0) {
 			renderMagnets();
+		}
+
+		// Copy to screen canvas
+		if (screenCanvas) {
+			const screenCtx = screenCanvas.getContext('2d');
+			screenCanvas.width = canvas.width;
+			screenCanvas.height = canvas.height;
+			screenCtx.drawImage(canvas, 0, 0);
+			screenCanvas.dispatchEvent(new Event('canvasUpdate'));
 		}
 	}
 

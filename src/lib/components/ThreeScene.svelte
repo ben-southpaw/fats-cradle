@@ -4,6 +4,22 @@
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 	import { gsap } from 'gsap';
 
+	let container;
+	let scene;
+	let camera;
+	let renderer;
+	let model;
+	let animationFrameId;
+	let mixer;
+	let screenCanvas;
+
+	export const setScreenCanvas = (canvas) => {
+		screenCanvas = canvas;
+		if (model) {
+			updateScreenTexture();
+		}
+	};
+
 	// Configuration object for easy tweaking
 	const CONFIG = {
 		model: {
@@ -58,15 +74,6 @@
 		},
 	};
 
-	let container;
-	let scene;
-	let camera;
-	let renderer;
-	let model;
-	let animationFrameId;
-	let mixer;
-
-	// Animation state
 	let isTransitioning = false;
 	let modelLoaded = false;
 
@@ -119,6 +126,33 @@
 				},
 				0
 			);
+	}
+
+	function updateScreenTexture() {
+		if (!model || !screenCanvas) return;
+
+		model.traverse((child) => {
+			if (child.material && child.material.name === 'ScreenHexGrid') {
+				// Create a new texture from our canvas
+				const texture = new THREE.CanvasTexture(screenCanvas);
+				texture.needsUpdate = true;
+
+				// Create a new material with the canvas texture
+				const material = new THREE.MeshBasicMaterial({
+					map: texture,
+					transparent: true,
+					opacity: 1
+				});
+
+				// Replace the existing material
+				child.material = material;
+
+				// Update texture when canvas changes
+				screenCanvas.addEventListener('canvasUpdate', () => {
+					texture.needsUpdate = true;
+				});
+			}
+		});
 	}
 
 	onMount(async () => {
@@ -198,6 +232,9 @@
 			}
 
 			modelLoaded = true;
+
+			// Update screen texture if canvas is ready
+			updateScreenTexture();
 
 			// Start subtle rotation animation
 			const subtleRotate = () => {
