@@ -11,8 +11,8 @@
 	import cursorHover from '$lib/images/glove-heavy.png?url';
 	import cursorClick from '$lib/images/glove-clicked-heavy.png?url';
 	import multiText from '$lib/images/multi-text.png';
-	import scrollToExplore from '$lib/images/scrolltoexplore.svg?url';
 	import ThreeScene from './ThreeScene.svelte';
+	import ScrollToExplore from './ScrollToExplore.svelte';
 
 	let animationFrameId = null;
 	let pendingRender = false;
@@ -1368,11 +1368,15 @@
 	}
 
 	let threeSceneComponent;
+	let scrollToExploreComponent;
 	let hasTriggeredTransition = false;
 
 	function handleWheel(event) {
-		if (!hasTriggeredTransition && Math.abs(event.deltaY) > 0) {
+		if (!hasTriggeredTransition) {
 			hasTriggeredTransition = true;
+			if (scrollToExploreComponent && !scrollToExploreComponent.hasAnimated) {
+				scrollToExploreComponent.startAnimation();
+			}
 			if (threeSceneComponent) {
 				threeSceneComponent.startTransition();
 			}
@@ -1400,7 +1404,10 @@
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
 	></canvas>
-	<img src={scrollToExplore} alt="scroll to explore" class="scroll-indicator" />
+	<ThreeScene bind:this={threeSceneComponent} />
+	<div class="scroll-indicator">
+		<ScrollToExplore bind:this={scrollToExploreComponent} />
+	</div>
 </div>
 
 <div
@@ -1416,8 +1423,6 @@
 		opacity: {cursorOpacity};
 	"
 ></div>
-
-<ThreeScene bind:this={threeSceneComponent} />
 
 <style lang="scss">
 	:global(body) {
@@ -1437,13 +1442,19 @@
 	}
 
 	.scroll-indicator {
-		position: fixed;
+		position: absolute;
 		top: 40px;
 		left: 50%;
 		transform: translateX(-50%);
+		z-index: 10;
+		opacity: 0.8;
+		transition: opacity 0.3s ease;
 		width: 16vw;
 		pointer-events: none;
-		z-index: 10;
+	}
+
+	.scroll-indicator:hover {
+		opacity: 1;
 	}
 
 	canvas {
