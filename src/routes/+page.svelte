@@ -3,6 +3,11 @@
 	import ThreeScene from '$lib/components/ThreeScene.svelte';
 
 	let threeScene;
+	let showScrollToExplore = true;
+
+	function handleTransitionStart() {
+		showScrollToExplore = false;
+	}
 </script>
 
 <section>
@@ -12,15 +17,19 @@
 				threeScene.handleCanvasReady(canvas);
 			}
 		}}
+		{showScrollToExplore}
 	/>
-	<ThreeScene bind:this={threeScene} />
+	<ThreeScene 
+		bind:this={threeScene} 
+		on:transitionstart={handleTransitionStart}
+	/>
 </section>
 
 <style>
 	section {
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		position: relative;
+		width: 100%;
 		height: 100vh;
+		overflow: hidden;
 	}
 </style>

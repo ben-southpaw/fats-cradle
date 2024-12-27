@@ -14,6 +14,9 @@
 	import ThreeScene from './ThreeScene.svelte';
 	import ScrollToExplore from './ScrollToExplore.svelte';
 
+	export let onScreenCanvasReady = () => {};
+	export let showScrollToExplore = true;
+
 	let animationFrameId = null;
 	let pendingRender = false;
 	let lastRenderTime = 0;
@@ -258,6 +261,15 @@
 			window.removeEventListener('resize', resize);
 			if (animationFrameId) {
 				cancelAnimationFrame(animationFrameId);
+			}
+			if (scrollToExploreComponent) {
+				scrollToExploreComponent = null;
+			}
+			if (ctx) {
+				ctx = null;
+			}
+			if (canvas) {
+				canvas = null;
 			}
 		};
 	});
@@ -1405,9 +1417,11 @@
 		on:pointerleave={handlePointerLeave}
 	></canvas>
 	<ThreeScene bind:this={threeSceneComponent} />
-	<div class="scroll-indicator">
-		<ScrollToExplore bind:this={scrollToExploreComponent} />
-	</div>
+	{#if showScrollToExplore}
+		<div class="scroll-indicator" class:hidden={!showScrollToExplore}>
+			<ScrollToExplore bind:this={scrollToExploreComponent} />
+		</div>
+	{/if}
 </div>
 
 <div
@@ -1427,7 +1441,7 @@
 	}
 
 	.canvas-container {
-		position: fixed;
+		position: absolute;
 		top: 0;
 		left: 0;
 		width: 100%;
@@ -1436,9 +1450,6 @@
 	}
 
 	canvas {
-		position: absolute;
-		top: 0;
-		left: 0;
 		width: 100%;
 		height: 100%;
 	}
@@ -1465,14 +1476,18 @@
 		top: 40px;
 		left: 50%;
 		transform: translateX(-50%);
+		width: 16vw;
 		z-index: 2;
 		opacity: 0.8;
 		transition: opacity 0.3s ease;
-		width: 16vw;
 		pointer-events: none;
 	}
 
 	.scroll-indicator:hover {
 		opacity: 1;
+	}
+
+	.scroll-indicator.hidden {
+		opacity: 0;
 	}
 </style>

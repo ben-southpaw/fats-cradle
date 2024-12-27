@@ -1,36 +1,75 @@
 <script>
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import * as THREE from 'three';
 	import { gsap } from 'gsap';
 
 	let container;
+	let canvas;
 	let scene;
 	let camera;
 	let renderer;
 	let model;
 	let mixer;
+	let isTransitioning = false;
+	let isVisible = false;
 	let modelLoaded = false;
 	let animationFrameId;
 	let screenMesh;
-
-	// Configuration object for easy tweaking
-	const CONFIG = {
+	let canvasTexture;
+	let CONFIG = {
 		model: {
 			initial: {
-				scale: { x: 3, y: 3, z: 3 },
-				position: { x: 0, y: 2, z: 0 },
-				rotation: { x: -Math.PI / 6, y: 0, z: 0 }, // -30 degrees
+				rotation: {
+					x: 0,
+					y: 0,
+					z: 0,
+				},
+				scale: {
+					x: 2.5,
+					y: 2.5,
+					z: 2.5,
+				},
+				position: {
+					x: 0,
+					y: 0.5,
+					z: 0,
+				},
 			},
 			final: {
-				scale: { x: 1.5, y: 1.5, z: 1.5 },
-				position: { x: 0, y: 0.2, z: 0.2 }, // Adjusted position to be more centered and forward
-				rotation: { x: -Math.PI / 36, y: 0, z: 0 }, // Reduced to about 5 degrees for very slight tilt
+				rotation: {
+					x: 0,
+					y: 0,
+					z: 0,
+				},
+				scale: {
+					x: 0.8,
+					y: 0.8,
+					z: 0.8,
+				},
+				position: {
+					x: 0,
+					y: 0.2,
+					z: 0,
+				},
+			},
+		},
+		camera: {
+			fov: 35,
+			near: 0.1,
+			far: 800,
+			initial: {
+				position: {
+					x: 0,
+					y: 0,
+					z: 6.5,
+				},
 			},
 		},
 		animation: {
 			fadeIn: {
 				duration: 1.5,
 				ease: 'power2.inOut',
+				delay: 0.5,
 			},
 			rotation: {
 				duration: 2,
@@ -50,14 +89,6 @@
 			speed: 0.005,
 			enabled: true,
 		},
-		camera: {
-			fov: 75,
-			position: {
-				x: 0,
-				y: 0,
-				z: 5 // Move camera back to see model
-			}
-		},
 		lighting: {
 			ambient: {
 				color: 0xffffff,
@@ -71,42 +102,16 @@
 		},
 	};
 
-	// Animation state
-	let isTransitioning = false;
-
-	// Handle canvas ready event
-	export function handleCanvasReady(canvas) {
-		if (!scene || !modelLoaded || !screenMesh) return;
-
-		// Create canvas texture
-		const texture = new THREE.CanvasTexture(canvas);
-		texture.needsUpdate = true;
-
-		// Update screen material
-		screenMesh.material = new THREE.MeshStandardMaterial({
-			map: texture,
-			roughness: 0.5,
-			metalness: 0.1,
-			transparent: true,
-			opacity: 1
-		});
-
-		// Function to update texture
-		function updateTexture() {
-			if (texture) {
-				texture.needsUpdate = true;
-				requestAnimationFrame(updateTexture);
-			}
-		}
-		updateTexture();
-	}
+	const dispatch = createEventDispatcher();
 
 	export function startTransition() {
-		if (!modelLoaded) return;
+		if (!modelLoaded || !model) return;
 		isTransitioning = true;
+		isVisible = true;
+		dispatchEvent(new CustomEvent('transitionstart'));
 
 		// Animation sequence
-		const timeline = gsap.timeline();
+		const timeline = gsap.timeline({ delay: CONFIG.animation.fadeIn.delay });
 
 		// Fade in while rotating and scaling down
 		timeline
@@ -152,29 +157,59 @@
 			);
 	}
 
+	// Handle canvas ready event
+	export function handleCanvasReady(canvasElement) {
+		if (!canvasElement || !screenMesh) return;
+
+		// Wait for next frame to ensure canvas is initialized
+		requestAnimationFrame(() => {
+			if (canvasTexture) {
+				canvasTexture.dispose();
+			}
+
+			canvasTexture = new THREE.CanvasTexture(canvasElement);
+			canvasTexture.minFilter = THREE.LinearFilter;
+			canvasTexture.magFilter = THREE.LinearFilter;
+			canvasTexture.generateMipmaps = false;
+
+			// Update screen material
+			if (screenMesh.material) {
+				screenMesh.material.dispose();
+			}
+
+			screenMesh.material = new THREE.MeshBasicMaterial({
+				map: canvasTexture,
+				transparent: true,
+				opacity: 1,
+			});
+		});
+	}
+
 	onMount(async () => {
 		// Scene setup
 		scene = new THREE.Scene();
+		const aspect = window.innerWidth / window.innerHeight;
 		camera = new THREE.PerspectiveCamera(
 			CONFIG.camera.fov,
-			window.innerWidth / window.innerHeight,
-			0.1,
-			1000
+			aspect,
+			CONFIG.camera.near,
+			CONFIG.camera.far
 		);
-		renderer = new THREE.WebGLRenderer({
-			alpha: true,
-			antialias: true,
-		});
+		camera.lookAt(0, 0, 0);
 
+		renderer = new THREE.WebGLRenderer({ 
+			canvas,
+			antialias: true, 
+			alpha: true 
+		});
 		renderer.setSize(window.innerWidth, window.innerHeight);
-		renderer.outputColorSpace = THREE.SRGBColorSpace;
-		container.appendChild(renderer.domElement);
+		renderer.setPixelRatio(window.devicePixelRatio);
 
 		// Set initial camera position
 		camera.position.set(
-			CONFIG.camera.position.x,
-			CONFIG.camera.position.y,
-			CONFIG.camera.position.z
+			CONFIG.camera.initial.position.x,
+			CONFIG.camera.initial.position.y,
+			CONFIG.camera.initial.position.z
 		);
 		console.log('Camera position:', camera.position);
 
@@ -197,11 +232,16 @@
 		scene.add(directionalLight);
 
 		// Load model
-		const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+		const { GLTFLoader } = await import(
+			'three/examples/jsm/loaders/GLTFLoader.js'
+		);
 		const loader = new GLTFLoader();
 		try {
 			console.log('Loading model...');
-			const modelPath = new URL('../3d/MagnaSketch_3dModel.gltf', import.meta.url).href;
+			const modelPath = new URL(
+				'../3d/MagnaSketch_3dModel.gltf',
+				import.meta.url
+			).href;
 			console.log('Model path:', modelPath);
 			const gltf = await loader.loadAsync(modelPath);
 			console.log('Model loaded:', gltf);
@@ -272,16 +312,21 @@
 			console.error('Error loading model:', error);
 			console.error('Error details:', {
 				message: error.message,
-				stack: error.stack
+				stack: error.stack,
 			});
 		}
 
 		// Handle window resize
-		const handleResize = () => {
-			camera.aspect = window.innerWidth / window.innerHeight;
+		function handleResize() {
+			const width = window.innerWidth;
+			const height = window.innerHeight;
+
+			camera.aspect = width / height;
 			camera.updateProjectionMatrix();
-			renderer.setSize(window.innerWidth, window.innerHeight);
-		};
+
+			renderer.setSize(width, height);
+		}
+
 		window.addEventListener('resize', handleResize);
 
 		return () => {
@@ -307,7 +352,7 @@
 				}
 				if (object.material) {
 					if (Array.isArray(object.material)) {
-						object.material.forEach(material => material.dispose());
+						object.material.forEach((material) => material.dispose());
 					} else {
 						object.material.dispose();
 					}
@@ -318,26 +363,41 @@
 		if (renderer) {
 			renderer.dispose();
 		}
+		if (canvasTexture) {
+			canvasTexture.dispose();
+		}
 	});
 </script>
 
-<div
-	bind:this={container}
+<div 
 	class="three-container"
-	class:transitioning={isTransitioning}
-></div>
+	class:visible={isVisible}
+	bind:this={container}
+>
+	<canvas bind:this={canvas}></canvas>
+</div>
 
 <style>
 	.three-container {
 		position: fixed;
 		top: 0;
 		left: 0;
-		width: 100%;
-		height: 100%;
-		z-index: -1;
+		width: 100vw;
+		height: 100vh;
+		z-index: 100;
+		opacity: 0;
+		transition: opacity 0.5s ease-out;
+		pointer-events: none;
 	}
 
-	.three-container.transitioning {
-		pointer-events: none;
+	.three-container.visible {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	canvas {
+		width: 100%;
+		height: 100%;
+		display: block;
 	}
 </style>
