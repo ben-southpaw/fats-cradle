@@ -1,26 +1,26 @@
 <script>
-	import Canvas from '../lib/components/Canvas.svelte';
-	import ThreeScene from '../lib/components/ThreeScene.svelte';
+	import Canvas from '$lib/components/Canvas.svelte';
+	import ThreeScene from '$lib/components/ThreeScene.svelte';
 
-	let threeSceneComponent;
-
-	function handleScreenCanvasReady(canvas) {
-		if (threeSceneComponent) {
-			threeSceneComponent.setScreenCanvas(canvas);
-		}
-	}
+	let threeScene;
 </script>
 
 <section>
-	<Canvas onScreenCanvasReady={handleScreenCanvasReady} />
-	<ThreeScene bind:this={threeSceneComponent} />
+	<Canvas
+		onScreenCanvasReady={(canvas) => {
+			if (threeScene) {
+				threeScene.handleCanvasReady(canvas);
+			}
+		}}
+	/>
+	<ThreeScene bind:this={threeScene} />
 </section>
 
 <style>
 	section {
-		position: relative;
-		width: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		height: 100vh;
-		overflow: hidden;
 	}
 </style>

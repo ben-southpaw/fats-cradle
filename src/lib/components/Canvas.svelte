@@ -55,8 +55,6 @@
 
 	// Canvas setup
 	let canvas;
-	let screenCanvas;
-	export let onScreenCanvasReady = () => {};
 	let ctx;
 	let shouldDraw = true;
 	let particles = [];
@@ -191,12 +189,6 @@
 	onMount(() => {
 		if (!canvas) return;
 		ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-		// Initialize screen canvas
-		screenCanvas = document.createElement('canvas');
-		screenCanvas.width = window.innerWidth;
-		screenCanvas.height = window.innerHeight;
-		onScreenCanvasReady(screenCanvas);
 
 		// Set canvas to full screen
 		const resize = () => {
@@ -998,15 +990,6 @@
 		if (magnets.length > 0) {
 			renderMagnets();
 		}
-
-		// Copy to screen canvas
-		if (screenCanvas) {
-			const screenCtx = screenCanvas.getContext('2d');
-			screenCanvas.width = canvas.width;
-			screenCanvas.height = canvas.height;
-			screenCtx.drawImage(canvas, 0, 0);
-			screenCanvas.dispatchEvent(new Event('canvasUpdate'));
-		}
 	}
 
 	// Function to create particles along a path
@@ -1416,8 +1399,8 @@
 >
 	<canvas
 		bind:this={canvas}
-		on:pointerdown={handlePointerDown}
 		on:pointermove={handlePointerMove}
+		on:pointerdown={handlePointerDown}
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
 	></canvas>
@@ -1428,20 +1411,14 @@
 </div>
 
 <div
-	class="custom-cursor"
+	class="cursor"
 	bind:this={cursorElement}
-	style="
-		transform: translate({m.x}px, {m.y}px);
-		background-image: url('{isClicking && isHoveringMagnet
-		? cursorClick
-		: isHoveringMagnet
-			? cursorHover
-			: cursorDefault}');
-		opacity: {cursorOpacity};
-	"
-></div>
+	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
+>
+	<img src={isClicking && isHoveringMagnet ? cursorClick : isHoveringMagnet ? cursorHover : cursorDefault} alt="cursor" />
+</div>
 
-<style lang="scss">
+<style>
 	:global(body) {
 		margin: 0;
 		padding: 0;
@@ -1455,15 +1432,40 @@
 		left: 0;
 		width: 100%;
 		height: 100%;
-		background-color: #e8e8e8;
+		z-index: 1;
+	}
+
+	canvas {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+	}
+
+	.cursor {
+		position: fixed;
+		top: 0;
+		left: 0;
+		pointer-events: none;
+		z-index: 9999;
+		width: 32px;
+		height: 32px;
+		transform-origin: center;
+	}
+
+	.cursor img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
 	}
 
 	.scroll-indicator {
-		position: absolute;
+		position: fixed;
 		top: 40px;
 		left: 50%;
 		transform: translateX(-50%);
-		z-index: 10;
+		z-index: 2;
 		opacity: 0.8;
 		transition: opacity 0.3s ease;
 		width: 16vw;
@@ -1472,32 +1474,5 @@
 
 	.scroll-indicator:hover {
 		opacity: 1;
-	}
-
-	canvas {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		touch-action: none;
-	}
-
-	.custom-cursor {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 28px;
-		height: 28px;
-		pointer-events: none;
-		z-index: 9999;
-		background-size: contain;
-		background-repeat: no-repeat;
-		background-position: center;
-		transform-origin: top left;
-		will-change: transform, opacity;
-		transition:
-			background-image 0.1s ease,
-			opacity 0.2s ease;
 	}
 </style>

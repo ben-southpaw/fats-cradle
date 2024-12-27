@@ -1,7 +1,6 @@
 <script>
 	import { onMount, onDestroy } from 'svelte';
 	import * as THREE from 'three';
-	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 	import { gsap } from 'gsap';
 
 	let container;
@@ -9,16 +8,10 @@
 	let camera;
 	let renderer;
 	let model;
-	let animationFrameId;
 	let mixer;
-	let screenCanvas;
-
-	export const setScreenCanvas = (canvas) => {
-		screenCanvas = canvas;
-		if (model) {
-			updateScreenTexture();
-		}
-	};
+	let modelLoaded = false;
+	let animationFrameId;
+	let screenMesh;
 
 	// Configuration object for easy tweaking
 	const CONFIG = {
@@ -59,7 +52,11 @@
 		},
 		camera: {
 			fov: 75,
-			position: { x: 0, y: 0, z: 5 },
+			position: {
+				x: 0,
+				y: 0,
+				z: 5 // Move camera back to see model
+			}
 		},
 		lighting: {
 			ambient: {
@@ -74,8 +71,35 @@
 		},
 	};
 
+	// Animation state
 	let isTransitioning = false;
-	let modelLoaded = false;
+
+	// Handle canvas ready event
+	export function handleCanvasReady(canvas) {
+		if (!scene || !modelLoaded || !screenMesh) return;
+
+		// Create canvas texture
+		const texture = new THREE.CanvasTexture(canvas);
+		texture.needsUpdate = true;
+
+		// Update screen material
+		screenMesh.material = new THREE.MeshStandardMaterial({
+			map: texture,
+			roughness: 0.5,
+			metalness: 0.1,
+			transparent: true,
+			opacity: 1
+		});
+
+		// Function to update texture
+		function updateTexture() {
+			if (texture) {
+				texture.needsUpdate = true;
+				requestAnimationFrame(updateTexture);
+			}
+		}
+		updateTexture();
+	}
 
 	export function startTransition() {
 		if (!modelLoaded) return;
@@ -128,33 +152,6 @@
 			);
 	}
 
-	function updateScreenTexture() {
-		if (!model || !screenCanvas) return;
-
-		model.traverse((child) => {
-			if (child.material && child.material.name === 'ScreenHexGrid') {
-				// Create a new texture from our canvas
-				const texture = new THREE.CanvasTexture(screenCanvas);
-				texture.needsUpdate = true;
-
-				// Create a new material with the canvas texture
-				const material = new THREE.MeshBasicMaterial({
-					map: texture,
-					transparent: true,
-					opacity: 1
-				});
-
-				// Replace the existing material
-				child.material = material;
-
-				// Update texture when canvas changes
-				screenCanvas.addEventListener('canvasUpdate', () => {
-					texture.needsUpdate = true;
-				});
-			}
-		});
-	}
-
 	onMount(async () => {
 		// Scene setup
 		scene = new THREE.Scene();
@@ -179,6 +176,7 @@
 			CONFIG.camera.position.y,
 			CONFIG.camera.position.z
 		);
+		console.log('Camera position:', camera.position);
 
 		// Lighting
 		const ambientLight = new THREE.AmbientLight(
@@ -199,12 +197,28 @@
 		scene.add(directionalLight);
 
 		// Load model
+		const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
 		const loader = new GLTFLoader();
 		try {
-			const gltf = await loader.loadAsync(
-				'/src/lib/3d/MagnaSketch_3dModel.gltf'
-			);
+			console.log('Loading model...');
+			const modelPath = new URL('../3d/MagnaSketch_3dModel.gltf', import.meta.url).href;
+			console.log('Model path:', modelPath);
+			const gltf = await loader.loadAsync(modelPath);
+			console.log('Model loaded:', gltf);
 			model = gltf.scene;
+
+			// Find screen mesh
+			model.traverse((child) => {
+				if (child.name === 'Screen') {
+					console.log('Found screen mesh:', child);
+					screenMesh = child;
+					// Log its material and texture info
+					console.log('Material:', child.material);
+					if (child.material && child.material.map) {
+						console.log('Current texture:', child.material.map);
+					}
+				}
+			});
 
 			// Set initial model properties
 			model.scale.set(
@@ -233,9 +247,6 @@
 
 			modelLoaded = true;
 
-			// Update screen texture if canvas is ready
-			updateScreenTexture();
-
 			// Start subtle rotation animation
 			const subtleRotate = () => {
 				if (model && !isTransitioning && CONFIG.subtleRotation.enabled) {
@@ -259,6 +270,10 @@
 			animate();
 		} catch (error) {
 			console.error('Error loading model:', error);
+			console.error('Error details:', {
+				message: error.message,
+				stack: error.stack
+			});
 		}
 
 		// Handle window resize
@@ -284,6 +299,22 @@
 		if (animationFrameId) {
 			cancelAnimationFrame(animationFrameId);
 		}
+		if (scene) {
+			// Dispose of geometries and materials
+			scene.traverse((object) => {
+				if (object.geometry) {
+					object.geometry.dispose();
+				}
+				if (object.material) {
+					if (Array.isArray(object.material)) {
+						object.material.forEach(material => material.dispose());
+					} else {
+						object.material.dispose();
+					}
+				}
+			});
+			scene.clear();
+		}
 		if (renderer) {
 			renderer.dispose();
 		}
@@ -303,11 +334,10 @@
 		left: 0;
 		width: 100%;
 		height: 100%;
-		pointer-events: none;
-		opacity: 0;
+		z-index: -1;
 	}
 
 	.three-container.transitioning {
-		pointer-events: auto;
+		pointer-events: none;
 	}
 </style>
