@@ -10,13 +10,13 @@
 	export function startAnimation() {
 		if (hasAnimated) return;
 		hasAnimated = true;
-		
+
 		return new Promise((resolve) => {
 			const timeline = gsap.timeline({
 				onComplete: () => {
 					onAnimationComplete();
 					resolve();
-				}
+				},
 			});
 
 			// Target the image for animation
@@ -24,7 +24,7 @@
 				opacity: 0,
 				y: 30,
 				duration: 0.5,
-				ease: 'power2.inOut'
+				ease: 'power2.inOut',
 			});
 		});
 	}
