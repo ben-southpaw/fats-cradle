@@ -194,6 +194,7 @@
 
 			// Create scene for rendering canvas
 			const rtScene = new THREE.Scene();
+			rtScene.background = new THREE.Color('hotpink');
 			const rtCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
 
 			// Create temporary texture from canvas
@@ -219,9 +220,12 @@
 			rtScene.add(rtMesh);
 
 			// Render to target
+			renderer.setClearColor('hotpink');
 			renderer.setRenderTarget(renderTarget);
+			renderer.clear();
 			renderer.render(rtScene, rtCamera);
 			renderer.setRenderTarget(null);
+			renderer.setClearColor(0x000000, 0); // Reset to default
 
 			// Clean up temporary objects
 			rtGeometry.dispose();
@@ -238,7 +242,8 @@
 				transparent: true,
 				opacity: 1,
 				side: THREE.DoubleSide,
-				toneMapped: false
+				toneMapped: false,
+				color: new THREE.Color('#E8E8E8')
 			});
 
 			console.log('Updated screen mesh material with render target texture');
@@ -250,6 +255,7 @@
 
 		// Update render target with new canvas content
 		const rtScene = new THREE.Scene();
+		rtScene.background = new THREE.Color('hotpink');
 		const rtCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
 
 		const tempTexture = new THREE.CanvasTexture(canvas);
@@ -272,9 +278,12 @@
 		const rtMesh = new THREE.Mesh(rtGeometry, rtMaterial);
 		rtScene.add(rtMesh);
 
+		renderer.setClearColor('hotpink');
 		renderer.setRenderTarget(renderTarget);
+		renderer.clear();
 		renderer.render(rtScene, rtCamera);
 		renderer.setRenderTarget(null);
+		renderer.setClearColor(0x000000, 0); // Reset to default
 
 		// Clean up
 		rtGeometry.dispose();
