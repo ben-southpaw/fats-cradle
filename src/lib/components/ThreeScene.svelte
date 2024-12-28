@@ -18,6 +18,8 @@
 	let animationFrameId;
 	let screenMesh;
 	let canvasTexture;
+	let renderTarget;
+
 	let CONFIG = {
 		model: {
 			initial: {
@@ -173,39 +175,111 @@
 			if (canvasTexture) {
 				canvasTexture.dispose();
 			}
+			if (renderTarget) {
+				renderTarget.dispose();
+			}
 
-			// Create new texture from the drawing canvas
-			canvasTexture = new THREE.CanvasTexture(canvas);
-			canvasTexture.minFilter = THREE.LinearFilter;
-			canvasTexture.magFilter = THREE.LinearFilter;
-			canvasTexture.generateMipmaps = false;
-			canvasTexture.needsUpdate = true;
-			canvasTexture.encoding = THREE.sRGBEncoding;
-			canvasTexture.flipY = false;
+			// Create render target with same dimensions as canvas
+			renderTarget = new THREE.WebGLRenderTarget(
+				canvas.width,
+				canvas.height,
+				{
+					minFilter: THREE.LinearFilter,
+					magFilter: THREE.LinearFilter,
+					format: THREE.RGBAFormat,
+					encoding: THREE.sRGBEncoding,
+					generateMipmaps: false
+				}
+			);
 
-			console.log('Created new canvas texture');
+			// Create scene for rendering canvas
+			const rtScene = new THREE.Scene();
+			const rtCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
 
-			// Update screen material with new optimized settings
+			// Create temporary texture from canvas
+			const tempTexture = new THREE.CanvasTexture(canvas);
+			tempTexture.minFilter = THREE.LinearFilter;
+			tempTexture.magFilter = THREE.LinearFilter;
+			tempTexture.generateMipmaps = false;
+			tempTexture.needsUpdate = true;
+			tempTexture.encoding = THREE.sRGBEncoding;
+
+			// Create plane for rendering canvas texture
+			const rtGeometry = new THREE.PlaneGeometry(1, 1);
+			// Flip UV coordinates
+			const uvs = rtGeometry.attributes.uv;
+			for (let i = 0; i < uvs.count; i++) {
+				uvs.setY(i, 1 - uvs.getY(i));
+			}
+			const rtMaterial = new THREE.MeshBasicMaterial({
+				map: tempTexture,
+				transparent: true
+			});
+			const rtMesh = new THREE.Mesh(rtGeometry, rtMaterial);
+			rtScene.add(rtMesh);
+
+			// Render to target
+			renderer.setRenderTarget(renderTarget);
+			renderer.render(rtScene, rtCamera);
+			renderer.setRenderTarget(null);
+
+			// Clean up temporary objects
+			rtGeometry.dispose();
+			rtMaterial.dispose();
+			tempTexture.dispose();
+
+			// Use render target texture for screen mesh
 			if (screenMesh.material) {
 				screenMesh.material.dispose();
 			}
 
 			screenMesh.material = new THREE.MeshBasicMaterial({
-				map: canvasTexture,
+				map: renderTarget.texture,
 				transparent: true,
 				opacity: 1,
 				side: THREE.DoubleSide,
 				toneMapped: false
 			});
 
-			console.log('Updated screen mesh material');
+			console.log('Updated screen mesh material with render target texture');
 		});
 	}
 
 	function updateCanvasTexture() {
-		if (canvasTexture && screenMesh && screenMesh.material) {
-			canvasTexture.needsUpdate = true;
+		if (!renderTarget || !canvas || !screenMesh || !screenMesh.material) return;
+
+		// Update render target with new canvas content
+		const rtScene = new THREE.Scene();
+		const rtCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
+
+		const tempTexture = new THREE.CanvasTexture(canvas);
+		tempTexture.minFilter = THREE.LinearFilter;
+		tempTexture.magFilter = THREE.LinearFilter;
+		tempTexture.generateMipmaps = false;
+		tempTexture.needsUpdate = true;
+		tempTexture.encoding = THREE.sRGBEncoding;
+
+		const rtGeometry = new THREE.PlaneGeometry(1, 1);
+		// Flip UV coordinates
+		const uvs = rtGeometry.attributes.uv;
+		for (let i = 0; i < uvs.count; i++) {
+			uvs.setY(i, 1 - uvs.getY(i));
 		}
+		const rtMaterial = new THREE.MeshBasicMaterial({
+			map: tempTexture,
+			transparent: true
+		});
+		const rtMesh = new THREE.Mesh(rtGeometry, rtMaterial);
+		rtScene.add(rtMesh);
+
+		renderer.setRenderTarget(renderTarget);
+		renderer.render(rtScene, rtCamera);
+		renderer.setRenderTarget(null);
+
+		// Clean up
+		rtGeometry.dispose();
+		rtMaterial.dispose();
+		tempTexture.dispose();
 	}
 
 	onMount(async () => {
@@ -391,6 +465,9 @@
 		}
 		if (renderer) {
 			renderer.dispose();
+		}
+		if (renderTarget) {
+			renderTarget.dispose();
 		}
 		if (canvasTexture) {
 			canvasTexture.dispose();
