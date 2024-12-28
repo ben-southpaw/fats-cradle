@@ -3,8 +3,10 @@
 	import * as THREE from 'three';
 	import { gsap } from 'gsap';
 
+	export let canvas; // This is the drawing canvas from Canvas.svelte
+
 	let container;
-	let canvas;
+	let renderCanvas;  // This canvas is for Three.js rendering only
 	let scene;
 	let camera;
 	let renderer;
@@ -108,7 +110,7 @@
 		if (!modelLoaded || !model) return;
 		isTransitioning = true;
 		isVisible = true;
-		dispatchEvent(new CustomEvent('transitionstart'));
+		dispatch('transitionstart');
 
 		// Animation sequence
 		const timeline = gsap.timeline({ delay: CONFIG.animation.fadeIn.delay });
@@ -159,7 +161,12 @@
 
 	// Handle canvas ready event
 	export function handleCanvasReady(canvasElement) {
-		if (!canvasElement || !screenMesh) return;
+		if (!canvasElement || !screenMesh) {
+			console.log('Canvas or screen mesh not ready:', { canvas: !!canvasElement, screenMesh: !!screenMesh });
+			return;
+		}
+
+		console.log('Handling canvas ready');
 
 		// Wait for next frame to ensure canvas is initialized
 		requestAnimationFrame(() => {
@@ -167,12 +174,18 @@
 				canvasTexture.dispose();
 			}
 
-			canvasTexture = new THREE.CanvasTexture(canvasElement);
+			// Create new texture from the drawing canvas
+			canvasTexture = new THREE.CanvasTexture(canvas);
 			canvasTexture.minFilter = THREE.LinearFilter;
 			canvasTexture.magFilter = THREE.LinearFilter;
 			canvasTexture.generateMipmaps = false;
+			canvasTexture.needsUpdate = true;
+			canvasTexture.encoding = THREE.sRGBEncoding;
+			canvasTexture.flipY = false;
 
-			// Update screen material
+			console.log('Created new canvas texture');
+
+			// Update screen material with new optimized settings
 			if (screenMesh.material) {
 				screenMesh.material.dispose();
 			}
@@ -181,8 +194,18 @@
 				map: canvasTexture,
 				transparent: true,
 				opacity: 1,
+				side: THREE.DoubleSide,
+				toneMapped: false
 			});
+
+			console.log('Updated screen mesh material');
 		});
+	}
+
+	function updateCanvasTexture() {
+		if (canvasTexture && screenMesh && screenMesh.material) {
+			canvasTexture.needsUpdate = true;
+		}
 	}
 
 	onMount(async () => {
@@ -198,7 +221,7 @@
 		camera.lookAt(0, 0, 0);
 
 		renderer = new THREE.WebGLRenderer({
-			canvas,
+			canvas: renderCanvas,
 			antialias: true,
 			alpha: true,
 		});
@@ -245,28 +268,22 @@
 
 			// Find screen mesh
 			model.traverse((child) => {
+				console.log('Traversing model child:', child.name);
 				if (child.name === 'Screen') {
+					console.log('Found screen mesh');
 					screenMesh = child;
 
-					// Create a test texture to verify mapping
-					const canvas = document.createElement('canvas');
-					canvas.width = 512;
-					canvas.height = 512;
-					const ctx = canvas.getContext('2d');
+					// Set initial material
+					screenMesh.material = new THREE.MeshBasicMaterial({
+						transparent: true,
+						opacity: 1,
+						side: THREE.DoubleSide,
+						toneMapped: false
+					});
 
-					// Create a distinctive pattern
-					ctx.fillStyle = '#ffffff';
-					ctx.fillRect(0, 0, 512, 512);
-					ctx.fillStyle = '#ff0000';
-					ctx.fillRect(0, 0, 256, 256);
-					ctx.fillStyle = '#0000ff';
-					ctx.fillRect(256, 256, 256, 256);
-
-					// Apply test texture
-					const texture = new THREE.CanvasTexture(canvas);
-					if (child.material) {
-						child.material.map = texture;
-						child.material.needsUpdate = true;
+					// If we already have a canvas, apply it
+					if (canvas) {
+						handleCanvasReady(canvas);
 					}
 				}
 			});
@@ -288,6 +305,9 @@
 				CONFIG.model.initial.rotation.z
 			);
 			scene.add(model);
+			console.log('Added model to scene');
+			
+			modelLoaded = true;
 
 			// Setup animations if they exist
 			if (gltf.animations && gltf.animations.length) {
@@ -296,27 +316,29 @@
 				action.play();
 			}
 
-			modelLoaded = true;
-
-			// Start subtle rotation animation
-			const subtleRotate = () => {
-				if (model && !isTransitioning && CONFIG.subtleRotation.enabled) {
-					model.rotation.y += CONFIG.subtleRotation.speed;
-					model.rotation.x = CONFIG.model.initial.rotation.x;
-				}
-			};
-
-			// Animation loop
+			// Start animation loop (but don't show yet)
 			const clock = new THREE.Clock();
 			const animate = () => {
+				if (!modelLoaded) return;
+
 				animationFrameId = requestAnimationFrame(animate);
 
-				if (mixer) {
-					mixer.update(clock.getDelta());
-				}
+				// Only update and render if visible
+				if (isVisible) {
+					// Update canvas texture if it exists
+					updateCanvasTexture();
 
-				subtleRotate();
-				renderer.render(scene, camera);
+					// Update any animations or controls
+					if (mixer) {
+						mixer.update(0.016);
+					}
+
+					if (CONFIG.subtleRotation.enabled && !isTransitioning && model) {
+						model.rotation.y += CONFIG.subtleRotation.speed;
+					}
+
+					renderer.render(scene, camera);
+				}
 			};
 			animate();
 		} catch (error) {
@@ -377,7 +399,7 @@
 </script>
 
 <div class="three-container" class:visible={isVisible} bind:this={container}>
-	<canvas bind:this={canvas}></canvas>
+	<canvas bind:this={renderCanvas}></canvas>
 </div>
 
 <style>

@@ -1,5 +1,5 @@
 <script>
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { gsap } from 'gsap';
 	import letterF from '$lib/images/f.png?url';
 	import letterA from '$lib/images/a.png?url';
@@ -191,33 +191,32 @@
 	// Initialize the canvas and set up event listeners
 	onMount(() => {
 		if (!canvas) return;
+
 		ctx = canvas.getContext('2d', { willReadFrequently: true });
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
 
-		// Set canvas to full screen
-		const resize = () => {
-			if (!canvas) return;
-			canvas.width = window.innerWidth;
-			canvas.height = window.innerHeight;
-			// Recreate pre-drawn elements after resize
-			gridCache = null; // Clear grid cache on resize
-			preDrawnParticles = [];
+		// Initialize canvas with background
+		ctx.fillStyle = CONFIG.backgroundColor;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-			// First create pre-drawn text
-			createPreDrawnElements();
+		// Notify that canvas is ready
+		onScreenCanvasReady(canvas);
 
-			// Then recreate stamps for any existing magnets
-			if (magnets.length > 0) {
-				magnets.forEach((magnet) => {
-					createMagnetStamp(magnet);
-				});
+		// Start animation loop
+		function animate() {
+			animationFrameId = requestAnimationFrame(animate);
+			const currentTime = performance.now();
+			
+			if (currentTime - lastRenderTime >= FRAME_INTERVAL) {
+				renderAll();
+				lastRenderTime = currentTime;
+				
+				// Keep notifying about canvas updates
+				onScreenCanvasReady(canvas);
 			}
-
-			// Finally render everything
-			renderAll();
-		};
-
-		window.addEventListener('resize', resize);
-		resize();
+		}
+		animate();
 
 		// Load all magnet images
 		const letters = [
@@ -248,13 +247,6 @@
 
 		// Add pre-drawn elements after canvas is initialized
 		createPreDrawnElements();
-
-		// Start the render loop with proper timing
-		function renderLoop() {
-			scheduleRender();
-			animationFrameId = requestAnimationFrame(renderLoop);
-		}
-		renderLoop();
 
 		// Clean up
 		return () => {
@@ -1391,6 +1383,7 @@
 			}
 			if (threeSceneComponent) {
 				threeSceneComponent.startTransition();
+				dispatch('transitionstart');
 			}
 		}
 	}
@@ -1416,7 +1409,10 @@
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
 	></canvas>
-	<ThreeScene bind:this={threeSceneComponent} />
+	<ThreeScene 
+		bind:this={threeSceneComponent} 
+		canvas={canvas}
+	/>
 	{#if showScrollToExplore}
 		<div class="scroll-indicator" class:hidden={!showScrollToExplore}>
 			<ScrollToExplore bind:this={scrollToExploreComponent} />
