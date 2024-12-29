@@ -1376,12 +1376,29 @@
 	let threeSceneComponent;
 	let scrollToExploreComponent;
 	let hasTriggeredTransition = false;
+	let isScrollAnimating = false;
+	let isCanvasVisible = true;
+
+	function handleTransitionComplete() {
+		// Fade out the canvas
+		gsap.to(canvas, {
+			opacity: 0,
+			duration: 0.5,
+			ease: "power2.inOut",
+			onComplete: () => {
+				isCanvasVisible = false;
+			}
+		});
+	}
 
 	function handleWheel(event) {
 		if (!hasTriggeredTransition) {
 			hasTriggeredTransition = true;
 			if (scrollToExploreComponent && !scrollToExploreComponent.hasAnimated) {
-				scrollToExploreComponent.startAnimation();
+				isScrollAnimating = true;
+				scrollToExploreComponent.startAnimation().then(() => {
+					isScrollAnimating = false;
+				});
 			}
 			if (threeSceneComponent) {
 				threeSceneComponent.startTransition();
@@ -1406,6 +1423,7 @@
 >
 	<canvas
 		bind:this={canvas}
+		class:hidden={!isCanvasVisible}
 		on:pointermove={handlePointerMove}
 		on:pointerdown={handlePointerDown}
 		on:pointerup={handlePointerUp}
@@ -1414,9 +1432,10 @@
 	<ThreeScene 
 		bind:this={threeSceneComponent} 
 		canvas={canvas}
+		on:transitioncomplete={handleTransitionComplete}
 	/>
-	{#if showScrollToExplore}
-		<div class="scroll-indicator" class:hidden={!showScrollToExplore}>
+	{#if showScrollToExplore || isScrollAnimating}
+		<div class="scroll-indicator">
 			<ScrollToExplore bind:this={scrollToExploreComponent} />
 		</div>
 	{/if}
@@ -1450,6 +1469,13 @@
 	canvas {
 		width: 100%;
 		height: 100%;
+		opacity: 1;
+		transition: opacity 0.3s ease;
+	}
+
+	canvas.hidden {
+		opacity: 0;
+		pointer-events: none;
 	}
 
 	.cursor {
@@ -1476,13 +1502,7 @@
 		transform: translateX(-50%);
 		width: 16vw;
 		z-index: 2;
-		opacity: 0.8;
-		transition: opacity 0.3s ease;
 		pointer-events: none;
-	}
-
-	.scroll-indicator:hover {
-		opacity: 1;
 	}
 
 	.scroll-indicator.hidden {

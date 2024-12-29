@@ -7,32 +7,44 @@
 	let container;
 	export let hasAnimated = false;
 
+	onMount(() => {
+		// Ensure initial position
+		gsap.set(container, {
+			y: 0,
+			opacity: 1
+		});
+	});
+
 	export function startAnimation() {
 		if (hasAnimated) return;
 		hasAnimated = true;
 
 		return new Promise((resolve) => {
-			const timeline = gsap.timeline({
+			gsap.to(container, {
+				y: -80,
+				opacity: 0,
+				duration: 1,
+				ease: "power2.inOut",
 				onComplete: () => {
 					onAnimationComplete();
 					resolve();
-				},
-			});
-
-			// Target the image for animation
-			timeline.to(container, {
-				opacity: 0,
-				y: 30,
-				duration: 0.5,
-				ease: 'power2.inOut',
+				}
 			});
 		});
 	}
 </script>
 
-<img bind:this={container} src={scrollToExplore} alt="scroll to explore" />
+<div class="container" bind:this={container}>
+	<img src={scrollToExplore} alt="scroll to explore" />
+</div>
 
 <style>
+	.container {
+		width: 100%;
+		height: 100%;
+		transform: translate(0, 0);
+	}
+	
 	img {
 		width: 100%;
 		height: 100%;

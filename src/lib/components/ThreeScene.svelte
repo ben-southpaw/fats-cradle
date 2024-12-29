@@ -58,6 +58,7 @@
 		},
 		animation: {
 			duration: 2.3,
+			delay: 0.4, // Shorter initial delay
 		},
 	};
 
@@ -68,15 +69,24 @@
 		if (!modelLoaded || !model || isTransitioning) return;
 
 		isTransitioning = true;
-		isVisible = true;
 		dispatch('transitionstart');
 
 		// Animation sequence
 		const timeline = gsap.timeline({
+			delay: CONFIG.animation.delay, // Add delay to timeline
 			onComplete: () => {
 				isTransitioning = false;
-				dispatch('transitioncomplete');
 			},
+		});
+
+		// Start invisible and show after scroll animation + delay
+		isVisible = false;
+		gsap.to({}, {
+			duration: CONFIG.animation.delay + 0.5, // Add extra time for scroll animation
+			onComplete: () => {
+				isVisible = true;
+				dispatch('transitioncomplete'); // Trigger canvas fade when model appears
+			}
 		});
 
 		// Start from initial state
@@ -96,7 +106,7 @@
 			.to(model.rotation, {
 				y: CONFIG.model.final.rotation.y,
 				duration: CONFIG.animation.duration,
-				ease: 'power3.inOut',
+				ease: 'power3.inOut'
 			})
 			.to(
 				model.scale,
@@ -105,7 +115,7 @@
 					y: CONFIG.model.final.scale.y,
 					z: CONFIG.model.final.scale.z,
 					duration: CONFIG.animation.duration,
-					ease: 'expo.out',
+					ease: 'expo.out'
 				},
 				0
 			);
