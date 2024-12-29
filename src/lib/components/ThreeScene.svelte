@@ -31,34 +31,34 @@
 			initial: {
 				position: { x: 0, y: 0, z: -2 },
 				rotation: { x: 0, y: 0, z: 0 },
-				scale: { x: 2.25, y: 2.25, z: 2.25 }  // Start at 2.25
+				scale: { x: 2.25, y: 2.25, z: 2.25 }, // Start at 2.25
 			},
 			final: {
 				position: { x: 0, y: 0, z: -2 },
 				rotation: { x: 0, y: Math.PI * 2, z: 0 }, // Full 360 rotation
-				scale: { x: 1.25, y: 1.25, z: 1.25 }  // End at 1.25
-			}
+				scale: { x: 1.25, y: 1.25, z: 1.25 }, // End at 1.25
+			},
 		},
 		camera: {
 			fov: 45,
 			near: 0.1,
 			far: 800,
-			position: { x: 0, y: 0, z: 5 }
+			position: { x: 0, y: 0, z: 5 },
 		},
 		lighting: {
 			ambient: {
 				color: 0xffffff,
-				intensity: 0.5
+				intensity: 0.5,
 			},
 			directional: {
 				color: 0xffffff,
 				intensity: 0.8,
-				position: { x: 5, y: 5, z: 5 }
-			}
+				position: { x: 5, y: 5, z: 5 },
+			},
 		},
 		animation: {
-			duration: 2
-		}
+			duration: 2.3,
+		},
 	};
 
 	let isTransitioning = false;
@@ -66,7 +66,7 @@
 
 	export function startTransition() {
 		if (!modelLoaded || !model || isTransitioning) return;
-		
+
 		isTransitioning = true;
 		isVisible = true;
 		dispatch('transitionstart');
@@ -76,7 +76,7 @@
 			onComplete: () => {
 				isTransitioning = false;
 				dispatch('transitioncomplete');
-			}
+			},
 		});
 
 		// Start from initial state
@@ -96,7 +96,7 @@
 			.to(model.rotation, {
 				y: CONFIG.model.final.rotation.y,
 				duration: CONFIG.animation.duration,
-				ease: 'power2.inOut'
+				ease: 'power3.inOut',
 			})
 			.to(
 				model.scale,
@@ -105,7 +105,7 @@
 					y: CONFIG.model.final.scale.y,
 					z: CONFIG.model.final.scale.z,
 					duration: CONFIG.animation.duration,
-					ease: 'power2.inOut'
+					ease: 'expo.out',
 				},
 				0
 			);
@@ -169,7 +169,7 @@
 		// Load 3D model
 		console.log('Loading model from:', modelUrl);
 		const loader = new GLTFLoader();
-		
+
 		try {
 			const gltf = await new Promise((resolve, reject) => {
 				loader.load(
@@ -211,18 +211,18 @@
 					console.log('Found screen mesh');
 					foundScreen = true;
 					screenMesh = child;
-					
+
 					// Create material with canvas texture
 					if (screenMesh.material) {
 						screenMesh.material.dispose();
 					}
-					
+
 					screenMesh.material = new THREE.MeshBasicMaterial({
 						map: canvasTexture,
 						transparent: true,
 						opacity: 1,
 						side: THREE.DoubleSide,
-						toneMapped: false
+						toneMapped: false,
 					});
 
 					// Fix UV mapping to correct mirroring and rotation
@@ -288,7 +288,7 @@
 		console.log('Component mounted');
 		await initThreeJS();
 		console.log('Three.js initialized');
-		
+
 		// Handle window resize
 		window.addEventListener('resize', handleResize);
 
@@ -298,8 +298,11 @@
 	});
 </script>
 
-<div class="three-container" class:visible={isVisible} bind:this={container}>
-</div>
+<div
+	class="three-container"
+	class:visible={isVisible}
+	bind:this={container}
+></div>
 
 <style>
 	.three-container {
