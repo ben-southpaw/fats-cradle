@@ -1,5 +1,5 @@
 <script>
-	import { onMount } from 'svelte';
+	import { onMount, createEventDispatcher } from 'svelte';
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 	import gsap from 'gsap';
@@ -31,7 +31,12 @@
 			initial: {
 				position: { x: 0, y: 0, z: -2 },
 				rotation: { x: 0, y: 0, z: 0 },
-				scale: { x: 0.5, y: 0.5, z: 0.5 }
+				scale: { x: 2.25, y: 2.25, z: 2.25 }  // Start at 2.25
+			},
+			final: {
+				position: { x: 0, y: 0, z: -2 },
+				rotation: { x: 0, y: Math.PI * 2, z: 0 }, // Full 360 rotation
+				scale: { x: 1.25, y: 1.25, z: 1.25 }  // End at 1.25
 			}
 		},
 		camera: {
@@ -50,8 +55,61 @@
 				intensity: 0.8,
 				position: { x: 5, y: 5, z: 5 }
 			}
+		},
+		animation: {
+			duration: 2
 		}
 	};
+
+	let isTransitioning = false;
+	const dispatch = createEventDispatcher();
+
+	export function startTransition() {
+		if (!modelLoaded || !model || isTransitioning) return;
+		
+		isTransitioning = true;
+		isVisible = true;
+		dispatch('transitionstart');
+
+		// Animation sequence
+		const timeline = gsap.timeline({
+			onComplete: () => {
+				isTransitioning = false;
+				dispatch('transitioncomplete');
+			}
+		});
+
+		// Start from initial state
+		model.scale.set(
+			CONFIG.model.initial.scale.x,
+			CONFIG.model.initial.scale.y,
+			CONFIG.model.initial.scale.z
+		);
+		model.rotation.set(
+			CONFIG.model.initial.rotation.x,
+			CONFIG.model.initial.rotation.y,
+			CONFIG.model.initial.rotation.z
+		);
+
+		// Animate scale down and rotate
+		timeline
+			.to(model.rotation, {
+				y: CONFIG.model.final.rotation.y,
+				duration: CONFIG.animation.duration,
+				ease: 'power2.inOut'
+			})
+			.to(
+				model.scale,
+				{
+					x: CONFIG.model.final.scale.x,
+					y: CONFIG.model.final.scale.y,
+					z: CONFIG.model.final.scale.z,
+					duration: CONFIG.animation.duration,
+					ease: 'power2.inOut'
+				},
+				0
+			);
+	}
 
 	async function initThreeJS() {
 		console.log('Initializing Three.js scene...');
@@ -136,11 +194,14 @@
 				CONFIG.model.initial.rotation.y,
 				CONFIG.model.initial.rotation.z
 			);
+
+			// Set initial scale but keep invisible
 			model.scale.set(
 				CONFIG.model.initial.scale.x,
 				CONFIG.model.initial.scale.y,
 				CONFIG.model.initial.scale.z
 			);
+			isVisible = false; // Start invisible
 
 			// Find screen mesh
 			let foundScreen = false;
@@ -228,10 +289,6 @@
 		await initThreeJS();
 		console.log('Three.js initialized');
 		
-		// Make visible after initialization
-		isVisible = true;
-		console.log('Set visible');
-
 		// Handle window resize
 		window.addEventListener('resize', handleResize);
 
