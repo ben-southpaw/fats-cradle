@@ -14,6 +14,8 @@
 	import ThreeScene from './ThreeScene.svelte';
 	import ScrollToExplore from './ScrollToExplore.svelte';
 
+	const dispatch = createEventDispatcher();
+
 	export let onScreenCanvasReady = () => {};
 	export let showScrollToExplore = true;
 
