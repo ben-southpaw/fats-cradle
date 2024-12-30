@@ -1081,8 +1081,7 @@
 
 			// Position in bottom right with padding
 			const padding = 120;
-			const leftOffset = window.innerWidth * 0.08; // 8vw left offset
-			const startX = canvas.width - scaledWidth - padding - leftOffset;
+			const startX = canvas.width - scaledWidth - padding;
 			const startY = canvas.height - padding;
 
 			// Calculate sampling parameters based on scale

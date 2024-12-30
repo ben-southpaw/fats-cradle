@@ -19,6 +19,7 @@
 	let modelLoaded = false;
 	let animationFrameId;
 	let canvasTexture;
+	let meshAspect; // Store mesh aspect ratio at module level
 
 	$: if (canvas && screenMesh?.material?.map) {
 		// Update texture when canvas changes
@@ -65,15 +66,64 @@
 	let isTransitioning = false;
 	const dispatch = createEventDispatcher();
 
+	// Function to setup clipping planes
+	function setupClippingPlanes() {
+		if (!screenMesh || !canvas) return;
+		
+		// Get original mesh dimensions
+		const box = new THREE.Box3().setFromObject(screenMesh);
+		const meshWidth = box.max.x - box.min.x;
+		const meshHeight = box.max.y - box.min.y;
+		
+		// Get canvas aspect ratio
+		const canvasAspect = canvas.width / canvas.height;
+		
+		// Calculate scale to fit height
+		const heightScale = 1.0; // Keep original height
+		const widthScale = (canvasAspect / (meshWidth / meshHeight)) * 1.2; // Add 20% to width
+		
+		// Update mesh scale
+		screenMesh.scale.y = heightScale;
+		screenMesh.scale.x = widthScale;
+		
+		// Set clipping planes at original mesh boundaries
+		const clipOffset = meshWidth * 0.5; // Keep original clipping
+
+		// Create new material with clipping planes
+		if (screenMesh.material) {
+			screenMesh.material.dispose();
+		}
+
+		screenMesh.material = new THREE.MeshBasicMaterial({
+			map: canvasTexture,
+			transparent: true,
+			opacity: 1,
+			side: THREE.DoubleSide,
+			toneMapped: false,
+			clippingPlanes: [
+				new THREE.Plane(new THREE.Vector3(1, 0, 0), clipOffset),  // Right clip
+				new THREE.Plane(new THREE.Vector3(-1, 0, 0), clipOffset), // Left clip
+			]
+		});
+
+		// Ensure clipping is enabled in renderer
+		if (renderer) {
+			renderer.localClippingEnabled = true;
+		}
+	}
+
 	export function startTransition() {
 		if (!modelLoaded || !model || isTransitioning) return;
 
 		isTransitioning = true;
 		dispatch('transitionstart');
 
+		// Ensure clipping planes are set up before animation
+		setupClippingPlanes();
+
 		// Animation sequence
 		const timeline = gsap.timeline({
-			delay: CONFIG.animation.delay, // Add delay to timeline
+			delay: CONFIG.animation.delay,
 			onComplete: () => {
 				isTransitioning = false;
 			},
@@ -224,39 +274,8 @@
 					foundScreen = true;
 					screenMesh = child;
 
-					// Get original mesh dimensions
-					const box = new THREE.Box3().setFromObject(screenMesh);
-					const meshWidth = box.max.x - box.min.x;
-					const meshHeight = box.max.y - box.min.y;
-					const meshAspect = meshWidth / meshHeight;
-
-					// Calculate wider clipping plane positions (1.2x the original mesh width)
-					const clipOffset = meshWidth * 0.66;
-
-					// Create material with canvas texture
-					if (screenMesh.material) {
-						screenMesh.material.dispose();
-					}
-
-					screenMesh.material = new THREE.MeshBasicMaterial({
-						map: canvasTexture,
-						transparent: true,
-						opacity: 1,
-						side: THREE.DoubleSide,
-						toneMapped: false,
-						clippingPlanes: [
-							new THREE.Plane(new THREE.Vector3(1, 0, 0), clipOffset),  // Right clip
-							new THREE.Plane(new THREE.Vector3(-1, 0, 0), clipOffset), // Left clip
-						]
-					});
-
-					// Enable clipping in renderer
-					renderer.localClippingEnabled = true;
-
-					// Calculate aspect ratio and scale
-					const windowAspect = window.innerWidth / window.innerHeight;
-					const scaleX = windowAspect / meshAspect;
-					screenMesh.scale.x = scaleX;
+					// Set up initial clipping planes and material
+					setupClippingPlanes();
 
 					// Reset UV coordinates
 					const uvs = screenMesh.geometry.attributes.uv;
@@ -311,31 +330,29 @@
 			const box = new THREE.Box3().setFromObject(screenMesh);
 			const meshWidth = box.max.x - box.min.x;
 			const meshHeight = box.max.y - box.min.y;
-			const meshAspect = meshWidth / meshHeight;
+			const aspect = meshWidth / meshHeight;
 
 			// Scale mesh to match window aspect ratio
-			const scaleX = windowAspect / meshAspect;
+			const scaleX = windowAspect / aspect;
 			screenMesh.scale.x = scaleX;
 		}
 	}
 
 	function handleResize() {
-		if (!camera || !renderer) return;
+		if (!screenMesh || !canvas) return;
 
 		// Update camera
-		camera.aspect = window.innerWidth / window.innerHeight;
+		const aspect = window.innerWidth / window.innerHeight;
+		camera.aspect = aspect;
 		camera.updateProjectionMatrix();
-
-		// Update renderer
 		renderer.setSize(window.innerWidth, window.innerHeight);
-		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-		// Update screen mesh aspect ratio
-		updateScreenAspect();
+		// Update screen mesh clipping and scale
+		setupClippingPlanes();
 	}
 
 	onMount(async () => {
-		initThreeJS();
+		await initThreeJS();
 		window.addEventListener('resize', handleResize);
 		return () => {
 			window.removeEventListener('resize', handleResize);
