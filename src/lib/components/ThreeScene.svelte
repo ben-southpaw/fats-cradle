@@ -7,7 +7,6 @@
 
 	export let canvas; // Accept canvas from parent
 	export let onCanvasReady = undefined;
-	export let onCanvasClick = undefined;
 
 	let container;
 	let scene;
@@ -15,6 +14,11 @@
 	let renderer;
 	let model;
 	let screenMesh;
+	let sliderMesh;
+	let isSliderDragging = false;
+	let sliderStartX = 0;
+	let sliderInitialPosition;
+	let sliderMinX, sliderMaxX;
 	let isVisible = false;
 	let modelLoaded = false;
 	let animationFrameId;
@@ -60,6 +64,10 @@
 		animation: {
 			duration: 2.3,
 			delay: 0.4, // Shorter initial delay
+			sliderDelay: 0.8,    // Delay before slider starts
+			sliderDuration: 2.0,  // Slower slider movement
+			snapBackDelay: 0,   // Immediate snap back
+			snapBackDuration: 0.2 // Faster snap back
 		},
 	};
 
@@ -112,6 +120,10 @@
 		}
 	}
 
+	// Create a raycaster for slider interaction
+	const raycaster = new THREE.Raycaster();
+	const mouse = new THREE.Vector2();
+
 	export function startTransition() {
 		if (!modelLoaded || !model || isTransitioning) return;
 
@@ -151,6 +163,11 @@
 			CONFIG.model.initial.rotation.z
 		);
 
+		// Move slider to start position instantly
+		if (sliderMesh) {
+			sliderMesh.position.x = sliderMinX;
+		}
+
 		// Animate scale down and rotate
 		timeline
 			.to(model.rotation, {
@@ -169,10 +186,32 @@
 				},
 				0
 			);
+
+		// Add slider animation to run during the rotation
+		if (sliderMesh) {
+			timeline
+				.to(
+					sliderMesh.position,
+					{
+						x: sliderMaxX,
+						duration: CONFIG.animation.sliderDuration,
+						ease: 'power2.inOut'  // Smooth movement to right
+					},
+					CONFIG.animation.sliderDelay
+				)
+				.to(
+					sliderMesh.position,
+					{
+						x: sliderMinX,
+						duration: CONFIG.animation.snapBackDuration,
+						ease: 'power1.in'  // Snappy movement back
+					},
+					'>' // Start immediately after previous animation
+				);
+		}
 	}
 
 	async function initThreeJS() {
-		console.log('Initializing Three.js scene...');
 		scene = new THREE.Scene();
 
 		// Add lighting
@@ -229,83 +268,102 @@
 		canvasTexture.offset.set(1, 0);
 
 		// Load 3D model
-		console.log('Loading model from:', modelUrl);
 		const loader = new GLTFLoader();
+		const gltf = await loader.loadAsync(
+			CONFIG.model.path,
+			() => {}
+		);
 
-		try {
-			const gltf = await new Promise((resolve, reject) => {
-				loader.load(
-					modelUrl,
-					resolve,
-					(progress) => console.log('Loading progress:', progress),
-					reject
-				);
-			});
+		model = gltf.scene;
 
-			console.log('Model loaded successfully');
-			model = gltf.scene;
+		// Temporary: Log all model parts
+		model.traverse((child) => {
+			console.log('Model part:', child.name, child.type);
+		});
 
-			// Apply initial transforms
-			model.position.set(
-				CONFIG.model.initial.position.x,
-				CONFIG.model.initial.position.y,
-				CONFIG.model.initial.position.z
-			);
-			model.rotation.set(
-				CONFIG.model.initial.rotation.x,
-				CONFIG.model.initial.rotation.y,
-				CONFIG.model.initial.rotation.z
-			);
+		// Apply initial transforms
+		model.position.set(
+			CONFIG.model.initial.position.x,
+			CONFIG.model.initial.position.y,
+			CONFIG.model.initial.position.z
+		);
+		model.rotation.set(
+			CONFIG.model.initial.rotation.x,
+			CONFIG.model.initial.rotation.y,
+			CONFIG.model.initial.rotation.z
+		);
 
-			// Set initial scale but keep invisible
-			model.scale.set(
-				CONFIG.model.initial.scale.x,
-				CONFIG.model.initial.scale.y,
-				CONFIG.model.initial.scale.z
-			);
-			isVisible = false; // Start invisible
+		// Set initial scale but keep invisible
+		model.scale.set(
+			CONFIG.model.initial.scale.x,
+			CONFIG.model.initial.scale.y,
+			CONFIG.model.initial.scale.z
+		);
+		isVisible = false; // Start invisible
 
-			// Find screen mesh
-			let foundScreen = false;
-			model.traverse((child) => {
-				console.log('Traversing model child:', child.name);
-				if (child.name === 'Screen') {
-					console.log('Found screen mesh');
-					foundScreen = true;
-					screenMesh = child;
+		// Find screen and slider meshes
+		let foundScreen = false;
+		model.traverse((child) => {
+			if (child.name === 'Screen') {
+				foundScreen = true;
+				screenMesh = child;
 
-					// Set up initial clipping planes and material
-					setupClippingPlanes();
-
-					// Reset UV coordinates
-					const uvs = screenMesh.geometry.attributes.uv;
-					for (let i = 0; i < uvs.count; i++) {
-						const u = uvs.array[i * 2];
-						const v = uvs.array[i * 2 + 1];
-						uvs.array[i * 2] = u;
-						uvs.array[i * 2 + 1] = v;
-					}
-					uvs.needsUpdate = true;
-
-					// Rotate the mesh locally
-					screenMesh.rotateZ(Math.PI);
+				// Create material with canvas texture
+				if (screenMesh.material) {
+					screenMesh.material.dispose();
 				}
-			});
 
-			if (!foundScreen) {
-				console.warn('No screen mesh found in model');
+				screenMesh.material = new THREE.MeshBasicMaterial({
+					map: canvasTexture,
+					transparent: true,
+					opacity: 1,
+					side: THREE.DoubleSide,
+					toneMapped: false,
+				});
+
+				// Set up initial clipping planes
+				setupClippingPlanes();
+
+				// Reset UV coordinates
+				const uvs = screenMesh.geometry.attributes.uv;
+				for (let i = 0; i < uvs.count; i++) {
+					const u = uvs.array[i * 2];
+					const v = uvs.array[i * 2 + 1];
+					uvs.array[i * 2] = u;
+					uvs.array[i * 2 + 1] = v;
+				}
+				uvs.needsUpdate = true;
+
+				// Rotate the mesh locally
+				screenMesh.rotateZ(Math.PI);
+			} else if (child.name === 'Slider') {
+				sliderMesh = child;
+				// Store initial position for reset
+				sliderInitialPosition = child.position.clone();
+				
+				// Set slider bounds to 90% of rail width (-1.63 to 1.63)
+				// This should only hide about 20% of the knob width on each end
+				sliderMinX = -1.47;  // 90% of -1.63
+				sliderMaxX = 1.47;   // 90% of 1.63
+				
+				// Move slider to left end initially
+				sliderMesh.position.x = sliderMinX;
+			} else if (child.name === 'Curve' || child.name === 'Curve_1') {
+				// Log rail position if found
+				const box = new THREE.Box3().setFromObject(child);
+				console.log('Rail bounds:', child.name, box.min.x, box.max.x);
 			}
+		});
 
-			scene.add(model);
-			console.log('Added model to scene');
-			modelLoaded = true;
-
-			// Start render loop
-			animate();
-		} catch (error) {
-			console.error('Error loading model:', error);
-			console.error('Error details:', error.message);
+		if (!foundScreen) {
+			console.warn('No screen mesh found in model');
 		}
+
+		scene.add(model);
+		modelLoaded = true;
+
+		// Start render loop
+		animate();
 	}
 
 	function animate() {
@@ -351,11 +409,60 @@
 		setupClippingPlanes();
 	}
 
+	function handleMouseDown(event) {
+		if (!sliderMesh) return;
+
+		// Convert mouse position to normalized device coordinates
+		mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+		mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+		// Update the picking ray with the camera and mouse position
+		raycaster.setFromCamera(mouse, camera);
+
+		// Check if we clicked on the slider
+		const intersects = raycaster.intersectObject(sliderMesh, true);
+		if (intersects.length > 0) {
+			isSliderDragging = true;
+			sliderStartX = event.clientX;
+		}
+	}
+
+	function handleMouseMove(event) {
+		if (!isSliderDragging || !sliderMesh) return;
+
+		// Calculate movement (adjusted sensitivity)
+		const movement = (event.clientX - sliderStartX) * 0.003; // Reduced sensitivity for more control
+		const newX = sliderMesh.position.x + movement;
+
+		// Clamp to bounds
+		const clampedX = Math.min(Math.max(newX, sliderMinX), sliderMaxX);
+		sliderMesh.position.x = clampedX;
+		
+		// Calculate normalized position (0 to 1)
+		const normalizedPosition = (clampedX - sliderMinX) / (sliderMaxX - sliderMinX);
+		
+		// Update start position for next frame
+		sliderStartX = event.clientX;
+
+		// Emit wipe progress event
+		dispatch('wipe', { progress: normalizedPosition });
+	}
+
+	function handleMouseUp() {
+		isSliderDragging = false;
+	}
+
 	onMount(async () => {
 		await initThreeJS();
 		window.addEventListener('resize', handleResize);
+		window.addEventListener('mousedown', handleMouseDown);
+		window.addEventListener('mousemove', handleMouseMove);
+		window.addEventListener('mouseup', handleMouseUp);
 		return () => {
 			window.removeEventListener('resize', handleResize);
+			window.removeEventListener('mousedown', handleMouseDown);
+			window.removeEventListener('mousemove', handleMouseMove);
+			window.removeEventListener('mouseup', handleMouseUp);
 			if (animationFrameId) {
 				cancelAnimationFrame(animationFrameId);
 			}

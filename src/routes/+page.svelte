@@ -1,17 +1,29 @@
 <script>
 	import Canvas from '$lib/components/Canvas.svelte';
+	import ThreeScene from '$lib/components/ThreeScene.svelte';
 
 	let showScrollToExplore = true;
+	let isTransitioning = false;
+	let canvasComponent;
 
 	function handleTransitionStart() {
-		showScrollToExplore = false;
+		isTransitioning = true;
+	}
+
+	function handleWipe(event) {
+		const progress = event.detail.progress;
+		if (canvasComponent) {
+			canvasComponent.clearWithProgress(progress);
+		}
 	}
 </script>
 
 <section>
-	<Canvas
+	<Canvas bind:this={canvasComponent} />
+	<ThreeScene
 		{showScrollToExplore}
 		on:transitionstart={handleTransitionStart}
+		on:wipe={handleWipe}
 	/>
 </section>
 

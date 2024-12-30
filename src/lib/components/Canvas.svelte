@@ -881,6 +881,16 @@
 			this.particles.clear();
 		}
 
+		clearToX(x) {
+			// Remove particles to the left of x
+			for (const [opacity, particles] of this.particles.entries()) {
+				this.particles.set(
+					opacity,
+					particles.filter(p => p.x > x)
+				);
+			}
+		}
+
 		// Render all particles in batch with same opacity
 		render(ctx) {
 			for (const [opacity, particles] of this.particles) {
@@ -1405,6 +1415,28 @@
 				dispatch('transitionstart');
 			}
 		}
+	}
+
+	// Progressive clear function
+	export function clearWithProgress(progress) {
+		if (!ctx || !canvas) return;
+
+		// Calculate the clear line position
+		const clearX = canvas.width * progress;
+
+		// Clear everything to the left of the line
+		ctx.save();
+		ctx.fillStyle = CONFIG.backgroundColor;
+		ctx.fillRect(0, 0, clearX, canvas.height);
+		ctx.restore();
+
+		// Clear particle batches up to the line
+		stampBatch.clearToX(clearX);
+		drawingBatch.clearToX(clearX);
+		predrawnBatch.clearToX(clearX);
+
+		// Redraw
+		renderAll();
 	}
 </script>
 
