@@ -173,6 +173,8 @@
 		canvasTexture.encoding = THREE.sRGBEncoding;
 		canvasTexture.needsUpdate = true;
 		canvasTexture.flipY = true;
+		canvasTexture.wrapS = THREE.ClampToEdgeWrapping;
+		canvasTexture.wrapT = THREE.ClampToEdgeWrapping;
 		canvasTexture.repeat.set(-1, 1);
 		canvasTexture.offset.set(1, 0);
 
@@ -222,6 +224,15 @@
 					foundScreen = true;
 					screenMesh = child;
 
+					// Get original mesh dimensions
+					const box = new THREE.Box3().setFromObject(screenMesh);
+					const meshWidth = box.max.x - box.min.x;
+					const meshHeight = box.max.y - box.min.y;
+					const meshAspect = meshWidth / meshHeight;
+
+					// Calculate wider clipping plane positions (1.2x the original mesh width)
+					const clipOffset = meshWidth * 0.66;
+
 					// Create material with canvas texture
 					if (screenMesh.material) {
 						screenMesh.material.dispose();
@@ -233,23 +244,32 @@
 						opacity: 1,
 						side: THREE.DoubleSide,
 						toneMapped: false,
+						clippingPlanes: [
+							new THREE.Plane(new THREE.Vector3(1, 0, 0), clipOffset),  // Right clip
+							new THREE.Plane(new THREE.Vector3(-1, 0, 0), clipOffset), // Left clip
+						]
 					});
 
-					// Fix UV mapping to correct mirroring and rotation
-					if (screenMesh.geometry) {
-						// Reset UV coordinates to original
-						const uvs = screenMesh.geometry.attributes.uv;
-						for (let i = 0; i < uvs.count; i++) {
-							const u = uvs.array[i * 2];
-							const v = uvs.array[i * 2 + 1];
-							uvs.array[i * 2] = u;
-							uvs.array[i * 2 + 1] = v;
-						}
-						uvs.needsUpdate = true;
+					// Enable clipping in renderer
+					renderer.localClippingEnabled = true;
 
-						// Rotate the mesh locally
-						screenMesh.rotateZ(Math.PI);
+					// Calculate aspect ratio and scale
+					const windowAspect = window.innerWidth / window.innerHeight;
+					const scaleX = windowAspect / meshAspect;
+					screenMesh.scale.x = scaleX;
+
+					// Reset UV coordinates
+					const uvs = screenMesh.geometry.attributes.uv;
+					for (let i = 0; i < uvs.count; i++) {
+						const u = uvs.array[i * 2];
+						const v = uvs.array[i * 2 + 1];
+						uvs.array[i * 2] = u;
+						uvs.array[i * 2 + 1] = v;
 					}
+					uvs.needsUpdate = true;
+
+					// Rotate the mesh locally
+					screenMesh.rotateZ(Math.PI);
 				}
 			});
 
@@ -282,28 +302,46 @@
 		renderer.render(scene, camera);
 	}
 
+	function updateScreenAspect() {
+		if (screenMesh && screenMesh.geometry) {
+			const windowAspect = window.innerWidth / window.innerHeight;
+			
+			// Get original mesh dimensions (before any scaling)
+			screenMesh.scale.x = 1; // Reset scale temporarily
+			const box = new THREE.Box3().setFromObject(screenMesh);
+			const meshWidth = box.max.x - box.min.x;
+			const meshHeight = box.max.y - box.min.y;
+			const meshAspect = meshWidth / meshHeight;
+
+			// Scale mesh to match window aspect ratio
+			const scaleX = windowAspect / meshAspect;
+			screenMesh.scale.x = scaleX;
+		}
+	}
+
 	function handleResize() {
 		if (!camera || !renderer) return;
 
-		const width = window.innerWidth;
-		const height = window.innerHeight;
-
-		camera.aspect = width / height;
+		// Update camera
+		camera.aspect = window.innerWidth / window.innerHeight;
 		camera.updateProjectionMatrix();
 
-		renderer.setSize(width, height);
+		// Update renderer
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+		// Update screen mesh aspect ratio
+		updateScreenAspect();
 	}
 
 	onMount(async () => {
-		console.log('Component mounted');
-		await initThreeJS();
-		console.log('Three.js initialized');
-
-		// Handle window resize
+		initThreeJS();
 		window.addEventListener('resize', handleResize);
-
 		return () => {
 			window.removeEventListener('resize', handleResize);
+			if (animationFrameId) {
+				cancelAnimationFrame(animationFrameId);
+			}
 		};
 	});
 </script>
