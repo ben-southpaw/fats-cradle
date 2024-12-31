@@ -12,6 +12,7 @@
 
 	function handleWipe(event) {
 		const progress = event.detail.progress;
+		console.log('Wipe progress:', progress);
 		if (canvasComponent) {
 			canvasComponent.clearWithProgress(progress);
 		}
