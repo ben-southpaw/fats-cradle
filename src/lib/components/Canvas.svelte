@@ -505,6 +505,8 @@
 
 	// Handle mouse/touch events
 	function handlePointerDown(e) {
+		if (isTransitioning) return;
+		
 		shouldDraw = false;
 		const pos = getPointerPos(e);
 		const x = pos.x;
@@ -538,6 +540,8 @@
 	}
 
 	function handlePointerUp(e) {
+		if (isTransitioning) return;
+		
 		if (isDraggingMagnet && selectedMagnet) {
 			const magnet = selectedMagnet;
 			// Keep the magnet exactly where it is
@@ -568,6 +572,8 @@
 	}
 
 	function handlePointerMove(e) {
+		if (isTransitioning) return;
+		
 		const pos = getPointerPos(e);
 
 		if (isDraggingMagnet && selectedMagnet) {
@@ -600,6 +606,8 @@
 	}
 
 	function handlePointerLeave(e) {
+		if (isTransitioning) return;
+		
 		const pos = getPointerPos(e);
 		lastX = pos.x;
 		lastY = pos.y;
@@ -1389,6 +1397,32 @@
 	let isScrollAnimating = false;
 	let isCanvasVisible = true;
 
+	let isTransitioning = false;
+
+	function handleTransitionStart() {
+		isTransitioning = true;
+		shouldDraw = false;
+	}
+
+	function handleSnapBackStart() {
+		// Clear all particle arrays
+		particles = [];
+		stampParticles = [];
+		preDrawnParticles = [];
+		drawingPoints = [];
+
+		// Clear all batches
+		drawingBatch.clear();
+		predrawnBatch.clear();
+		stampBatch.clear();
+
+		// Reset drawing state
+		shouldDraw = false;
+
+		// Force a render to update the canvas
+		renderAll();
+	}
+
 	function handleTransitionComplete() {
 		// Fade out the canvas
 		gsap.to(canvas, {
@@ -1464,6 +1498,8 @@
 	<ThreeScene 
 		bind:this={threeSceneComponent} 
 		canvas={canvas}
+		on:transitionstart={handleTransitionStart}
+		on:snapbackstart={handleSnapBackStart}
 		on:transitioncomplete={handleTransitionComplete}
 	/>
 	{#if showScrollToExplore || isScrollAnimating}

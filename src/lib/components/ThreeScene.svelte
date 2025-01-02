@@ -200,24 +200,13 @@
 			sliderMesh.position.x = sliderMinX;
 		}
 
-		// Create a progress object for the wipe effect
-		const wipeProgress = { value: 0 };
-
 		// Animate scale down and rotate
 		timeline
-			.to(wipeProgress, {
-				value: 1,
-				duration: CONFIG.animation.duration,
-				ease: 'power3.inOut',
-				onUpdate: () => {
-					dispatch('wipe', { progress: wipeProgress.value });
-				}
-			})
 			.to(model.rotation, {
 				y: CONFIG.model.final.rotation.y,
 				duration: CONFIG.animation.duration,
 				ease: 'power3.inOut'
-			}, 0)
+			})
 			.to(
 				model.scale,
 				{
@@ -252,6 +241,9 @@
 						x: sliderMinX,
 						duration: CONFIG.animation.snapBackDuration,
 						ease: 'power1.in',  // Snappy movement back
+						onStart: () => {
+							dispatch('snapbackstart');
+						},
 						onUpdate: () => {
 							const progress = calculateWipeProgress(sliderMesh.position.x);
 							dispatch('wipe', { progress });
@@ -343,7 +335,7 @@
 				const box = new THREE.Box3().setFromObject(child);
 				// Only log in development
 				if (import.meta.env.DEV) {
-					console.debug('Rail bounds:', child.name, box.min.x, box.max.x);
+					// console.debug('Rail bounds:', child.name, box.min.x, box.max.x);
 				}
 			}
 		});
