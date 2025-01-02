@@ -38,13 +38,13 @@
 			canvasTexture.wrapT = THREE.ClampToEdgeWrapping;
 			canvasTexture.repeat.set(-1, 1);
 			canvasTexture.offset.set(1, 0);
-			
+
 			// If screen mesh exists, update its material
 			if (screenMesh?.material) {
 				screenMesh.material.map = canvasTexture;
 			}
 		}
-		
+
 		// Always update texture when canvas changes
 		if (canvasTexture) {
 			canvasTexture.needsUpdate = true;
@@ -85,10 +85,10 @@
 		animation: {
 			duration: 2.3,
 			delay: 0.4, // Shorter initial delay
-			sliderDelay: 0.8,    // Delay before slider starts
-			sliderDuration: 2.0,  // Slower slider movement
-			snapBackDelay: 0,   // Immediate snap back
-			snapBackDuration: 0.2 // Faster snap back
+			sliderDelay: 0.8, // Delay before slider starts
+			sliderDuration: 2.0, // Slower slider movement
+			snapBackDelay: 0, // Immediate snap back
+			snapBackDuration: 0.2, // Faster snap back
 		},
 	};
 
@@ -98,23 +98,23 @@
 	// Function to setup clipping planes
 	function setupClippingPlanes() {
 		if (!screenMesh || !canvas) return;
-		
+
 		// Get original mesh dimensions
 		const box = new THREE.Box3().setFromObject(screenMesh);
 		const meshWidth = box.max.x - box.min.x;
 		const meshHeight = box.max.y - box.min.y;
-		
+
 		// Get canvas aspect ratio
 		const canvasAspect = canvas.width / canvas.height;
-		
+
 		// Calculate scale to fit height
 		const heightScale = 1.0; // Keep original height
 		const widthScale = (canvasAspect / (meshWidth / meshHeight)) * 1.2; // Add 20% to width
-		
+
 		// Update mesh scale
 		screenMesh.scale.y = heightScale;
 		screenMesh.scale.x = widthScale;
-		
+
 		// Set clipping planes at original mesh boundaries
 		const clipOffset = meshWidth * 0.5; // Keep original clipping
 
@@ -129,9 +129,9 @@
 			side: THREE.DoubleSide,
 			toneMapped: false,
 			clippingPlanes: [
-				new THREE.Plane(new THREE.Vector3(1, 0, 0), clipOffset),  // Right clip
+				new THREE.Plane(new THREE.Vector3(1, 0, 0), clipOffset), // Right clip
 				new THREE.Plane(new THREE.Vector3(-1, 0, 0), clipOffset), // Left clip
-			]
+			],
 		};
 
 		// Only add the map if canvasTexture exists
@@ -175,13 +175,16 @@
 
 		// Start invisible and show after scroll animation + delay
 		isVisible = false;
-		gsap.to({}, {
-			duration: CONFIG.animation.delay + 0.5, // Add extra time for scroll animation
-			onComplete: () => {
-				isVisible = true;
-				dispatch('transitioncomplete'); // Trigger canvas fade when model appears
+		gsap.to(
+			{},
+			{
+				duration: CONFIG.animation.delay + 0.5, // Add extra time for scroll animation
+				onComplete: () => {
+					isVisible = true;
+					dispatch('transitioncomplete'); // Trigger canvas fade when model appears
+				},
 			}
-		});
+		);
 
 		// Start from initial state
 		model.scale.set(
@@ -205,7 +208,7 @@
 			.to(model.rotation, {
 				y: CONFIG.model.final.rotation.y,
 				duration: CONFIG.animation.duration,
-				ease: 'power3.inOut'
+				ease: 'power3.inOut',
 			})
 			.to(
 				model.scale,
@@ -214,7 +217,7 @@
 					y: CONFIG.model.final.scale.y,
 					z: CONFIG.model.final.scale.z,
 					duration: CONFIG.animation.duration,
-					ease: 'expo.out'
+					ease: 'expo.out',
 				},
 				0
 			);
@@ -227,11 +230,11 @@
 					{
 						x: sliderMaxX,
 						duration: CONFIG.animation.sliderDuration,
-						ease: 'power2.inOut',  // Smooth movement to right
+						ease: 'power2.inOut', // Smooth movement to right
 						onUpdate: () => {
 							const progress = calculateWipeProgress(sliderMesh.position.x);
 							dispatch('wipe', { progress });
-						}
+						},
 					},
 					CONFIG.animation.sliderDelay
 				)
@@ -240,14 +243,14 @@
 					{
 						x: sliderMinX,
 						duration: CONFIG.animation.snapBackDuration,
-						ease: 'power1.in',  // Snappy movement back
+						ease: 'power1.in', // Snappy movement back
 						onStart: () => {
 							dispatch('snapbackstart');
 						},
 						onUpdate: () => {
 							const progress = calculateWipeProgress(sliderMesh.position.x);
 							dispatch('wipe', { progress });
-						}
+						},
 					},
 					'>' // Start immediately after previous animation
 				);
@@ -295,7 +298,7 @@
 					transparent: true,
 					opacity: 1,
 					side: THREE.DoubleSide,
-					toneMapped: false
+					toneMapped: false,
 				});
 
 				// If we already have a canvas texture, set it now
@@ -322,12 +325,12 @@
 				sliderMesh = child;
 				// Store initial position for reset
 				sliderInitialPosition = child.position.clone();
-				
+
 				// Set slider bounds to 90% of rail width (-1.63 to 1.63)
 				// This should only hide about 20% of the knob width on each end
-				sliderMinX = -1.47;  // 90% of -1.63
-				sliderMaxX = 1.47;   // 90% of 1.63
-				
+				sliderMinX = -1.47; // 90% of -1.63
+				sliderMaxX = 1.47; // 90% of 1.63
+
 				// Move slider to left end initially
 				sliderMesh.position.x = sliderMinX;
 			} else if (child.name === 'Curve' || child.name === 'Curve_1') {
@@ -427,7 +430,7 @@
 	function updateScreenAspect() {
 		if (screenMesh && screenMesh.geometry) {
 			const windowAspect = window.innerWidth / window.innerHeight;
-			
+
 			// Get original mesh dimensions (before any scaling)
 			screenMesh.scale.x = 1; // Reset scale temporarily
 			const box = new THREE.Box3().setFromObject(screenMesh);
@@ -482,10 +485,10 @@
 		// Clamp to bounds
 		const clampedX = Math.min(Math.max(newX, sliderMinX), sliderMaxX);
 		sliderMesh.position.x = clampedX;
-		
+
 		// Calculate normalized position (0 to 1)
 		const normalizedPosition = calculateWipeProgress(clampedX);
-		
+
 		// Update start position for next frame
 		sliderStartX = event.clientX;
 

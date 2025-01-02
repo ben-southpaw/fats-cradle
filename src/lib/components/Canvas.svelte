@@ -875,14 +875,23 @@
 	class ParticleBatch {
 		constructor() {
 			this.particles = new Map(); // Map of opacity -> particles array
-			this.gridSize = 100; // Size of each grid cell
-			this.grid = new Map(); // Spatial grid for quick lookups
+			this.offscreenCanvas = null;
+			this.offscreenCtx = null;
 		}
 
-		_getGridKey(x, y) {
-			const gridX = Math.floor(x / this.gridSize);
-			const gridY = Math.floor(y / this.gridSize);
-			return `${gridX},${gridY}`;
+		_initOffscreenCanvas(width, height) {
+			if (!this.offscreenCanvas) {
+				this.offscreenCanvas = document.createElement('canvas');
+			}
+			// Only resize if needed
+			if (this.offscreenCanvas.width !== width || this.offscreenCanvas.height !== height) {
+				this.offscreenCanvas.width = width;
+				this.offscreenCanvas.height = height;
+				this.offscreenCtx = this.offscreenCanvas.getContext('2d');
+				// Match main canvas settings
+				this.offscreenCtx.imageSmoothingEnabled = true;
+				this.offscreenCtx.imageSmoothingQuality = 'high';
+			}
 		}
 
 		add(particle) {
@@ -891,133 +900,106 @@
 				this.particles.set(key, []);
 			}
 			this.particles.get(key).push(particle);
-
-			// Add to spatial grid
-			const gridKey = this._getGridKey(particle.x, particle.y);
-			if (!this.grid.has(gridKey)) {
-				this.grid.set(gridKey, new Set());
-			}
-			this.grid.get(gridKey).add(particle);
 		}
 
 		clear() {
 			this.particles.clear();
-			this.grid.clear();
 		}
 
 		clearToX(x) {
 			// Remove particles to the right of x
 			for (const [opacity, particles] of this.particles.entries()) {
-				const remainingParticles = particles.filter(p => p.x <= x);
-				this.particles.set(opacity, remainingParticles);
+				this.particles.set(
+					opacity,
+					particles.filter(p => p.x <= x)
+				);
 			}
-
-			// Rebuild spatial grid
-			this.grid.clear();
-			for (const [_, particles] of this.particles) {
-				for (const particle of particles) {
-					const gridKey = this._getGridKey(particle.x, particle.y);
-					if (!this.grid.has(gridKey)) {
-						this.grid.set(gridKey, new Set());
-					}
-					this.grid.get(gridKey).add(particle);
-				}
-			}
-		}
-
-		_getVisibleParticles(ctx) {
-			const viewportWidth = ctx.canvas.width;
-			const viewportHeight = ctx.canvas.height;
-			const startGridX = Math.floor(0 / this.gridSize);
-			const endGridX = Math.ceil(viewportWidth / this.gridSize);
-			const startGridY = Math.floor(0 / this.gridSize);
-			const endGridY = Math.ceil(viewportHeight / this.gridSize);
-
-			const visibleParticles = new Set();
-
-			for (let gridX = startGridX; gridX <= endGridX; gridX++) {
-				for (let gridY = startGridY; gridY <= endGridY; gridY++) {
-					const gridKey = `${gridX},${gridY}`;
-					const cellParticles = this.grid.get(gridKey);
-					if (cellParticles) {
-						for (const particle of cellParticles) {
-							if (isInViewport(particle)) {
-								visibleParticles.add(particle);
-							}
-						}
-					}
-				}
-			}
-
-			return visibleParticles;
 		}
 
 		render(ctx) {
-			// Get only visible particles
-			const visibleParticles = this._getVisibleParticles(ctx);
+			if (!ctx) return;
 
-			// Group particles by visual properties for batch rendering
-			const batchGroups = new Map();
+			// Initialize or resize offscreen canvas if needed
+			this._initOffscreenCanvas(ctx.canvas.width, ctx.canvas.height);
+			
+			// Clear the offscreen canvas with transparent background
+			this.offscreenCtx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
-			for (const particle of visibleParticles) {
-				const opacity = particle.opacity || 1;
-				const color = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
-				const batchKey = `${color}-${opacity}-${particle.isPredrawn}-${particle.isStampParticle}`;
+			// Group particles by their properties for efficient rendering
+			const renderGroups = new Map();
 
-				// Check hexagon avoidance
-				let avoidanceDistance;
-				if (particle.isPredrawn) {
-					avoidanceDistance = CONFIG.predrawnAvoidanceDistance;
-				} else if (particle.isStampParticle) {
-					avoidanceDistance = CONFIG.stampAvoidanceDistance;
-				} else {
-					avoidanceDistance = CONFIG.hexagonAvoidanceDistance;
+			// Process all particles and group them
+			for (const [opacity, particleList] of this.particles) {
+				for (const particle of particleList) {
+					// Skip if particle is outside viewport
+					if (!isInViewport(particle)) continue;
+
+					// Check hexagon line avoidance
+					let avoidanceDistance;
+					if (particle.isPredrawn) {
+						avoidanceDistance = CONFIG.predrawnAvoidanceDistance;
+					} else if (particle.isStampParticle) {
+						avoidanceDistance = CONFIG.stampAvoidanceDistance;
+					} else {
+						avoidanceDistance = CONFIG.hexagonAvoidanceDistance;
+					}
+
+					const hexCheck = isNearHexagonLine(
+						particle.x,
+						particle.y,
+						avoidanceDistance
+					);
+
+					if (hexCheck.isNear) continue;
+
+					// Create group key based on visual properties
+					const color = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
+					const finalOpacity = particle.opacity !== undefined ? particle.opacity : opacity;
+					const key = `${color}-${finalOpacity}-${particle.isPredrawn}-${particle.isStampParticle}`;
+
+					if (!renderGroups.has(key)) {
+						renderGroups.set(key, {
+							color,
+							opacity: finalOpacity,
+							particles: []
+						});
+					}
+					renderGroups.get(key).particles.push(particle);
 				}
-
-				const hexCheck = isNearHexagonLine(
-					particle.x,
-					particle.y,
-					avoidanceDistance
-				);
-
-				if (hexCheck.isNear) continue;
-
-				if (!batchGroups.has(batchKey)) {
-					batchGroups.set(batchKey, []);
-				}
-				batchGroups.get(batchKey).push(particle);
 			}
 
-			// Render each batch group
-			for (const [batchKey, particles] of batchGroups) {
+			// Render each group to offscreen canvas
+			for (const group of renderGroups.values()) {
+				const { color, opacity, particles } = group;
 				if (particles.length === 0) continue;
 
-				const [color, opacity] = batchKey.split('-');
-				
-				ctx.save();
+				this.offscreenCtx.save();
 				
 				// Set style once for the batch
 				const r = parseInt(color.slice(1, 3), 16);
 				const g = parseInt(color.slice(3, 5), 16);
 				const b = parseInt(color.slice(5, 7), 16);
-				ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+				this.offscreenCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
 
 				// Draw all particles in the batch
 				for (const particle of particles) {
-					ctx.save();
-					ctx.translate(particle.x, particle.y);
-					ctx.rotate(particle.angle);
-					ctx.fillRect(
+					this.offscreenCtx.save();
+					this.offscreenCtx.translate(particle.x, particle.y);
+					this.offscreenCtx.rotate(particle.angle);
+					this.offscreenCtx.fillRect(
 						-particle.length / 2,
 						-particle.width / 2,
 						particle.length,
 						particle.width
 					);
-					ctx.restore();
+					this.offscreenCtx.restore();
 				}
 
-				ctx.restore();
+				this.offscreenCtx.restore();
 			}
+
+			// Draw the final result to the main canvas
+			ctx.drawImage(this.offscreenCanvas, 0, 0);
 		}
 	}
 
