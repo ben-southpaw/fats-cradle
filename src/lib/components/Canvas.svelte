@@ -24,39 +24,40 @@
 	let lastRenderTime = 0;
 	const CONFIG = {
 		particleSize: 0.3,
-		particleDensity: 15,
+		particleDensity: 8,
 		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
-		gridColor: '#DADADA', // Lighter grid color
+		gridColor: '#DADADA',
 		hexagonSize: 2,
 		particleLength: 6,
 		particleWidth: 0.3,
 		particleColor: '#333333',
 		preDrawnParticleSize: 1.0,
-		preDrawnDensity: 40,
+		preDrawnDensity: 15,
 		preDrawnColor: '#333333',
 		whiteParticleProbability: 0.3,
 		targetFPS: 60,
-		hexagonSpacing: 2 * 3, // Size * multiplier
-		hexagonAvoidanceDistance: 0.5, // Slightly stronger for drawn elements
-		predrawnAvoidanceDistance: 0.4, // More subtle for predrawn elements
-		stampAvoidanceDistance: 0.5, // Stamp elements
-		hexagonLineWidth: 0.5, // Width of the hexagon line effect
-		initialStampOpacity: 0.95, // Darker initial stamps
-		subsequentStampOpacity: 0.6, // Lighter subsequent stamps
+		hexagonSpacing: 2 * 3,
+		hexagonAvoidanceDistance: 0.5,
+		predrawnAvoidanceDistance: 0.4,
+		stampAvoidanceDistance: 0.5,
+		hexagonLineWidth: 0.5,
+		initialStampOpacity: 0.95,
+		subsequentStampOpacity: 0.6,
 		initialStampDensity: {
-			// Higher density for initial stamps
-			edge: 2.5,
-			fill: 2.8,
+			edge: 1.4,
+			fill: 1.6,
 		},
 		subsequentStampDensity: {
-			// Lower density for subsequent stamps
-			edge: 1.8,
-			fill: 1.5,
+			edge: 1.0,
+			fill: 0.8,
 		},
+		maxParticles: 40000,
+		particleCullingDistance: 2000,
 	};
 
 	const FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
+	let lastParticleUpdate = 0;
 
 	// Canvas setup
 	let canvas;
@@ -65,6 +66,7 @@
 	let particles = [];
 	let stampParticles = []; // For magnet stamps
 	let preDrawnParticles = []; // For pre-drawn elements
+	let drawingPoints = []; // For storing drawing path points
 	let lastX = null;
 	let lastY = null;
 	let selectedMagnet = null;
@@ -209,11 +211,11 @@
 		function animate() {
 			animationFrameId = requestAnimationFrame(animate);
 			const currentTime = performance.now();
-
+			
 			if (currentTime - lastRenderTime >= FRAME_INTERVAL) {
 				renderAll();
 				lastRenderTime = currentTime;
-
+				
 				// Keep notifying about canvas updates
 				onScreenCanvasReady(canvas);
 			}
@@ -267,6 +269,270 @@
 			}
 		};
 	});
+
+	// WebGL setup
+	let gl;
+	let particleProgram;
+	let particleBuffer;
+	let particleColorBuffer;
+
+	// WebGL shaders
+	const vertexShaderSource = `
+		attribute vec2 position;
+		attribute vec4 color;
+		uniform vec2 resolution;
+		varying vec4 vColor;
+
+		void main() {
+			vec2 zeroToOne = position / resolution;
+			vec2 zeroToTwo = zeroToOne * 2.0;
+			vec2 clipSpace = zeroToTwo - 1.0;
+			gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+			gl_PointSize = 3.0 * (resolution.y / 1080.0); // Scale with screen height
+			vColor = color;
+		}
+	`;
+
+	const fragmentShaderSource = `
+		precision mediump float;
+		varying vec4 vColor;
+
+		void main() {
+			gl_FragColor = vColor;
+		}
+	`;
+
+	function createShader(gl, type, source) {
+		const shader = gl.createShader(type);
+		gl.shaderSource(shader, source);
+		gl.compileShader(shader);
+		if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+			console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+			gl.deleteShader(shader);
+			return null;
+		}
+		return shader;
+	}
+
+	function renderParticlesWebGL(particles) {
+		if (!gl || !particleProgram || particles.length === 0) return;
+
+		const positions = new Float32Array(particles.length * 2);
+		const colors = new Float32Array(particles.length * 4);
+
+		particles.forEach((particle, i) => {
+			positions[i * 2] = particle.x;
+			positions[i * 2 + 1] = particle.y;
+
+			// Convert hex color to RGB
+			const color = particle.color.startsWith('#') ? 
+				parseInt(particle.color.slice(1), 16) : 
+				parseInt(particle.color, 16);
+			
+			colors[i * 4] = ((color >> 16) & 255) / 255;
+			colors[i * 4 + 1] = ((color >> 8) & 255) / 255;
+			colors[i * 4 + 2] = (color & 255) / 255;
+			colors[i * 4 + 3] = 1.0; // Alpha
+		});
+
+		gl.useProgram(particleProgram);
+
+		// Set resolution uniform
+		const resolutionLocation = gl.getUniformLocation(particleProgram, 'resolution');
+		gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+
+		// Update position buffer
+		const positionLocation = gl.getAttribLocation(particleProgram, 'position');
+		gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+		gl.enableVertexAttribArray(positionLocation);
+		gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+		// Update color buffer
+		const colorLocation = gl.getAttribLocation(particleProgram, 'color');
+		gl.bindBuffer(gl.ARRAY_BUFFER, particleColorBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+		gl.enableVertexAttribArray(colorLocation);
+		gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
+
+		// Draw particles
+		gl.drawArrays(gl.POINTS, 0, particles.length);
+	}
+
+	function setupWebGL() {
+		if (!canvas) return;
+
+		console.log('Setting up WebGL...');
+		
+		// Try WebGL2 first
+		gl = canvas.getContext('webgl2', { 
+			alpha: true,
+			premultipliedAlpha: false,
+			antialias: false, // Disable antialiasing for better performance
+			depth: false, // We don't need depth testing for 2D
+			powerPreference: 'high-performance'
+		});
+		
+		if (!gl) {
+			console.log('WebGL2 not available, trying WebGL1...');
+			gl = canvas.getContext('webgl', {
+				alpha: true,
+				premultipliedAlpha: false,
+				antialias: false,
+				depth: false,
+				powerPreference: 'high-performance'
+			});
+		}
+		
+		if (!gl) {
+			console.log('WebGL1 not available, trying experimental-webgl...');
+			gl = canvas.getContext('experimental-webgl', {
+				alpha: true,
+				premultipliedAlpha: false,
+				antialias: false,
+				depth: false,
+				powerPreference: 'high-performance'
+			});
+		}
+
+		if (!gl) {
+			console.warn('WebGL not supported - falling back to Canvas2D');
+			return;
+		}
+
+		// Log WebGL capabilities
+		console.log('WebGL Version:', gl.getParameter(gl.VERSION));
+		console.log('WebGL Vendor:', gl.getParameter(gl.VENDOR));
+		console.log('WebGL Renderer:', gl.getParameter(gl.RENDERER));
+		console.log('Max Texture Size:', gl.getParameter(gl.MAX_TEXTURE_SIZE));
+		console.log('Max Viewport Dimensions:', gl.getParameter(gl.MAX_VIEWPORT_DIMS));
+
+		// Enable blending
+		gl.enable(gl.BLEND);
+		gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+		// Create shaders
+		const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+		const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+		if (!vertexShader || !fragmentShader) {
+			console.error('Failed to create shaders - falling back to Canvas2D rendering');
+			gl = null;
+			return;
+		}
+
+		// Create program
+		particleProgram = gl.createProgram();
+		gl.attachShader(particleProgram, vertexShader);
+		gl.attachShader(particleProgram, fragmentShader);
+		gl.linkProgram(particleProgram);
+
+		if (!gl.getProgramParameter(particleProgram, gl.LINK_STATUS)) {
+			console.error('Program link error:', gl.getProgramInfoLog(particleProgram));
+			gl = null;
+			return;
+		}
+
+		// Create buffers
+		particleBuffer = gl.createBuffer();
+		particleColorBuffer = gl.createBuffer();
+
+		// Set viewport
+		gl.viewport(0, 0, canvas.width, canvas.height);
+
+		// Test a simple draw call
+		gl.useProgram(particleProgram);
+		const testPositions = new Float32Array([0, 0]);
+		const testColors = new Float32Array([1, 1, 1, 1]);
+		
+		try {
+			const positionLocation = gl.getAttribLocation(particleProgram, 'position');
+			const colorLocation = gl.getAttribLocation(particleProgram, 'color');
+			const resolutionLocation = gl.getUniformLocation(particleProgram, 'resolution');
+			
+			gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+			
+			gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
+			gl.bufferData(gl.ARRAY_BUFFER, testPositions, gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(positionLocation);
+			gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+			
+			gl.bindBuffer(gl.ARRAY_BUFFER, particleColorBuffer);
+			gl.bufferData(gl.ARRAY_BUFFER, testColors, gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(colorLocation);
+			gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
+			
+			gl.drawArrays(gl.POINTS, 0, 1);
+			
+			console.log('WebGL test draw successful');
+		} catch (e) {
+			console.error('WebGL test draw failed:', e);
+			gl = null;
+		}
+	}
+
+	// Update render function to handle WebGL fallback
+	function renderAll() {
+		if (!ctx) return;
+
+		const currentTime = performance.now();
+		const startTime = currentTime;
+		
+		// Clear and draw background
+		ctx.fillStyle = CONFIG.backgroundColor;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+		// Draw hexagon grid
+		drawHexagonGrid();
+
+		// Only update particles at targetFPS rate
+		if (currentTime - lastParticleUpdate >= FRAME_INTERVAL) {
+			const batchStartTime = performance.now();
+			
+			perfLogs.particleCount = stampParticles.length + preDrawnParticles.length + particles.length;
+
+			if (gl && gl.isContextLost && !gl.isContextLost()) {
+				// Use WebGL rendering
+				gl.clear(gl.COLOR_BUFFER_BIT);
+				renderParticlesWebGL([...particles, ...preDrawnParticles, ...stampParticles]);
+			} else {
+				// Fallback to Canvas2D rendering
+				stampBatch.clear();
+				drawingBatch.clear();
+				predrawnBatch.clear();
+
+				// Use separate loops for better performance
+				for (const particle of stampParticles) {
+					stampBatch.add(particle);
+				}
+
+				for (const particle of preDrawnParticles) {
+					predrawnBatch.add(particle);
+				}
+
+				for (const particle of particles) {
+					drawingBatch.add(particle);
+				}
+
+				// Render batches
+				ctx.save();
+				stampBatch.render(ctx);
+				predrawnBatch.render(ctx);
+				drawingBatch.render(ctx);
+				ctx.restore();
+			}
+
+			logPerformance('batchTime', performance.now() - batchStartTime);
+			lastParticleUpdate = currentTime;
+		}
+
+		// Draw magnets last
+		if (magnets.length > 0) {
+			renderMagnets();
+		}
+
+		logPerformance('renderTime', performance.now() - startTime);
+	}
 
 	// Draw the background hexagon grid
 	let gridCache;
@@ -506,7 +772,7 @@
 	// Handle mouse/touch events
 	function handlePointerDown(e) {
 		if (isTransitioning) return;
-
+		
 		shouldDraw = false;
 		const pos = getPointerPos(e);
 		const x = pos.x;
@@ -541,7 +807,7 @@
 
 	function handlePointerUp(e) {
 		if (isTransitioning) return;
-
+		
 		if (isDraggingMagnet && selectedMagnet) {
 			const magnet = selectedMagnet;
 			// Keep the magnet exactly where it is
@@ -573,7 +839,7 @@
 
 	function handlePointerMove(e) {
 		if (isTransitioning) return;
-
+		
 		const pos = getPointerPos(e);
 
 		if (isDraggingMagnet && selectedMagnet) {
@@ -607,7 +873,7 @@
 
 	function handlePointerLeave(e) {
 		if (isTransitioning) return;
-
+		
 		const pos = getPointerPos(e);
 		lastX = pos.x;
 		lastY = pos.y;
@@ -650,7 +916,7 @@
 		tempCanvas.width = maxDimension;
 		tempCanvas.height = maxDimension;
 
-		// Center and rotate
+		// Draw image at original size first
 		tempCtx.save();
 		tempCtx.translate(maxDimension / 2, maxDimension / 2);
 		tempCtx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
@@ -846,6 +1112,31 @@
 		renderAll();
 	}
 
+	function positionMagnets() {
+		if (!magnets.length) return;
+
+		const totalWidth = window.innerWidth * 0.4;
+		const spacing = totalWidth / (magnets.length - 1);
+		const startX = (window.innerWidth - totalWidth) / 2;
+		const targetHeight = window.innerHeight * 0.18;
+		const groupOffset = window.innerWidth * -0.02; // Same offset as in initializeMagnets
+
+		magnets.forEach((magnet, index) => {
+			const aspectRatio = magnet.img.width / magnet.img.height;
+			const height = targetHeight * (1 + Math.random() * 0.1);
+			const width = height * aspectRatio;
+			const offset = getLetterOffset(magnet.id, index);
+
+			magnet.width = width;
+			magnet.height = height;
+			magnet.x = startX + spacing * index - width / 2 + offset + groupOffset;
+			magnet.y = window.innerHeight * getLetterHeight(magnet.id);
+			magnet.rotation = 0;
+		});
+
+		renderAll();
+	}
+
 	// Add batch rendering utilities
 	class ParticleBatch {
 		constructor() {
@@ -859,10 +1150,7 @@
 				this.offscreenCanvas = document.createElement('canvas');
 			}
 			// Only resize if needed
-			if (
-				this.offscreenCanvas.width !== width ||
-				this.offscreenCanvas.height !== height
-			) {
+			if (this.offscreenCanvas.width !== width || this.offscreenCanvas.height !== height) {
 				this.offscreenCanvas.width = width;
 				this.offscreenCanvas.height = height;
 				this.offscreenCtx = this.offscreenCanvas.getContext('2d');
@@ -889,7 +1177,7 @@
 			for (const [opacity, particles] of this.particles.entries()) {
 				this.particles.set(
 					opacity,
-					particles.filter((p) => p.x <= x)
+					particles.filter(p => p.x <= x)
 				);
 			}
 		}
@@ -899,14 +1187,9 @@
 
 			// Initialize or resize offscreen canvas if needed
 			this._initOffscreenCanvas(ctx.canvas.width, ctx.canvas.height);
-
+			
 			// Clear the offscreen canvas with transparent background
-			this.offscreenCtx.clearRect(
-				0,
-				0,
-				this.offscreenCanvas.width,
-				this.offscreenCanvas.height
-			);
+			this.offscreenCtx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
 			// Group particles by their properties for efficient rendering
 			const renderGroups = new Map();
@@ -937,15 +1220,14 @@
 
 					// Create group key based on visual properties
 					const color = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
-					const finalOpacity =
-						particle.opacity !== undefined ? particle.opacity : opacity;
+					const finalOpacity = particle.opacity !== undefined ? particle.opacity : opacity;
 					const key = `${color}-${finalOpacity}-${particle.isPredrawn}-${particle.isStampParticle}`;
 
 					if (!renderGroups.has(key)) {
 						renderGroups.set(key, {
 							color,
 							opacity: finalOpacity,
-							particles: [],
+							particles: []
 						});
 					}
 					renderGroups.get(key).particles.push(particle);
@@ -958,7 +1240,7 @@
 				if (particles.length === 0) continue;
 
 				this.offscreenCtx.save();
-
+				
 				// Set style once for the batch
 				const r = parseInt(color.slice(1, 3), 16);
 				const g = parseInt(color.slice(3, 5), 16);
@@ -1004,51 +1286,38 @@
 	const drawingBatch = new ParticleBatch();
 	const predrawnBatch = new ParticleBatch();
 
-	// Update renderAll to use batch rendering
-	function renderAll() {
-		if (!ctx) return;
+	// Performance monitoring
+	const perfLogs = {
+		renderTime: [],
+		batchTime: [],
+		particleCount: 0,
+		lastLog: 0,
+		LOG_INTERVAL: 5000, // Log every 5 seconds
+		RENDER_TIME_THRESHOLD: 50 // Only log if render time exceeds 50ms
+	};
 
-		// Clear and draw background
-		ctx.fillStyle = CONFIG.backgroundColor;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-		// Draw hexagon grid (already cached)
-		drawHexagonGrid();
-
-		// Clear batches
-		stampBatch.clear();
-		drawingBatch.clear();
-		predrawnBatch.clear();
-
-		// Sort particles into batches
-		if (stampParticles.length > 0) {
-			for (const particle of stampParticles) {
-				stampBatch.add(particle);
+	function logPerformance(category, time) {
+		perfLogs[category].push(time);
+		
+		const now = performance.now();
+		if (now - perfLogs.lastLog > perfLogs.LOG_INTERVAL) {
+			const avgRenderTime = perfLogs.renderTime.reduce((a, b) => a + b, 0) / perfLogs.renderTime.length;
+			const avgBatchTime = perfLogs.batchTime.reduce((a, b) => a + b, 0) / perfLogs.batchTime.length;
+			
+			if (avgRenderTime > perfLogs.RENDER_TIME_THRESHOLD) {
+				console.log(`Performance warning: Average render time: ${avgRenderTime.toFixed(2)}ms`);
+				if (gl) {
+					console.log('Using WebGL rendering');
+				} else {
+					console.log('Using Canvas2D fallback');
+				}
+				console.log(`Active particles: ${perfLogs.particleCount}`);
 			}
-		}
-
-		if (preDrawnParticles.length > 0) {
-			for (const particle of preDrawnParticles) {
-				predrawnBatch.add(particle);
-			}
-		}
-
-		if (particles.length > 0) {
-			for (const particle of particles) {
-				drawingBatch.add(particle);
-			}
-		}
-
-		// Render batches
-		ctx.save();
-		stampBatch.render(ctx);
-		predrawnBatch.render(ctx);
-		drawingBatch.render(ctx);
-		ctx.restore();
-
-		// Draw magnets last
-		if (magnets.length > 0) {
-			renderMagnets();
+			
+			// Clear the logs
+			perfLogs.renderTime = [];
+			perfLogs.batchTime = [];
+			perfLogs.lastLog = now;
 		}
 	}
 
@@ -1464,10 +1733,10 @@
 		gsap.to(canvas, {
 			opacity: 0,
 			duration: 0.5,
-			ease: 'power2.inOut',
+			ease: "power2.inOut",
 			onComplete: () => {
 				isCanvasVisible = false;
-			},
+			}
 		});
 	}
 
@@ -1490,7 +1759,7 @@
 	// Progressive clear function
 	export function clearWithProgress(progress) {
 		if (!canvas) return;
-
+		
 		// Calculate x position based on progress (0 to 1)
 		const x = canvas.width * (1 - progress);
 		removeParticlesAfterX(x);
@@ -1499,9 +1768,9 @@
 	// Function to remove particles based on slider position
 	function removeParticlesAfterX(x) {
 		// Remove particles from arrays
-		particles = particles.filter((p) => p.x <= x);
-		stampParticles = stampParticles.filter((p) => p.x <= x);
-		preDrawnParticles = preDrawnParticles.filter((p) => p.x <= x);
+		particles = particles.filter(p => p.x <= x);
+		stampParticles = stampParticles.filter(p => p.x <= x);
+		preDrawnParticles = preDrawnParticles.filter(p => p.x <= x);
 
 		// Remove particles from batches
 		drawingBatch.clearToX(x);
@@ -1509,6 +1778,25 @@
 		stampBatch.clearToX(x);
 
 		renderAll();
+	}
+
+	// Add particle culling
+	function cullParticles() {
+		const viewCenterX = window.innerWidth / 2;
+		const viewCenterY = window.innerHeight / 2;
+		const maxDistance = CONFIG.particleCullingDistance;
+
+		// Helper function to check if a particle is too far from view
+		function isTooFar(particle) {
+			const dx = particle.x - viewCenterX;
+			const dy = particle.y - viewCenterY;
+			return (dx * dx + dy * dy) > maxDistance * maxDistance;
+		}
+
+		// Cull particles that are too far from view
+		particles = particles.filter(p => !isTooFar(p));
+		stampParticles = stampParticles.filter(p => !isTooFar(p));
+		preDrawnParticles = preDrawnParticles.filter(p => !isTooFar(p));
 	}
 </script>
 
@@ -1533,15 +1821,15 @@
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
 	></canvas>
-	<ThreeScene
-		bind:this={threeSceneComponent}
-		{canvas}
+	<ThreeScene 
+		bind:this={threeSceneComponent} 
+		canvas={canvas}
 		on:transitionstart={handleTransitionStart}
 		on:snapbackstart={handleSnapBackStart}
 		on:transitioncomplete={handleTransitionComplete}
 	/>
 	{#if showScrollToExplore || isScrollAnimating}
-		<div class="scroll-indicator" class:hidden={!showScrollToExplore}>
+		<div class="scroll-indicator">
 			<ScrollToExplore bind:this={scrollToExploreComponent} />
 		</div>
 	{/if}
@@ -1552,14 +1840,7 @@
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
 >
-	<img
-		src={isClicking && isHoveringMagnet
-			? cursorClick
-			: isHoveringMagnet
-				? cursorHover
-				: cursorDefault}
-		alt="cursor"
-	/>
+	<img src={isClicking && isHoveringMagnet ? cursorClick : isHoveringMagnet ? cursorHover : cursorDefault} alt="cursor" />
 </div>
 
 <style>
