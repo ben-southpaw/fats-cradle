@@ -209,11 +209,11 @@
 		function animate() {
 			animationFrameId = requestAnimationFrame(animate);
 			const currentTime = performance.now();
-			
+
 			if (currentTime - lastRenderTime >= FRAME_INTERVAL) {
 				renderAll();
 				lastRenderTime = currentTime;
-				
+
 				// Keep notifying about canvas updates
 				onScreenCanvasReady(canvas);
 			}
@@ -506,7 +506,7 @@
 	// Handle mouse/touch events
 	function handlePointerDown(e) {
 		if (isTransitioning) return;
-		
+
 		shouldDraw = false;
 		const pos = getPointerPos(e);
 		const x = pos.x;
@@ -541,7 +541,7 @@
 
 	function handlePointerUp(e) {
 		if (isTransitioning) return;
-		
+
 		if (isDraggingMagnet && selectedMagnet) {
 			const magnet = selectedMagnet;
 			// Keep the magnet exactly where it is
@@ -573,7 +573,7 @@
 
 	function handlePointerMove(e) {
 		if (isTransitioning) return;
-		
+
 		const pos = getPointerPos(e);
 
 		if (isDraggingMagnet && selectedMagnet) {
@@ -607,7 +607,7 @@
 
 	function handlePointerLeave(e) {
 		if (isTransitioning) return;
-		
+
 		const pos = getPointerPos(e);
 		lastX = pos.x;
 		lastY = pos.y;
@@ -846,31 +846,6 @@
 		renderAll();
 	}
 
-	function positionMagnets() {
-		if (!magnets.length) return;
-
-		const totalWidth = window.innerWidth * 0.4;
-		const spacing = totalWidth / (magnets.length - 1);
-		const startX = (window.innerWidth - totalWidth) / 2;
-		const targetHeight = window.innerHeight * 0.18;
-		const groupOffset = window.innerWidth * -0.02; // Same offset as in initializeMagnets
-
-		magnets.forEach((magnet, index) => {
-			const aspectRatio = magnet.img.width / magnet.img.height;
-			const height = targetHeight * (1 + Math.random() * 0.1);
-			const width = height * aspectRatio;
-			const offset = getLetterOffset(magnet.id, index);
-
-			magnet.width = width;
-			magnet.height = height;
-			magnet.x = startX + spacing * index - width / 2 + offset + groupOffset;
-			magnet.y = window.innerHeight * getLetterHeight(magnet.id);
-			magnet.rotation = 0;
-		});
-
-		renderAll();
-	}
-
 	// Add batch rendering utilities
 	class ParticleBatch {
 		constructor() {
@@ -884,7 +859,10 @@
 				this.offscreenCanvas = document.createElement('canvas');
 			}
 			// Only resize if needed
-			if (this.offscreenCanvas.width !== width || this.offscreenCanvas.height !== height) {
+			if (
+				this.offscreenCanvas.width !== width ||
+				this.offscreenCanvas.height !== height
+			) {
 				this.offscreenCanvas.width = width;
 				this.offscreenCanvas.height = height;
 				this.offscreenCtx = this.offscreenCanvas.getContext('2d');
@@ -911,7 +889,7 @@
 			for (const [opacity, particles] of this.particles.entries()) {
 				this.particles.set(
 					opacity,
-					particles.filter(p => p.x <= x)
+					particles.filter((p) => p.x <= x)
 				);
 			}
 		}
@@ -921,15 +899,20 @@
 
 			// Initialize or resize offscreen canvas if needed
 			this._initOffscreenCanvas(ctx.canvas.width, ctx.canvas.height);
-			
+
 			// Clear the offscreen canvas with transparent background
-			this.offscreenCtx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+			this.offscreenCtx.clearRect(
+				0,
+				0,
+				this.offscreenCanvas.width,
+				this.offscreenCanvas.height
+			);
 
 			// Group particles by their properties for efficient rendering
 			const renderGroups = new Map();
 
 			// Process all particles and group them
-			for (const [opacity, particleList] of this.particles) {
+			for (const [opacity, particleList] of this.particles.entries()) {
 				for (const particle of particleList) {
 					// Skip if particle is outside viewport
 					if (!isInViewport(particle)) continue;
@@ -954,14 +937,15 @@
 
 					// Create group key based on visual properties
 					const color = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
-					const finalOpacity = particle.opacity !== undefined ? particle.opacity : opacity;
+					const finalOpacity =
+						particle.opacity !== undefined ? particle.opacity : opacity;
 					const key = `${color}-${finalOpacity}-${particle.isPredrawn}-${particle.isStampParticle}`;
 
 					if (!renderGroups.has(key)) {
 						renderGroups.set(key, {
 							color,
 							opacity: finalOpacity,
-							particles: []
+							particles: [],
 						});
 					}
 					renderGroups.get(key).particles.push(particle);
@@ -974,7 +958,7 @@
 				if (particles.length === 0) continue;
 
 				this.offscreenCtx.save();
-				
+
 				// Set style once for the batch
 				const r = parseInt(color.slice(1, 3), 16);
 				const g = parseInt(color.slice(3, 5), 16);
@@ -1480,10 +1464,10 @@
 		gsap.to(canvas, {
 			opacity: 0,
 			duration: 0.5,
-			ease: "power2.inOut",
+			ease: 'power2.inOut',
 			onComplete: () => {
 				isCanvasVisible = false;
-			}
+			},
 		});
 	}
 
@@ -1506,7 +1490,7 @@
 	// Progressive clear function
 	export function clearWithProgress(progress) {
 		if (!canvas) return;
-		
+
 		// Calculate x position based on progress (0 to 1)
 		const x = canvas.width * (1 - progress);
 		removeParticlesAfterX(x);
@@ -1515,9 +1499,9 @@
 	// Function to remove particles based on slider position
 	function removeParticlesAfterX(x) {
 		// Remove particles from arrays
-		particles = particles.filter(p => p.x <= x);
-		stampParticles = stampParticles.filter(p => p.x <= x);
-		preDrawnParticles = preDrawnParticles.filter(p => p.x <= x);
+		particles = particles.filter((p) => p.x <= x);
+		stampParticles = stampParticles.filter((p) => p.x <= x);
+		preDrawnParticles = preDrawnParticles.filter((p) => p.x <= x);
 
 		// Remove particles from batches
 		drawingBatch.clearToX(x);
@@ -1549,15 +1533,15 @@
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
 	></canvas>
-	<ThreeScene 
-		bind:this={threeSceneComponent} 
-		canvas={canvas}
+	<ThreeScene
+		bind:this={threeSceneComponent}
+		{canvas}
 		on:transitionstart={handleTransitionStart}
 		on:snapbackstart={handleSnapBackStart}
 		on:transitioncomplete={handleTransitionComplete}
 	/>
 	{#if showScrollToExplore || isScrollAnimating}
-		<div class="scroll-indicator">
+		<div class="scroll-indicator" class:hidden={!showScrollToExplore}>
 			<ScrollToExplore bind:this={scrollToExploreComponent} />
 		</div>
 	{/if}
@@ -1568,7 +1552,14 @@
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
 >
-	<img src={isClicking && isHoveringMagnet ? cursorClick : isHoveringMagnet ? cursorHover : cursorDefault} alt="cursor" />
+	<img
+		src={isClicking && isHoveringMagnet
+			? cursorClick
+			: isHoveringMagnet
+				? cursorHover
+				: cursorDefault}
+		alt="cursor"
+	/>
 </div>
 
 <style>

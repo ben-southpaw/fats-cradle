@@ -6,7 +6,6 @@
 	import modelUrl from '../3d/MagnaSketch_3dModel.gltf?url';
 
 	export let canvas; // Accept canvas from parent
-	export let onCanvasReady = undefined;
 
 	let container;
 	let scene;
@@ -25,30 +24,38 @@
 	let canvasTexture;
 	let meshAspect; // Store mesh aspect ratio at module level
 
-	$: if (canvas) {
+	function updateCanvasTexture() {
+		if (!canvas) return;
+
 		if (!canvasTexture) {
-			// Create new texture if it doesn't exist
 			canvasTexture = new THREE.CanvasTexture(canvas);
-			canvasTexture.minFilter = THREE.LinearFilter;
-			canvasTexture.magFilter = THREE.LinearFilter;
-			canvasTexture.generateMipmaps = false;
-			canvasTexture.encoding = THREE.sRGBEncoding;
-			canvasTexture.flipY = true;
-			canvasTexture.wrapS = THREE.ClampToEdgeWrapping;
-			canvasTexture.wrapT = THREE.ClampToEdgeWrapping;
-			canvasTexture.repeat.set(-1, 1);
-			canvasTexture.offset.set(1, 0);
-
-			// If screen mesh exists, update its material
-			if (screenMesh?.material) {
-				screenMesh.material.map = canvasTexture;
-			}
 		}
 
-		// Always update texture when canvas changes
-		if (canvasTexture) {
-			canvasTexture.needsUpdate = true;
+		// Update all texture properties
+		const textureProps = {
+			minFilter: THREE.LinearFilter,
+			magFilter: THREE.LinearFilter,
+			generateMipmaps: false,
+			encoding: THREE.sRGBEncoding,
+			flipY: true,
+			wrapS: THREE.ClampToEdgeWrapping,
+			wrapT: THREE.ClampToEdgeWrapping,
+		};
+
+		Object.assign(canvasTexture, textureProps);
+		canvasTexture.repeat.set(-1, 1);
+		canvasTexture.offset.set(1, 0);
+		canvasTexture.needsUpdate = true;
+
+		// If screen mesh exists, update its material
+		if (screenMesh?.material) {
+			screenMesh.material.map = canvasTexture;
 		}
+	}
+
+	// Make canvas updates trigger texture updates
+	$: if (canvas) {
+		updateCanvasTexture();
 	}
 
 	const CONFIG = {
