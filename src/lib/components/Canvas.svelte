@@ -2180,6 +2180,70 @@
 		stampParticles = stampParticles.filter((p) => !isTooFar(p));
 		preDrawnParticles = preDrawnParticles.filter((p) => !isTooFar(p));
 	}
+
+	// Test function to render letter F in WebGL
+	function createTestLetterParticles() {
+		const letterImg = magnetImages['F'];
+		if (!letterImg || !letterImg.complete) return;
+
+		// Create temporary canvas for image processing
+		const tempCanvas = document.createElement('canvas');
+		const tempCtx = tempCanvas.getContext('2d');
+		tempCanvas.width = letterImg.width;
+		tempCanvas.height = letterImg.height;
+
+		// Draw image
+		tempCtx.drawImage(letterImg, 0, 0);
+		const imageData = tempCtx.getImageData(0, 0, letterImg.width, letterImg.height);
+		const data = imageData.data;
+
+		// Calculate center position
+		const scale = 0.5;
+		const scaledWidth = letterImg.width * scale;
+		const scaledHeight = letterImg.height * scale;
+		const startX = (canvas.width - scaledWidth) / 2;
+		const startY = (canvas.height - scaledHeight) / 2;
+
+		// Sample pixels and create particles
+		const particles = [];
+		const pixelStep = Math.max(1, Math.floor(0.25 / scale));
+		const particleSpacing = 1;
+
+		for (let y = 0; y < letterImg.height; y += pixelStep) {
+			for (let x = 0; x < letterImg.width; x += pixelStep) {
+				const i = (y * letterImg.width + x) * 4;
+				const alpha = data[i + 3];
+
+				if (alpha > 50) {
+					const canvasX = startX + (x / letterImg.width) * scaledWidth;
+					const canvasY = startY + (y / letterImg.height) * scaledHeight;
+
+					const randX = (Math.random() - 0.5) * particleSpacing;
+					const randY = (Math.random() - 0.5) * particleSpacing;
+
+					const particle = createParticle(
+						canvasX + randX,
+						canvasY + randY,
+						false,
+						true
+					);
+					particles.push(particle);
+				}
+			}
+		}
+
+		return particles;
+	}
+
+	// Initialize test letter when images are loaded
+	$: {
+		if (canvas && magnetImages['F']) {
+			const testParticles = createTestLetterParticles();
+			if (testParticles) {
+				preDrawnParticles = testParticles;
+			}
+		}
+	}
 </script>
 
 <svelte:window
