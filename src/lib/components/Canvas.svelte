@@ -196,13 +196,34 @@
 	onMount(() => {
 		if (!canvas) return;
 
-		ctx = canvas.getContext('2d', { willReadFrequently: true });
+		console.log('Canvas mount: Starting initialization...');
+		
+		// Set canvas dimensions
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
 
+		// Try WebGL first
+		setupWebGL();
+		
+		// Fallback to 2D context if WebGL setup failed
+		if (!gl) {
+			console.log('Falling back to Canvas2D context');
+			ctx = canvas.getContext('2d', { willReadFrequently: true });
+		}
+
 		// Initialize canvas with background
-		ctx.fillStyle = CONFIG.backgroundColor;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		if (ctx) {
+			ctx.fillStyle = CONFIG.backgroundColor;
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+		} else if (gl) {
+			gl.clearColor(
+				parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
+				parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
+				parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
+				1.0
+			);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+		}
 
 		// Notify that canvas is ready
 		onScreenCanvasReady(canvas);
@@ -264,6 +285,12 @@
 			if (ctx) {
 				ctx = null;
 			}
+			if (gl) {
+				gl.deleteProgram(particleProgram);
+				gl.deleteBuffer(particleBuffer);
+				gl.deleteBuffer(particleColorBuffer);
+				gl = null;
+			}
 			if (canvas) {
 				canvas = null;
 			}
@@ -275,30 +302,71 @@
 	let particleProgram;
 	let particleBuffer;
 	let particleColorBuffer;
+	let gridProgram;
+	let gridBuffer;
 
 	// WebGL shaders
-	const vertexShaderSource = `
-		attribute vec2 position;
-		attribute vec4 color;
+	const vertexShaderSource = `#version 300 es
+		in vec2 position;
+		in vec4 color;
 		uniform vec2 resolution;
-		varying vec4 vColor;
-
+		out vec4 vColor;
+		
 		void main() {
+			// Convert from pixel coordinates to clip space
 			vec2 zeroToOne = position / resolution;
 			vec2 zeroToTwo = zeroToOne * 2.0;
 			vec2 clipSpace = zeroToTwo - 1.0;
 			gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-			gl_PointSize = 3.0 * (resolution.y / 1080.0); // Scale with screen height
+			
+			// Set point size based on screen resolution
+			// Base size is 3.0 pixels, scaled relative to a 1080p height
+			gl_PointSize = 3.0 * (resolution.y / 1080.0);
+			
 			vColor = color;
 		}
 	`;
 
-	const fragmentShaderSource = `
-		precision mediump float;
-		varying vec4 vColor;
-
+	const fragmentShaderSource = `#version 300 es
+		precision highp float;
+		
+		in vec4 vColor;
+		out vec4 fragColor;
+		
 		void main() {
-			gl_FragColor = vColor;
+			// Create a circular particle
+			vec2 center = gl_PointCoord - vec2(0.5);
+			float dist = length(center);
+			
+			// Smooth circle with antialiasing
+			float alpha = 1.0 - smoothstep(0.45, 0.5, dist);
+			
+			// Apply color and alpha
+			fragColor = vec4(vColor.rgb, vColor.a * alpha);
+		}
+	`;
+
+	const gridVertexShaderSource = `#version 300 es
+		in vec2 position;
+		uniform vec2 resolution;
+		
+		void main() {
+			// Convert from pixel coordinates to clip space
+			vec2 zeroToOne = position / resolution;
+			vec2 zeroToTwo = zeroToOne * 2.0;
+			vec2 clipSpace = zeroToTwo - 1.0;
+			gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+		}
+	`;
+
+	const gridFragmentShaderSource = `#version 300 es
+		precision highp float;
+		
+		uniform vec4 gridColor;
+		out vec4 fragColor;
+		
+		void main() {
+			fragColor = gridColor;
 		}
 	`;
 
@@ -306,93 +374,231 @@
 		const shader = gl.createShader(type);
 		gl.shaderSource(shader, source);
 		gl.compileShader(shader);
+
 		if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-			console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+			console.error(
+				`Shader compile error: ${gl.getShaderInfoLog(shader)}\nSource:\n${source}`
+			);
 			gl.deleteShader(shader);
 			return null;
 		}
+
 		return shader;
 	}
 
-	function renderParticlesWebGL(particles) {
-		if (!gl || !particleProgram || particles.length === 0) return;
+	// Helper function to convert hex color to rgba
+	function hexToRGBA(hex, alpha = 1) {
+		const r = parseInt(hex.slice(1, 3), 16) / 255;
+		const g = parseInt(hex.slice(3, 5), 16) / 255;
+		const b = parseInt(hex.slice(5, 7), 16) / 255;
+		return [r, g, b, alpha];
+	}
 
+	// Helper function to prepare particle data for WebGL
+	function prepareParticleData(particles) {
 		const positions = new Float32Array(particles.length * 2);
 		const colors = new Float32Array(particles.length * 4);
-
+		
 		particles.forEach((particle, i) => {
-			positions[i * 2] = particle.x;
-			positions[i * 2 + 1] = particle.y;
-
-			// Convert hex color to RGB
-			const color = particle.color.startsWith('#') ? 
-				parseInt(particle.color.slice(1), 16) : 
-				parseInt(particle.color, 16);
+			const posIndex = i * 2;
+			const colorIndex = i * 4;
 			
-			colors[i * 4] = ((color >> 16) & 255) / 255;
-			colors[i * 4 + 1] = ((color >> 8) & 255) / 255;
-			colors[i * 4 + 2] = (color & 255) / 255;
-			colors[i * 4 + 3] = 1.0; // Alpha
+			// Position
+			positions[posIndex] = particle.x;
+			positions[posIndex + 1] = particle.y;
+			
+			// Color
+			const rgba = hexToRGBA(particle.color || CONFIG.particleColor, particle.opacity || 1);
+			colors[colorIndex] = rgba[0];
+			colors[colorIndex + 1] = rgba[1];
+			colors[colorIndex + 2] = rgba[2];
+			colors[colorIndex + 3] = rgba[3];
 		});
+		
+		return { positions, colors };
+	}
 
+	// WebGL particle rendering function
+	function renderParticlesWebGL(particles) {
+		if (!gl || !particleProgram || particles.length === 0) return;
+		
+		const startTime = performance.now();
+		
+		// Prepare data
+		const { positions, colors } = prepareParticleData(particles);
+		
+		// Use shader program
 		gl.useProgram(particleProgram);
-
-		// Set resolution uniform
+		
+		// Update resolution uniform
 		const resolutionLocation = gl.getUniformLocation(particleProgram, 'resolution');
 		gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
-
+		
 		// Update position buffer
-		const positionLocation = gl.getAttribLocation(particleProgram, 'position');
 		gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
-		gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+		gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW);
+		const positionLocation = gl.getAttribLocation(particleProgram, 'position');
 		gl.enableVertexAttribArray(positionLocation);
 		gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
+		
 		// Update color buffer
-		const colorLocation = gl.getAttribLocation(particleProgram, 'color');
 		gl.bindBuffer(gl.ARRAY_BUFFER, particleColorBuffer);
-		gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+		gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
+		const colorLocation = gl.getAttribLocation(particleProgram, 'color');
 		gl.enableVertexAttribArray(colorLocation);
 		gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
-
+		
+		// Enable blending for transparency
+		gl.enable(gl.BLEND);
+		gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+		
 		// Draw particles
 		gl.drawArrays(gl.POINTS, 0, particles.length);
+		
+		// Log performance
+		const endTime = performance.now();
+		logPerformance('total', endTime - startTime);
+	}
+
+	// WebGL grid rendering function
+	function renderGridWebGL() {
+		if (!gl || !gridProgram) return;
+		
+		const startTime = performance.now();
+		
+		// Use shader program
+		gl.useProgram(gridProgram);
+		
+		// Update resolution uniform
+		const resolutionLocation = gl.getUniformLocation(gridProgram, 'resolution');
+		gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+		
+		// Update grid color uniform
+		const gridColorLocation = gl.getUniformLocation(gridProgram, 'gridColor');
+		const gridRGBA = hexToRGBA(CONFIG.gridColor);
+		gl.uniform4f(gridColorLocation, gridRGBA[0], gridRGBA[1], gridRGBA[2], gridRGBA[3]);
+		
+		// Update and bind grid vertices
+		const vertices = prepareGridVertices();
+		gl.bindBuffer(gl.ARRAY_BUFFER, gridBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+		
+		// Set up vertex attributes
+		const positionLocation = gl.getAttribLocation(gridProgram, 'position');
+		gl.enableVertexAttribArray(positionLocation);
+		gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+		
+		// Set line width
+		gl.lineWidth(CONFIG.hexagonLineWidth);
+		
+		// Draw grid lines
+		gl.drawArrays(gl.LINES, 0, vertices.length / 2);
+		
+		// Log performance
+		const endTime = performance.now();
+		logPerformance('total', endTime - startTime);
+	}
+
+	// Helper function to prepare grid vertices
+	function prepareGridVertices() {
+		const size = CONFIG.hexagonSize * 3;
+		const hexHeight = size * Math.sqrt(3);
+		const vertices = [];
+		
+		// Calculate grid dimensions
+		const cols = Math.ceil(canvas.width / (size * 1.5)) + 1;
+		const rows = Math.ceil(canvas.height / hexHeight) + 1;
+		
+		// Generate vertices for each hexagon
+		for (let row = 0; row < rows; row++) {
+			for (let col = 0; col < cols; col++) {
+				const centerX = col * size * 1.5;
+				const centerY = row * hexHeight + (col % 2) * (hexHeight / 2);
+				
+				// Generate 6 vertices for hexagon
+				for (let i = 0; i < 6; i++) {
+					const angle = (i * Math.PI) / 3;
+					const x = centerX + size * Math.cos(angle);
+					const y = centerY + size * Math.sin(angle);
+					vertices.push(x, y);
+					
+					// Add the next vertex to complete the line
+					const nextAngle = ((i + 1) * Math.PI) / 3;
+					const nextX = centerX + size * Math.cos(nextAngle);
+					const nextY = centerY + size * Math.sin(nextAngle);
+					vertices.push(nextX, nextY);
+				}
+			}
+		}
+		
+		return new Float32Array(vertices);
 	}
 
 	function setupWebGL() {
-		if (!canvas) return;
+		if (!canvas) {
+			console.log('setupWebGL: No canvas element available');
+			return;
+		}
 
-		console.log('Setting up WebGL...');
+		console.log('setupWebGL: Starting WebGL setup...');
+		console.log('Canvas dimensions:', canvas.width, 'x', canvas.height);
 		
 		// Try WebGL2 first
-		gl = canvas.getContext('webgl2', { 
-			alpha: true,
-			premultipliedAlpha: false,
-			antialias: false, // Disable antialiasing for better performance
-			depth: false, // We don't need depth testing for 2D
-			powerPreference: 'high-performance'
-		});
-		
-		if (!gl) {
-			console.log('WebGL2 not available, trying WebGL1...');
-			gl = canvas.getContext('webgl', {
+		try {
+			console.log('Attempting WebGL2 context creation...');
+			gl = canvas.getContext('webgl2', { 
 				alpha: true,
 				premultipliedAlpha: false,
 				antialias: false,
 				depth: false,
 				powerPreference: 'high-performance'
 			});
+			
+			if (gl) {
+				console.log('Successfully created WebGL2 context');
+			}
+		} catch (e) {
+			console.error('Error creating WebGL2 context:', e);
 		}
 		
+		// Fallback to WebGL1
 		if (!gl) {
-			console.log('WebGL1 not available, trying experimental-webgl...');
-			gl = canvas.getContext('experimental-webgl', {
-				alpha: true,
-				premultipliedAlpha: false,
-				antialias: false,
-				depth: false,
-				powerPreference: 'high-performance'
-			});
+			try {
+				console.log('Attempting WebGL1 context creation...');
+				gl = canvas.getContext('webgl', {
+					alpha: true,
+					premultipliedAlpha: false,
+					antialias: false,
+					depth: false,
+					powerPreference: 'high-performance'
+				});
+				
+				if (gl) {
+					console.log('Successfully created WebGL1 context');
+				}
+			} catch (e) {
+				console.error('Error creating WebGL1 context:', e);
+			}
+		}
+		
+		// Final fallback to experimental-webgl
+		if (!gl) {
+			try {
+				console.log('Attempting experimental-webgl context creation...');
+				gl = canvas.getContext('experimental-webgl', {
+					alpha: true,
+					premultipliedAlpha: false,
+					antialias: false,
+					depth: false,
+					powerPreference: 'high-performance'
+				});
+				
+				if (gl) {
+					console.log('Successfully created experimental-webgl context');
+				}
+			} catch (e) {
+				console.error('Error creating experimental-webgl context:', e);
+			}
 		}
 
 		if (!gl) {
@@ -401,27 +607,45 @@
 		}
 
 		// Log WebGL capabilities
-		console.log('WebGL Version:', gl.getParameter(gl.VERSION));
-		console.log('WebGL Vendor:', gl.getParameter(gl.VENDOR));
-		console.log('WebGL Renderer:', gl.getParameter(gl.RENDERER));
-		console.log('Max Texture Size:', gl.getParameter(gl.MAX_TEXTURE_SIZE));
-		console.log('Max Viewport Dimensions:', gl.getParameter(gl.MAX_VIEWPORT_DIMS));
+		try {
+			console.log('WebGL Context Information:');
+			console.log('- Version:', gl.getParameter(gl.VERSION));
+			console.log('- Vendor:', gl.getParameter(gl.VENDOR));
+			console.log('- Renderer:', gl.getParameter(gl.RENDERER));
+			console.log('- Max Texture Size:', gl.getParameter(gl.MAX_TEXTURE_SIZE));
+			console.log('- Max Viewport Dims:', gl.getParameter(gl.MAX_VIEWPORT_DIMS));
+			console.log('- Max Vertex Attribs:', gl.getParameter(gl.MAX_VERTEX_ATTRIBS));
+			console.log('- Max Varying Vectors:', gl.getParameter(gl.MAX_VARYING_VECTORS));
+			console.log('- Max Vertex Uniform Vectors:', gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS));
+			console.log('- Max Fragment Uniform Vectors:', gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS));
+		} catch (e) {
+			console.error('Error getting WebGL capabilities:', e);
+		}
 
-		// Enable blending
+		// Rest of the setup remains unchanged for now
 		gl.enable(gl.BLEND);
 		gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-		// Create shaders
+		// Create shaders with logging
+		console.log('Creating shaders...');
 		const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
 		const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+		const gridVertexShader = createShader(gl, gl.VERTEX_SHADER, gridVertexShaderSource);
+		const gridFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, gridFragmentShaderSource);
 
-		if (!vertexShader || !fragmentShader) {
+		if (!vertexShader || !fragmentShader || !gridVertexShader || !gridFragmentShader) {
 			console.error('Failed to create shaders - falling back to Canvas2D rendering');
+			console.log('Vertex Shader Source:', vertexShaderSource);
+			console.log('Fragment Shader Source:', fragmentShaderSource);
+			console.log('Grid Vertex Shader Source:', gridVertexShaderSource);
+			console.log('Grid Fragment Shader Source:', gridFragmentShaderSource);
 			gl = null;
 			return;
 		}
+		console.log('Shaders created successfully');
 
-		// Create program
+		// Create program with logging
+		console.log('Creating and linking program...');
 		particleProgram = gl.createProgram();
 		gl.attachShader(particleProgram, vertexShader);
 		gl.attachShader(particleProgram, fragmentShader);
@@ -432,15 +656,40 @@
 			gl = null;
 			return;
 		}
+		console.log('Program linked successfully');
 
-		// Create buffers
+		// Create grid program with logging
+		console.log('Creating and linking grid program...');
+		gridProgram = gl.createProgram();
+		gl.attachShader(gridProgram, gridVertexShader);
+		gl.attachShader(gridProgram, gridFragmentShader);
+		gl.linkProgram(gridProgram);
+
+		if (!gl.getProgramParameter(gridProgram, gl.LINK_STATUS)) {
+			console.error('Grid program link error:', gl.getProgramInfoLog(gridProgram));
+			gl = null;
+			return;
+		}
+		console.log('Grid program linked successfully');
+
+		// Create buffers with logging
+		console.log('Creating buffers...');
 		particleBuffer = gl.createBuffer();
 		particleColorBuffer = gl.createBuffer();
+		gridBuffer = gl.createBuffer();
+		if (!particleBuffer || !particleColorBuffer || !gridBuffer) {
+			console.error('Failed to create buffers');
+			gl = null;
+			return;
+		}
+		console.log('Buffers created successfully');
 
 		// Set viewport
 		gl.viewport(0, 0, canvas.width, canvas.height);
+		console.log('Viewport set to', canvas.width, 'x', canvas.height);
 
-		// Test a simple draw call
+		// Test draw
+		console.log('Attempting test draw...');
 		gl.useProgram(particleProgram);
 		const testPositions = new Float32Array([0, 0]);
 		const testColors = new Float32Array([1, 1, 1, 1]);
@@ -449,6 +698,12 @@
 			const positionLocation = gl.getAttribLocation(particleProgram, 'position');
 			const colorLocation = gl.getAttribLocation(particleProgram, 'color');
 			const resolutionLocation = gl.getUniformLocation(particleProgram, 'resolution');
+			
+			console.log('Shader locations:', {
+				position: positionLocation,
+				color: colorLocation,
+				resolution: resolutionLocation
+			});
 			
 			gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
 			
@@ -464,7 +719,14 @@
 			
 			gl.drawArrays(gl.POINTS, 0, 1);
 			
-			console.log('WebGL test draw successful');
+			// Check for errors after draw
+			const error = gl.getError();
+			if (error === gl.NO_ERROR) {
+				console.log('WebGL test draw successful');
+			} else {
+				console.error('WebGL error after test draw:', error);
+				gl = null;
+			}
 		} catch (e) {
 			console.error('WebGL test draw failed:', e);
 			gl = null;
@@ -473,65 +735,56 @@
 
 	// Update render function to handle WebGL fallback
 	function renderAll() {
-		if (!ctx) return;
-
-		const currentTime = performance.now();
-		const startTime = currentTime;
+		if (!ctx && !gl) return;
 		
-		// Clear and draw background
-		ctx.fillStyle = CONFIG.backgroundColor;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-		// Draw hexagon grid
-		drawHexagonGrid();
-
-		// Only update particles at targetFPS rate
-		if (currentTime - lastParticleUpdate >= FRAME_INTERVAL) {
-			const batchStartTime = performance.now();
-			
-			perfLogs.particleCount = stampParticles.length + preDrawnParticles.length + particles.length;
-
-			if (gl && gl.isContextLost && !gl.isContextLost()) {
-				// Use WebGL rendering
-				gl.clear(gl.COLOR_BUFFER_BIT);
-				renderParticlesWebGL([...particles, ...preDrawnParticles, ...stampParticles]);
-			} else {
-				// Fallback to Canvas2D rendering
-				stampBatch.clear();
-				drawingBatch.clear();
-				predrawnBatch.clear();
-
-				// Use separate loops for better performance
-				for (const particle of stampParticles) {
-					stampBatch.add(particle);
-				}
-
-				for (const particle of preDrawnParticles) {
-					predrawnBatch.add(particle);
-				}
-
-				for (const particle of particles) {
-					drawingBatch.add(particle);
-				}
-
-				// Render batches
-				ctx.save();
-				stampBatch.render(ctx);
-				predrawnBatch.render(ctx);
-				drawingBatch.render(ctx);
-				ctx.restore();
-			}
-
-			logPerformance('batchTime', performance.now() - batchStartTime);
-			lastParticleUpdate = currentTime;
+		const startTime = performance.now();
+		
+		// Clear the canvas
+		if (gl) {
+			gl.clear(gl.COLOR_BUFFER_BIT);
+		} else {
+			ctx.fillStyle = CONFIG.backgroundColor;
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
 		}
-
-		// Draw magnets last
-		if (magnets.length > 0) {
-			renderMagnets();
+		
+		// Draw grid
+		if (gl) {
+			// Use WebGL for grid
+			renderGridWebGL();
+		} else {
+			// Fallback to Canvas2D
+			drawHexagonGrid();
 		}
-
-		logPerformance('renderTime', performance.now() - startTime);
+		
+		// Draw particles
+		const allParticles = [...particles, ...preDrawnParticles, ...stampParticles];
+		perfLogs.particleCount = allParticles.length;
+		
+		if (gl) {
+			// Use WebGL for particles
+			renderParticlesWebGL(allParticles);
+		} else {
+			// Fallback to Canvas2D
+			drawParticles(allParticles);
+		}
+		
+		// Draw magnets (always use Canvas2D for images)
+		if (ctx) {
+			drawMagnets();
+		}
+		
+		// Log performance
+		const endTime = performance.now();
+		logPerformance('total', endTime - startTime);
+		
+		// Check if we're exceeding performance thresholds
+		const avgRenderTime = perfLogs.total.reduce((a, b) => a + b, 0) / perfLogs.total.length;
+		if (avgRenderTime > 50) {
+			console.warn(
+				`Performance warning: Average render time ${avgRenderTime.toFixed(2)}ms ` +
+				`with ${perfLogs.particleCount} particles`
+			);
+		}
 	}
 
 	// Draw the background hexagon grid
@@ -1288,35 +1541,30 @@
 
 	// Performance monitoring
 	const perfLogs = {
-		renderTime: [],
-		batchTime: [],
+		total: [],
 		particleCount: 0,
-		lastLog: 0,
+		lastLog: performance.now(),
 		LOG_INTERVAL: 5000, // Log every 5 seconds
-		RENDER_TIME_THRESHOLD: 50 // Only log if render time exceeds 50ms
 	};
 
 	function logPerformance(category, time) {
-		perfLogs[category].push(time);
+		if (category === 'total') {
+			perfLogs.total.push(time);
+		}
 		
 		const now = performance.now();
 		if (now - perfLogs.lastLog > perfLogs.LOG_INTERVAL) {
-			const avgRenderTime = perfLogs.renderTime.reduce((a, b) => a + b, 0) / perfLogs.renderTime.length;
-			const avgBatchTime = perfLogs.batchTime.reduce((a, b) => a + b, 0) / perfLogs.batchTime.length;
+			const avgTotal = perfLogs.total.reduce((a, b) => a + b, 0) / perfLogs.total.length;
 			
-			if (avgRenderTime > perfLogs.RENDER_TIME_THRESHOLD) {
-				console.log(`Performance warning: Average render time: ${avgRenderTime.toFixed(2)}ms`);
-				if (gl) {
-					console.log('Using WebGL rendering');
-				} else {
-					console.log('Using Canvas2D fallback');
-				}
-				console.log(`Active particles: ${perfLogs.particleCount}`);
+			if (avgTotal > 50) {
+				console.warn(
+					`Performance warning: Average render time ${avgTotal.toFixed(2)}ms ` +
+					`with ${perfLogs.particleCount} particles`
+				);
 			}
 			
-			// Clear the logs
-			perfLogs.renderTime = [];
-			perfLogs.batchTime = [];
+			// Reset logs
+			perfLogs.total = [];
 			perfLogs.lastLog = now;
 		}
 	}
@@ -1346,17 +1594,21 @@
 			}
 
 			for (let j = 0; j < particleCount; j++) {
-				const ratio = j / particleCount;
-				const x = start.x + (end.x - start.x) * ratio;
-				const y = start.y + (end.y - start.y) * ratio;
+				const t = j / particleCount;
+				const x = start.x + (end.x - start.x) * t;
+				const y = start.y + (end.y - start.y) * t;
 
+				// Calculate particle angle (perpendicular to drawing direction)
+				const angle = Math.atan2(end.y - start.y, end.x - start.x) + Math.PI / 2;
+
+				// Random offset perpendicular to drawing direction
 				const offset = (Math.random() - 0.5) * opts.randomOffset;
-				const angle =
-					Math.atan2(end.y - start.y, end.x - start.x) + Math.PI / 2;
+				const perpX = Math.cos(angle) * offset;
+				const perpY = Math.sin(angle) * offset;
 
 				preDrawnParticles.push({
-					x: x + (Math.random() - 0.5) * opts.randomOffset,
-					y: y + (Math.random() - 0.5) * opts.randomOffset,
+					x: x + perpX,
+					y: y + perpY,
 					angle: angle + (Math.random() - 0.5) * 0.2,
 					length: opts.particleSize * (0.8 + Math.random() * 0.4),
 					width: opts.particleSize * 0.3,
