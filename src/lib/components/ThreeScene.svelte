@@ -3,57 +3,10 @@
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 	import gsap from 'gsap';
-	import modelUrl from '../3d/MagnaSketch_3dModel.gltf?url';
-
-	export let canvas; // Accept canvas from parent
-	export let onCanvasReady = undefined;
-
-	let container;
-	let scene;
-	let camera;
-	let renderer;
-	let model;
-	let screenMesh;
-	let sliderMesh;
-	let isSliderDragging = false;
-	let sliderStartX = 0;
-	let sliderInitialPosition;
-	let sliderMinX, sliderMaxX;
-	let isVisible = false;
-	let modelLoaded = false;
-	let animationFrameId;
-	let canvasTexture;
-	let meshAspect; // Store mesh aspect ratio at module level
-
-	$: if (canvas) {
-		if (!canvasTexture) {
-			// Create new texture if it doesn't exist
-			canvasTexture = new THREE.CanvasTexture(canvas);
-			canvasTexture.minFilter = THREE.LinearFilter;
-			canvasTexture.magFilter = THREE.LinearFilter;
-			canvasTexture.generateMipmaps = false;
-			canvasTexture.encoding = THREE.sRGBEncoding;
-			canvasTexture.flipY = true;
-			canvasTexture.wrapS = THREE.ClampToEdgeWrapping;
-			canvasTexture.wrapT = THREE.ClampToEdgeWrapping;
-			canvasTexture.repeat.set(-1, 1);
-			canvasTexture.offset.set(1, 0);
-
-			// If screen mesh exists, update its material
-			if (screenMesh?.material) {
-				screenMesh.material.map = canvasTexture;
-			}
-		}
-
-		// Always update texture when canvas changes
-		if (canvasTexture) {
-			canvasTexture.needsUpdate = true;
-		}
-	}
 
 	const CONFIG = {
 		model: {
-			path: modelUrl,
+			path: '/models/MagnaSketch_3dModel.gltf',  // Use absolute path from root
 			initial: {
 				position: { x: 0, y: 0, z: -2 },
 				rotation: { x: 0, y: 0, z: 0 },
@@ -91,6 +44,60 @@
 			snapBackDuration: 0.2, // Faster snap back
 		},
 	};
+
+	export let canvas; // Accept canvas from parent
+	export let onCanvasReady = undefined;
+
+	let container;
+	let scene;
+	let camera;
+	let renderer;
+	let model;
+	let screenMesh;
+	let sliderMesh;
+	let isSliderDragging = false;
+	let sliderStartX = 0;
+	let sliderInitialPosition;
+	let sliderMinX, sliderMaxX;
+	let isVisible = false;
+	let modelLoaded = false;
+	let animationFrameId;
+	let canvasTexture;
+	let meshAspect; // Store mesh aspect ratio at module level
+
+	$: if (canvas) {
+		if (!canvasTexture) {
+			// Create new texture if it doesn't exist
+			canvasTexture = new THREE.CanvasTexture(canvas);
+			// Set all properties in a reactive way
+			canvasTexture = {
+				...canvasTexture,
+				minFilter: THREE.LinearFilter,
+				magFilter: THREE.LinearFilter,
+				generateMipmaps: false,
+				encoding: THREE.sRGBEncoding,
+				flipY: true,
+				wrapS: THREE.ClampToEdgeWrapping,
+				wrapT: THREE.ClampToEdgeWrapping
+			};
+			// Set repeat and offset using methods
+			canvasTexture.repeat.set(-1, 1);
+			canvasTexture.offset.set(1, 0);
+
+			// If screen mesh exists, update its material
+			if (screenMesh?.material) {
+				screenMesh.material = {
+					...screenMesh.material,
+					map: canvasTexture
+				};
+			}
+		}
+
+		// Always update texture when canvas changes
+		if (canvasTexture) {
+			canvasTexture = { ...canvasTexture, needsUpdate: true };
+		}
+	}
 
 	let isTransitioning = false;
 	const dispatch = createEventDispatcher();
@@ -259,96 +266,119 @@
 
 	async function loadModel() {
 		const loader = new GLTFLoader();
-		const gltf = await loader.loadAsync(CONFIG.model.path);
-		model = gltf.scene;
+		loader.resourcePath = '/models/';
+		try {
+			const gltf = await loader.loadAsync(CONFIG.model.path);
+			model = gltf.scene;
 
-		// Apply initial transforms
-		model.position.set(
-			CONFIG.model.initial.position.x,
-			CONFIG.model.initial.position.y,
-			CONFIG.model.initial.position.z
-		);
-		model.rotation.set(
-			CONFIG.model.initial.rotation.x,
-			CONFIG.model.initial.rotation.y,
-			CONFIG.model.initial.rotation.z
-		);
-
-		// Set initial scale but keep invisible
-		model.scale.set(
-			CONFIG.model.initial.scale.x,
-			CONFIG.model.initial.scale.y,
-			CONFIG.model.initial.scale.z
-		);
-		isVisible = false; // Start invisible
-
-		// Find screen and slider meshes
-		let foundScreen = false;
-		model.traverse((child) => {
-			if (child.name === 'Screen') {
-				foundScreen = true;
-				screenMesh = child;
-
-				// Create material without texture initially
-				if (screenMesh.material) {
-					screenMesh.material.dispose();
+			// Handle materials to prevent texture loading errors
+			model.traverse((child) => {
+				if (child.isMesh) {
+					if (child.material) {
+						// Remove texture references if they don't exist
+						if (child.material.normalMap && !child.material.normalMap.image) {
+							child.material.normalMap = null;
+						}
+						if (child.material.roughnessMap && !child.material.roughnessMap.image) {
+							child.material.roughnessMap = null;
+						}
+						if (child.material.metalnessMap && !child.material.metalnessMap.image) {
+							child.material.metalnessMap = null;
+						}
+					}
 				}
+			});
 
-				screenMesh.material = new THREE.MeshBasicMaterial({
-					transparent: true,
-					opacity: 1,
-					side: THREE.DoubleSide,
-					toneMapped: false,
-				});
+			// Apply initial transforms
+			model.position.set(
+				CONFIG.model.initial.position.x,
+				CONFIG.model.initial.position.y,
+				CONFIG.model.initial.position.z
+			);
+			model.rotation.set(
+				CONFIG.model.initial.rotation.x,
+				CONFIG.model.initial.rotation.y,
+				CONFIG.model.initial.rotation.z
+			);
 
-				// If we already have a canvas texture, set it now
-				if (canvasTexture) {
-					screenMesh.material.map = canvasTexture;
+			// Set initial scale but keep invisible
+			model.scale.set(
+				CONFIG.model.initial.scale.x,
+				CONFIG.model.initial.scale.y,
+				CONFIG.model.initial.scale.z
+			);
+			isVisible = false; // Start invisible
+
+			// Find screen and slider meshes
+			let foundScreen = false;
+			model.traverse((child) => {
+				if (child.name === 'Screen') {
+					foundScreen = true;
+					screenMesh = child;
+
+					// Create material without texture initially
+					if (screenMesh.material) {
+						screenMesh.material.dispose();
+					}
+
+					screenMesh.material = new THREE.MeshBasicMaterial({
+						transparent: true,
+						opacity: 1,
+						side: THREE.DoubleSide,
+						toneMapped: false,
+					});
+
+					// If we already have a canvas texture, set it now
+					if (canvasTexture) {
+						screenMesh.material.map = canvasTexture;
+					}
+
+					// Set up initial clipping planes
+					setupClippingPlanes();
+
+					// Reset UV coordinates
+					const uvs = screenMesh.geometry.attributes.uv;
+					for (let i = 0; i < uvs.count; i++) {
+						const u = uvs.array[i * 2];
+						const v = uvs.array[i * 2 + 1];
+						uvs.array[i * 2] = u;
+						uvs.array[i * 2 + 1] = v;
+					}
+					uvs.needsUpdate = true;
+
+					// Rotate the mesh locally
+					screenMesh.rotateZ(Math.PI);
+				} else if (child.name === 'Slider') {
+					sliderMesh = child;
+					// Store initial position for reset
+					sliderInitialPosition = child.position.clone();
+
+					// Set slider bounds to 90% of rail width (-1.63 to 1.63)
+					// This should only hide about 20% of the knob width on each end
+					sliderMinX = -1.47; // 90% of -1.63
+					sliderMaxX = 1.47; // 90% of 1.63
+
+					// Move slider to left end initially
+					sliderMesh.position.x = sliderMinX;
+				} else if (child.name === 'Curve' || child.name === 'Curve_1') {
+					// Log rail position if found
+					const box = new THREE.Box3().setFromObject(child);
+					// Only log in development
+					if (import.meta.env.DEV) {
+						// console.debug('Rail bounds:', child.name, box.min.x, box.max.x);
+					}
 				}
+			});
 
-				// Set up initial clipping planes
-				setupClippingPlanes();
-
-				// Reset UV coordinates
-				const uvs = screenMesh.geometry.attributes.uv;
-				for (let i = 0; i < uvs.count; i++) {
-					const u = uvs.array[i * 2];
-					const v = uvs.array[i * 2 + 1];
-					uvs.array[i * 2] = u;
-					uvs.array[i * 2 + 1] = v;
-				}
-				uvs.needsUpdate = true;
-
-				// Rotate the mesh locally
-				screenMesh.rotateZ(Math.PI);
-			} else if (child.name === 'Slider') {
-				sliderMesh = child;
-				// Store initial position for reset
-				sliderInitialPosition = child.position.clone();
-
-				// Set slider bounds to 90% of rail width (-1.63 to 1.63)
-				// This should only hide about 20% of the knob width on each end
-				sliderMinX = -1.47; // 90% of -1.63
-				sliderMaxX = 1.47; // 90% of 1.63
-
-				// Move slider to left end initially
-				sliderMesh.position.x = sliderMinX;
-			} else if (child.name === 'Curve' || child.name === 'Curve_1') {
-				// Log rail position if found
-				const box = new THREE.Box3().setFromObject(child);
-				// Only log in development
-				if (import.meta.env.DEV) {
-					// console.debug('Rail bounds:', child.name, box.min.x, box.max.x);
-				}
+			if (!foundScreen) {
+				console.warn('No screen mesh found in model');
 			}
-		});
 
-		if (!foundScreen) {
-			console.warn('No screen mesh found in model');
+			scene.add(model);
+			modelLoaded = true;
+		} catch (error) {
+			console.error('Error loading model:', error);
 		}
-
-		scene.add(model);
-		modelLoaded = true;
 	}
 
 	async function initThreeJS() {
