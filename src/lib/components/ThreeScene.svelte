@@ -69,33 +69,27 @@
 		if (!canvasTexture) {
 			// Create new texture if it doesn't exist
 			canvasTexture = new THREE.CanvasTexture(canvas);
-			// Set all properties in a reactive way
-			canvasTexture = {
-				...canvasTexture,
-				minFilter: THREE.LinearFilter,
-				magFilter: THREE.LinearFilter,
-				generateMipmaps: false,
-				encoding: THREE.sRGBEncoding,
-				flipY: true,
-				wrapS: THREE.ClampToEdgeWrapping,
-				wrapT: THREE.ClampToEdgeWrapping
-			};
-			// Set repeat and offset using methods
+			// Set texture properties
+			canvasTexture.minFilter = THREE.LinearFilter;
+			canvasTexture.magFilter = THREE.LinearFilter;
+			canvasTexture.generateMipmaps = false;
+			canvasTexture.encoding = THREE.sRGBEncoding;
+			canvasTexture.flipY = true;
+			canvasTexture.wrapS = THREE.ClampToEdgeWrapping;
+			canvasTexture.wrapT = THREE.ClampToEdgeWrapping;
 			canvasTexture.repeat.set(-1, 1);
 			canvasTexture.offset.set(1, 0);
 
 			// If screen mesh exists, update its material
 			if (screenMesh?.material) {
-				screenMesh.material = {
-					...screenMesh.material,
-					map: canvasTexture
-				};
+				screenMesh.material.map = canvasTexture;
+				screenMesh.material.needsUpdate = true;
 			}
 		}
 
 		// Always update texture when canvas changes
 		if (canvasTexture) {
-			canvasTexture = { ...canvasTexture, needsUpdate: true };
+			canvasTexture.needsUpdate = true;
 		}
 	}
 
@@ -423,20 +417,6 @@
 		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		renderer.outputEncoding = THREE.sRGBEncoding;
 		container.appendChild(renderer.domElement);
-
-		// Create canvas texture
-		if (canvas) {
-			canvasTexture = new THREE.CanvasTexture(canvas);
-			canvasTexture.minFilter = THREE.LinearFilter;
-			canvasTexture.magFilter = THREE.LinearFilter;
-			canvasTexture.generateMipmaps = false;
-			canvasTexture.encoding = THREE.sRGBEncoding;
-			canvasTexture.flipY = true;
-			canvasTexture.wrapS = THREE.ClampToEdgeWrapping;
-			canvasTexture.wrapT = THREE.ClampToEdgeWrapping;
-			canvasTexture.repeat.set(-1, 1);
-			canvasTexture.offset.set(1, 0);
-		}
 
 		await loadModel();
 
