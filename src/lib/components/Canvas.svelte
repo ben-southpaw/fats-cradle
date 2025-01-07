@@ -1885,59 +1885,103 @@
 			);
 			const data = imageData.data;
 
-			// Position in bottom right with padding
-			const padding = 120;
-			const startX = canvas.width - scaledWidth - padding;
-			const startY = canvas.height - padding;
+			const points = [];
+			const alphaThreshold = 100;
 
-			// Calculate sampling parameters based on scale
-			const pixelStep = Math.max(1, Math.floor(0.25 / scale)); // Reduced to 0.25/scale for higher density
-			const particleSpacing = CONFIG.preDrawnDensity; // No multiplier for maximum density
+			// Determine if this is the initial stamp for this magnet
+			const isInitialStamp = !stampParticles.some(
+				(p) => p.magnetId === magnet.id
+			);
 
-			// Track sampled positions to avoid duplicates
-			const sampledPositions = new Set();
+			// Use different densities based on whether this is the initial stamp
+			const particleDensity = isInitialStamp
+				? CONFIG.initialStampDensity
+				: CONFIG.subsequentStampDensity;
 
-			for (let y = 0; y < img.height; y += pixelStep) {
-				for (let x = 0; x < img.width; x += pixelStep) {
-					const i = (y * img.width + x) * 4;
-					if (data[i + 3] > 50) {
-						// If pixel is visible enough
-						// Calculate scaled position
-						const scaledX = (x / img.width) * scaledWidth;
-						const scaledY = (y / img.height) * scaledHeight;
+			const particleSize = {
+				length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
+				width: CONFIG.particleWidth,
+				randomness: 0.15,
+			};
 
-						// Create unique key for this position
-						const posKey = `${Math.floor(scaledX)},${Math.floor(scaledY)}`;
+			// Calculate offset to center the stamp particles around the magnet's position
+			const offsetX = (tempCanvas.width - magnet.width) / 2;
+			const offsetY = (tempCanvas.height - magnet.height) / 2;
 
-						// Only create particle if position hasn't been sampled
-						if (
-							!sampledPositions.has(posKey) &&
-							Math.random() < 1 / particleSpacing
-						) {
-							sampledPositions.add(posKey);
+			// Function to check if a point already has a stamp nearby using spatial grid
+			const proximityThreshold = 1.5;
+			function hasNearbyStamp(x, y) {
+				const nearbyParticles = spatialGrid.queryParticles(
+					x,
+					y,
+					proximityThreshold
+				);
+				return nearbyParticles.size > 0;
+			}
 
-							const wobble = 0.8;
-							const offsetX = (Math.random() - 0.5) * wobble;
-							const offsetY = (Math.random() - 0.5) * wobble;
+			for (let y = 1; y < tempCanvas.height - 1; y++) {
+				for (let x = 1; x < tempCanvas.width - 1; x++) {
+					const i = (y * tempCanvas.width + x) * 4;
+					const alpha = data[i + 3];
 
-							const sizeVariation = 0.7 + Math.random() * 0.6;
+					if (alpha > alphaThreshold) {
+						const leftAlpha = data[i - 4 + 3];
+						const rightAlpha = data[i + 4 + 3];
+						const topAlpha = data[i - tempCanvas.width * 4 + 3];
+						const bottomAlpha = data[i + tempCanvas.width * 4 + 3];
 
-							preDrawnParticles.push({
-								x: startX + scaledX + offsetX,
-								y: startY + scaledY + offsetY - scaledHeight,
-								angle: Math.random() * Math.PI * 2,
-								length: CONFIG.preDrawnParticleSize * sizeVariation,
-								width: CONFIG.preDrawnParticleSize * 0.5 * sizeVariation,
-								color: CONFIG.preDrawnColor,
-								isPredrawn: true,
-							});
+						const isEdge =
+							leftAlpha <= alphaThreshold ||
+							rightAlpha <= alphaThreshold ||
+							topAlpha <= alphaThreshold ||
+							bottomAlpha <= alphaThreshold;
+
+						const newX = magnet.x - magnet.width / 2 + (x - offsetX);
+						const newY = magnet.y - magnet.height / 2 + (y - offsetY);
+
+						if (isEdge) {
+							for (let i = 0; i < particleDensity.edge; i++) {
+								const finalX = newX + (Math.random() - 0.5) * 0.8;
+								const finalY = newY + (Math.random() - 0.5) * 0.8;
+								if (!hasNearbyStamp(finalX, finalY)) {
+									points.push({
+										x: finalX,
+										y: finalY,
+										isEdge: true,
+									});
+								}
+							}
+						} else if (Math.random() < particleDensity.fill) {
+							const finalX = newX + (Math.random() - 0.5) * 1.5;
+							const finalY = newY + (Math.random() - 0.5) * 1.5;
+							if (!hasNearbyStamp(finalX, finalY)) {
+								points.push({
+									x: finalX,
+									y: finalY,
+									isEdge: false,
+								});
+							}
 						}
 					}
 				}
 			}
 
-			// Force a render after loading image
-			renderAll();
+			points.forEach((point) => {
+				const particle = createParticle(point.x, point.y, true);
+				particle.magnetId = magnet.id;
+				particle.opacity = isInitialStamp
+					? CONFIG.initialStampOpacity
+					: CONFIG.subsequentStampOpacity;
+				stampParticles.push(particle);
+				spatialGrid.addParticle(particle); // Add to spatial grid
+			});
+
+			// Reset the stamping flag after a delay
+			setTimeout(() => {
+				magnet.isStamping = false;
+			}, 300);
+
+			scheduleRender();
 		};
 
 		img.src = multiText;
@@ -2206,21 +2250,23 @@
 	}
 
 	function handleSnapBackStart() {
-		// Clear all particle arrays
-		particles = [];
-		stampParticles = [];
-		preDrawnParticles = [];
+		setTimeout(() => {
+			// Clear all particle arrays
+			particles = [];
+			stampParticles = [];
+			preDrawnParticles = [];
 
-		// Clear all batches
-		drawingBatch.clear();
-		predrawnBatch.clear();
-		stampBatch.clear();
+			// Clear all batches
+			drawingBatch.clear();
+			predrawnBatch.clear();
+			stampBatch.clear();
 
-		// Reset drawing state
-		shouldDraw = false;
+			// Reset drawing state
+			shouldDraw = false;
 
-		// Force a render to update the canvas
-		renderAll();
+			// Force a render to update the canvas
+			renderAll();
+		}, 300); // 0.3 second delay
 	}
 
 	function handleTransitionComplete() {
