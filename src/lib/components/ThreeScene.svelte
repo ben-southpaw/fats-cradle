@@ -359,24 +359,23 @@
 
 					// Move slider to left end initially
 					sliderMesh.position.x = sliderMinX;
-				} else if (child.name === 'Curve' || child.name === 'Curve_1') {
-					// Log rail position if found
+				} else if (child.name === 'Rail') {
+					// Get bounds for slider movement
 					const box = new THREE.Box3().setFromObject(child);
-					// Only log in development
-					if (import.meta.env.DEV) {
-						// console.debug('Rail bounds:', child.name, box.min.x, box.max.x);
-					}
+					sliderMinX = box.min.x;
+					sliderMaxX = box.max.x;
 				}
 			});
 
 			if (!foundScreen) {
-				console.warn('No screen mesh found in model');
+				throw new Error('No screen mesh found in model');
 			}
 
 			scene.add(model);
 			modelLoaded = true;
 		} catch (error) {
 			console.error('Error loading model:', error);
+			throw error;
 		}
 	}
 

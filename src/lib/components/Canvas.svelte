@@ -205,8 +205,7 @@
 
 		// Fallback to 2D context if WebGL setup failed
 		if (!gl) {
-			console.log('Falling back to Canvas2D context');
-			ctx = canvas.getContext('2d', { willReadFrequently: true });
+			ctx = canvas.getContext('2d');
 		}
 
 		// Initialize canvas with background
@@ -1148,7 +1147,7 @@
 				// Check distance to each vertex of the hexagon
 				const vertices = [];
 				for (let i = 0; i < 6; i++) {
-					const angle = (i * Math.PI) / 3 - Math.PI / 6;
+					const angle = (i * Math.PI) / 3 - Math.PI / 6; // Rotate to flat-top orientation
 					vertices.push({
 						x: centerX + size * Math.cos(angle),
 						y: centerY + size * Math.sin(angle),
@@ -1874,7 +1873,12 @@
 			tempCtx.drawImage(img, 0, 0);
 
 			// Get image data
-			const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+			const imageData = tempCtx.getImageData(
+				0,
+				0,
+				img.width,
+				img.height
+			);
 			const data = imageData.data;
 
 			// Position in bottom right with padding
@@ -2279,10 +2283,10 @@
 	// Initialize test letter when images are loaded
 	$: {
 		if (canvas && magnetImages['F']) {
-			const testParticles = createTestLetterParticles();
-			if (testParticles) {
-				preDrawnParticles = testParticles;
-			}
+			// const testParticles = createTestLetterParticles();
+			// if (testParticles) {
+			// 	preDrawnParticles = testParticles;
+			// }
 		}
 	}
 </script>
