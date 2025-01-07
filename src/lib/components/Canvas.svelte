@@ -24,39 +24,40 @@
 	let lastRenderTime = 0;
 	const CONFIG = {
 		particleSize: 0.3,
-		particleDensity: 15,
+		particleDensity: 18,
 		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
-		gridColor: '#DADADA', // Lighter grid color
+		gridColor: '#DADADA',
 		hexagonSize: 2,
 		particleLength: 6,
 		particleWidth: 0.3,
 		particleColor: '#333333',
-		preDrawnParticleSize: 1.0,
-		preDrawnDensity: 40,
+		preDrawnParticleSize: 1,
+		preDrawnDensity: 0.9,
 		preDrawnColor: '#333333',
-		whiteParticleProbability: 0.3,
+		whiteParticleProbability: 0.2,
 		targetFPS: 60,
-		hexagonSpacing: 2 * 3, // Size * multiplier
-		hexagonAvoidanceDistance: 0.5, // Slightly stronger for drawn elements
-		predrawnAvoidanceDistance: 0.4, // More subtle for predrawn elements
-		stampAvoidanceDistance: 0.5, // Stamp elements
-		hexagonLineWidth: 0.5, // Width of the hexagon line effect
-		initialStampOpacity: 0.95, // Darker initial stamps
-		subsequentStampOpacity: 0.6, // Lighter subsequent stamps
+		hexagonSpacing: 2 * 3,
+		hexagonAvoidanceDistance: 0.1, // Reduced grid avoidance distance
+		predrawnAvoidanceDistance: 0,
+		stampAvoidanceDistance: 0.5,
+		hexagonLineWidth: 0.3,
+		initialStampOpacity: 0.95,
+		subsequentStampOpacity: 0.6,
 		initialStampDensity: {
-			// Higher density for initial stamps
-			edge: 2.5,
-			fill: 2.8,
+			edge: 1.4,
+			fill: 1.6,
 		},
 		subsequentStampDensity: {
-			// Lower density for subsequent stamps
-			edge: 1.8,
-			fill: 1.5,
+			edge: 1.0,
+			fill: 0.8,
 		},
+		maxParticles: 40000,
+		particleCullingDistance: 2000,
 	};
 
 	const FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
+	let lastParticleUpdate = 0;
 
 	// Canvas setup
 	let canvas;
@@ -65,6 +66,7 @@
 	let particles = [];
 	let stampParticles = []; // For magnet stamps
 	let preDrawnParticles = []; // For pre-drawn elements
+	let drawingPoints = []; // For storing drawing path points
 	let lastX = null;
 	let lastY = null;
 	let selectedMagnet = null;
@@ -194,13 +196,32 @@
 	onMount(() => {
 		if (!canvas) return;
 
-		ctx = canvas.getContext('2d', { willReadFrequently: true });
+		// Set canvas dimensions
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
 
+		// Try WebGL first
+		setupWebGL();
+
+		// Fallback to 2D context if WebGL setup failed
+		if (!gl) {
+			console.log('Falling back to Canvas2D context');
+			ctx = canvas.getContext('2d', { willReadFrequently: true });
+		}
+
 		// Initialize canvas with background
-		ctx.fillStyle = CONFIG.backgroundColor;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		if (ctx) {
+			ctx.fillStyle = CONFIG.backgroundColor;
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+		} else if (gl) {
+			gl.clearColor(
+				parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
+				parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
+				parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
+				1.0
+			);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+		}
 
 		// Notify that canvas is ready
 		onScreenCanvasReady(canvas);
@@ -220,28 +241,34 @@
 		}
 		animate();
 
-		// Load all magnet images
-		const letters = [
-			{ src: letterF, id: 'F' },
-			{ src: letterA, id: 'A' },
-			{ src: letterT, id: 'T' },
-			{ src: letterE, id: 'E' },
-			{ src: letterM, id: 'M' },
-			{ src: letterA2, id: 'A2' },
-		];
+		// Create and load all letter images
+		const letterSources = {
+			F: letterF,
+			A: letterA,
+			T: letterT,
+			E: letterE,
+			M: letterM,
+			A2: letterA2,
+		};
 
 		let loadedCount = 0;
-		letters.forEach((letter) => {
-			const img = new window.Image();
-			img.src = letter.src;
+		const totalImages = Object.keys(letterSources).length;
+
+		Object.entries(letterSources).forEach(([letter, src]) => {
+			const img = new Image();
 			img.onload = () => {
-				magnetImages[letter.id] = img;
-				loadedCount++;
-				if (loadedCount === letters.length) {
-					initializeMagnets();
-					scheduleRender();
+				magnetImages[letter] = img;
+				if (gl && textureProgram) {
+					loadTexture(src).then((texture) => {
+						magnetTextures.set(letter, texture);
+						loadedCount++;
+						if (loadedCount === totalImages) {
+							initializeMagnets();
+						}
+					});
 				}
 			};
+			img.src = src;
 		});
 
 		// Register GSAP plugin
@@ -262,11 +289,753 @@
 			if (ctx) {
 				ctx = null;
 			}
+			if (gl) {
+				gl.deleteProgram(particleProgram);
+				gl.deleteBuffer(particleBuffer);
+				gl.deleteBuffer(particleColorBuffer);
+				gl = null;
+			}
 			if (canvas) {
 				canvas = null;
 			}
 		};
 	});
+
+	$: {
+		// Watch for CONFIG changes that affect predrawn elements
+		const { preDrawnDensity, preDrawnParticleSize, predrawnAvoidanceDistance } =
+			CONFIG;
+		if (canvas) {
+			preDrawnParticles = []; // Clear existing particles
+			createPreDrawnElements(); // Recreate with new settings
+		}
+	}
+
+	// WebGL setup
+	let gl;
+	let particleProgram;
+	let particleBuffer;
+	let particleColorBuffer;
+	let gridProgram;
+	let gridBuffer;
+	let textureProgram;
+	let textureBuffer;
+	let texCoordBuffer;
+	// let letterTexture;
+
+	// WebGL shaders
+	const vertexShaderSource = `#version 300 es
+		in vec2 position;
+		in vec4 color;
+		uniform vec2 resolution;
+		out vec4 vColor;
+		out vec2 vPosition;
+		
+		void main() {
+			// Convert from pixel coordinates to clip space
+			vec2 zeroToOne = position / resolution;
+			vec2 zeroToTwo = zeroToOne * 2.0;
+			vec2 clipSpace = zeroToTwo - 1.0;
+			gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+			
+			// Pass through position for grid calculations
+			vPosition = position;
+			
+			// Set point size based on screen resolution
+			gl_PointSize = 2.0 * (resolution.y / 1080.0);
+			
+			vColor = color;
+		}
+	`;
+
+	const fragmentShaderSource = `#version 300 es
+		precision highp float;
+		
+		in vec4 vColor;
+		in vec2 vPosition;
+		uniform vec2 resolution;
+		uniform float hexSize;
+		out vec4 fragColor;
+
+		float distToHexGrid(vec2 p) {
+			float size = hexSize * 3.0;
+			float hexHeight = size * sqrt(3.0);
+			
+			// Convert to hex grid space
+			vec2 gridPos = p / vec2(size * 1.5, hexHeight);
+			float row = floor(gridPos.y);
+			float rowIsOdd = mod(row, 2.0);
+			gridPos.x += rowIsOdd * 0.5;
+			
+			vec2 hexPos = fract(gridPos);
+			hexPos = hexPos * 2.0 - 1.0;
+			
+			float minDist = 1000.0;
+			for (int i = 0; i < 6; i++) {
+				float angle = float(i) * 3.14159 / 3.0;
+				vec2 hexCorner = vec2(cos(angle), sin(angle));
+				float dist = abs(dot(hexPos, hexCorner));
+				minDist = min(minDist, dist);
+			}
+			
+			return minDist * size * 0.5;
+		}
+		
+		void main() {
+			// Calculate distance to nearest grid line
+			float gridDist = distToHexGrid(vPosition);
+			
+			// Hard cutoff very close to grid
+			if (gridDist < 0.5) {
+				discard;
+				return;
+			}
+			
+			// Create circular particle with soft edges
+			vec2 center = gl_PointCoord - vec2(0.5);
+			float dist = length(center);
+			
+			// Smoother transition for anti-aliasing
+			float alpha = smoothstep(0.5, 0.3, dist);
+			
+			// Apply color with adjusted alpha
+			fragColor = vec4(vColor.rgb, vColor.a * alpha * 0.8);
+		}
+	`;
+
+	const gridVertexShaderSource = `#version 300 es
+		in vec2 position;
+		uniform vec2 resolution;
+		
+		void main() {
+			// Convert from pixel coordinates to clip space
+			vec2 zeroToOne = position / resolution;
+			vec2 zeroToTwo = zeroToOne * 2.0;
+			vec2 clipSpace = zeroToTwo - 1.0;
+			gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+		}
+	`;
+
+	const gridFragmentShaderSource = `#version 300 es
+		precision highp float;
+		
+		uniform vec4 gridColor;
+		out vec4 fragColor;
+		
+		void main() {
+			fragColor = gridColor;
+		}
+	`;
+
+	const textureVertexShaderSource = `#version 300 es
+		in vec2 position;
+		in vec2 texCoord;
+		uniform vec2 resolution;
+		out vec2 vTexCoord;
+		
+		void main() {
+			vec2 zeroToOne = position / resolution;
+			vec2 zeroToTwo = zeroToOne * 2.0;
+			vec2 clipSpace = zeroToTwo - 1.0;
+			gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+			vTexCoord = texCoord;
+		}
+	`;
+
+	const textureFragmentShaderSource = `#version 300 es
+		precision highp float;
+		
+		uniform sampler2D uTexture;
+		in vec2 vTexCoord;
+		out vec4 fragColor;
+		
+		void main() {
+			fragColor = texture(uTexture, vTexCoord);
+		}
+	`;
+
+	function createShader(gl, type, source) {
+		const shader = gl.createShader(type);
+		gl.shaderSource(shader, source);
+		gl.compileShader(shader);
+
+		if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+			const error = gl.getShaderInfoLog(shader);
+			gl.deleteShader(shader);
+			return null;
+		}
+
+		return shader;
+	}
+
+	// Helper function to convert hex color to rgba
+	function hexToRGBA(hex, alpha = 1) {
+		const r = parseInt(hex.slice(1, 3), 16) / 255;
+		const g = parseInt(hex.slice(3, 5), 16) / 255;
+		const b = parseInt(hex.slice(5, 7), 16) / 255;
+		return [r, g, b, alpha];
+	}
+
+	// Helper function to prepare particle data for WebGL
+	function prepareParticleData(particles) {
+		const positions = new Float32Array(particles.length * 2);
+		const colors = new Float32Array(particles.length * 4);
+
+		particles.forEach((particle, i) => {
+			const posIndex = i * 2;
+			const colorIndex = i * 4;
+
+			// Position
+			positions[posIndex] = particle.x;
+			positions[posIndex + 1] = particle.y;
+
+			// Color
+			const rgba = hexToRGBA(
+				particle.color || CONFIG.particleColor,
+				particle.opacity || 1
+			);
+			colors[colorIndex] = rgba[0];
+			colors[colorIndex + 1] = rgba[1];
+			colors[colorIndex + 2] = rgba[2];
+			colors[colorIndex + 3] = rgba[3];
+		});
+
+		return { positions, colors };
+	}
+
+	// WebGL particle rendering function
+	function renderParticlesWebGL(particles) {
+		if (!gl || !particleProgram || particles.length === 0) return;
+
+		// Use shader program
+		gl.useProgram(particleProgram);
+
+		// Update resolution uniform
+		const resolutionLocation = gl.getUniformLocation(
+			particleProgram,
+			'resolution'
+		);
+		gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+
+		// Update hex size uniform
+		const hexSizeLocation = gl.getUniformLocation(particleProgram, 'hexSize');
+		gl.uniform1f(hexSizeLocation, CONFIG.hexagonSize);
+
+		// Prepare data
+		const { positions, colors } = prepareParticleData(particles);
+
+		// Update position buffer
+		gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW);
+		const positionLocation = gl.getAttribLocation(particleProgram, 'position');
+		gl.enableVertexAttribArray(positionLocation);
+		gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+		// Update color buffer
+		gl.bindBuffer(gl.ARRAY_BUFFER, particleColorBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
+		const colorLocation = gl.getAttribLocation(particleProgram, 'color');
+		gl.enableVertexAttribArray(colorLocation);
+		gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
+
+		// Enable blending for smooth particle overlap
+		gl.enable(gl.BLEND);
+		gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+		// Draw particles
+		gl.drawArrays(gl.POINTS, 0, particles.length);
+	}
+
+	// WebGL grid rendering function
+	function renderGridWebGL() {
+		if (!gl || !gridProgram) return;
+
+		// Use shader program
+		gl.useProgram(gridProgram);
+
+		// Update resolution uniform
+		const resolutionLocation = gl.getUniformLocation(gridProgram, 'resolution');
+		gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+
+		// Update grid color uniform
+		const gridColorLocation = gl.getUniformLocation(gridProgram, 'gridColor');
+		const gridRGBA = hexToRGBA(CONFIG.gridColor);
+		gl.uniform4f(
+			gridColorLocation,
+			gridRGBA[0],
+			gridRGBA[1],
+			gridRGBA[2],
+			gridRGBA[3]
+		);
+
+		// Update and bind grid vertices
+		const vertices = prepareGridVertices();
+		gl.bindBuffer(gl.ARRAY_BUFFER, gridBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+		// Set up vertex attributes
+		const positionLocation = gl.getAttribLocation(gridProgram, 'position');
+		gl.enableVertexAttribArray(positionLocation);
+		gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+		// Set line width
+		gl.lineWidth(CONFIG.hexagonLineWidth);
+
+		// Draw grid lines
+		gl.drawArrays(gl.LINES, 0, vertices.length / 2);
+	}
+
+	// WebGL texture rendering function
+	function renderTexture(texture, x, y, width, height) {
+		if (!gl || !textureProgram || !texture) return;
+
+		// Use shader program
+		gl.useProgram(textureProgram);
+
+		// Set up vertex positions for the quad
+		const positions = new Float32Array([
+			x,
+			y,
+			x + width,
+			y,
+			x,
+			y + height,
+			x,
+			y + height,
+			x + width,
+			y,
+			x + width,
+			y + height,
+		]);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+		// Set up attributes and uniforms
+		const positionLoc = gl.getAttribLocation(textureProgram, 'position');
+		const texCoordLoc = gl.getAttribLocation(textureProgram, 'texCoord');
+		const resolutionLoc = gl.getUniformLocation(textureProgram, 'resolution');
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
+		gl.enableVertexAttribArray(positionLoc);
+		gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+		gl.enableVertexAttribArray(texCoordLoc);
+		gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+
+		gl.uniform2f(resolutionLoc, gl.canvas.width, gl.canvas.height);
+
+		// Bind the texture and draw
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+		// Enable blending for transparency
+		gl.enable(gl.BLEND);
+		gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+	}
+
+	// Helper function to prepare grid vertices
+	function prepareGridVertices() {
+		const size = CONFIG.hexagonSize * 3;
+		const hexWidth = size * 2; // Width of a hexagon
+		const hexHeight = size * Math.sqrt(3); // Height of a hexagon
+		const vertices = [];
+
+		// Calculate grid dimensions with proper spacing
+		const horizontalSpacing = hexWidth * 0.75; // Overlap horizontally by 1/4 of width
+		const verticalSpacing = hexHeight;
+		const cols = Math.ceil(canvas.width / horizontalSpacing) + 1;
+		const rows = Math.ceil(canvas.height / verticalSpacing) + 1;
+
+		// Generate vertices for each hexagon
+		for (let row = 0; row < rows; row++) {
+			for (let col = 0; col < cols; col++) {
+				// Calculate center of each hexagon
+				const centerX = col * horizontalSpacing;
+				const centerY =
+					row * verticalSpacing + (col % 2) * (verticalSpacing / 2);
+
+				// Generate vertices for hexagon
+				for (let i = 0; i < 6; i++) {
+					// Calculate current vertex
+					const angle = (i * Math.PI) / 3;
+					const px = centerX + size * Math.cos(angle);
+					const py = centerY + size * Math.sin(angle);
+					vertices.push(px, py);
+
+					// Calculate next vertex to create line
+					const nextAngle = (((i + 1) % 6) * Math.PI) / 3;
+					const nextX = centerX + size * Math.cos(nextAngle);
+					const nextY = centerY + size * Math.sin(nextAngle);
+					vertices.push(nextX, nextY);
+				}
+			}
+		}
+
+		return new Float32Array(vertices);
+	}
+
+	// Texture buffers and data
+	let letterTexture;
+
+	function createTextureShaderProgram() {
+		const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+		gl.shaderSource(vertexShader, textureVertexShaderSource);
+		gl.compileShader(vertexShader);
+
+		const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+		gl.shaderSource(fragmentShader, textureFragmentShaderSource);
+		gl.compileShader(fragmentShader);
+
+		textureProgram = gl.createProgram();
+		gl.attachShader(textureProgram, vertexShader);
+		gl.attachShader(textureProgram, fragmentShader);
+		gl.linkProgram(textureProgram);
+
+		if (!gl.getProgramParameter(textureProgram, gl.LINK_STATUS)) {
+			return null;
+		}
+
+		return textureProgram;
+	}
+
+	function loadTexture(url) {
+		return new Promise((resolve) => {
+			const texture = gl.createTexture();
+			const image = new Image();
+			image.onload = () => {
+				gl.bindTexture(gl.TEXTURE_2D, texture);
+				gl.texImage2D(
+					gl.TEXTURE_2D,
+					0,
+					gl.RGBA,
+					gl.RGBA,
+					gl.UNSIGNED_BYTE,
+					image
+				);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+				resolve(texture);
+			};
+			image.src = url;
+		});
+	}
+
+	function setupTextureBuffers() {
+		// Create buffers for the texture quad
+		textureBuffer = gl.createBuffer();
+		texCoordBuffer = gl.createBuffer();
+
+		// Set up the texture coordinates
+		const texCoords = new Float32Array([
+			0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0,
+		]);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
+	}
+
+	function setupWebGL() {
+		if (!canvas) {
+			return;
+		}
+
+		// Try WebGL2 first
+		try {
+			gl = canvas.getContext('webgl2', {
+				alpha: true,
+				premultipliedAlpha: false,
+				antialias: false,
+				depth: false,
+				powerPreference: 'high-performance',
+			});
+
+			if (gl) {
+			}
+		} catch (e) {}
+
+		// Fallback to WebGL1
+		if (!gl) {
+			try {
+				gl = canvas.getContext('webgl', {
+					alpha: true,
+					premultipliedAlpha: false,
+					antialias: false,
+					depth: false,
+					powerPreference: 'high-performance',
+				});
+
+				if (gl) {
+				}
+			} catch (e) {}
+		}
+
+		// Final fallback to experimental-webgl
+		if (!gl) {
+			try {
+				gl = canvas.getContext('experimental-webgl', {
+					alpha: true,
+					premultipliedAlpha: false,
+					antialias: false,
+					depth: false,
+					powerPreference: 'high-performance',
+				});
+
+				if (gl) {
+				}
+			} catch (e) {}
+		}
+
+		if (!gl) {
+			return;
+		}
+
+		// Create shaders with logging
+		const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+		const fragmentShader = createShader(
+			gl,
+			gl.FRAGMENT_SHADER,
+			fragmentShaderSource
+		);
+		const gridVertexShader = createShader(
+			gl,
+			gl.VERTEX_SHADER,
+			gridVertexShaderSource
+		);
+		const gridFragmentShader = createShader(
+			gl,
+			gl.FRAGMENT_SHADER,
+			gridFragmentShaderSource
+		);
+		const textureVertexShader = createShader(
+			gl,
+			gl.VERTEX_SHADER,
+			textureVertexShaderSource
+		);
+		const textureFragmentShader = createShader(
+			gl,
+			gl.FRAGMENT_SHADER,
+			textureFragmentShaderSource
+		);
+
+		if (
+			!vertexShader ||
+			!fragmentShader ||
+			!gridVertexShader ||
+			!gridFragmentShader ||
+			!textureVertexShader ||
+			!textureFragmentShader
+		) {
+			gl = null;
+			return;
+		}
+
+		// Create program with logging
+		particleProgram = gl.createProgram();
+		gl.attachShader(particleProgram, vertexShader);
+		gl.attachShader(particleProgram, fragmentShader);
+		gl.linkProgram(particleProgram);
+
+		if (!gl.getProgramParameter(particleProgram, gl.LINK_STATUS)) {
+			gl = null;
+			return;
+		}
+
+		// Create grid program with logging
+		gridProgram = gl.createProgram();
+		gl.attachShader(gridProgram, gridVertexShader);
+		gl.attachShader(gridProgram, gridFragmentShader);
+		gl.linkProgram(gridProgram);
+
+		if (!gl.getProgramParameter(gridProgram, gl.LINK_STATUS)) {
+			gl = null;
+			return;
+		}
+
+		// Create texture program with logging
+		textureProgram = createTextureShaderProgram();
+
+		// Create buffers with logging
+		particleBuffer = gl.createBuffer();
+		particleColorBuffer = gl.createBuffer();
+		gridBuffer = gl.createBuffer();
+		textureBuffer = gl.createBuffer();
+		texCoordBuffer = gl.createBuffer();
+		if (
+			!particleBuffer ||
+			!particleColorBuffer ||
+			!gridBuffer ||
+			!textureBuffer ||
+			!texCoordBuffer
+		) {
+			gl = null;
+			return;
+		}
+
+		// Set viewport
+		gl.viewport(0, 0, canvas.width, canvas.height);
+
+		// Test draw
+		gl.useProgram(particleProgram);
+		const testPositions = new Float32Array([0, 0]);
+		const testColors = new Float32Array([1, 1, 1, 1]);
+
+		const positionLocation = gl.getAttribLocation(particleProgram, 'position');
+		const colorLocation = gl.getAttribLocation(particleProgram, 'color');
+		const resolutionLocation = gl.getUniformLocation(
+			particleProgram,
+			'resolution'
+		);
+
+		gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, testPositions, gl.STATIC_DRAW);
+		gl.enableVertexAttribArray(positionLocation);
+		gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, particleColorBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, testColors, gl.STATIC_DRAW);
+		gl.enableVertexAttribArray(colorLocation);
+		gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
+
+		gl.drawArrays(gl.POINTS, 0, 1);
+
+		// Check for errors after draw
+		const error = gl.getError();
+		if (error === gl.NO_ERROR) {
+		} else {
+			gl = null;
+		}
+
+		// Load the letter F texture
+		loadTexture(letterF).then((texture) => {
+			letterTexture = texture;
+			scheduleRender();
+		});
+
+		// Set up texture buffers
+		setupTextureBuffers();
+	}
+
+	// Update render function to handle WebGL fallback
+	function renderAll() {
+		if (!gl) return;
+
+		// Clear the canvas
+		gl.clear(gl.COLOR_BUFFER_BIT);
+
+		// Render the grid and particles
+		renderGridWebGL();
+		renderParticlesWebGL([
+			...particles,
+			...preDrawnParticles,
+			...stampParticles,
+		]);
+
+		// Draw all magnets
+		drawMagnets();
+	}
+
+	// Magnet textures
+	let magnetTextures = new Map();
+
+	// Map letters to their image URLs
+	const letterImages = {
+		F: letterF,
+		A: letterA,
+		T: letterT,
+		E: letterE,
+		M: letterM,
+		A2: letterA2,
+	};
+
+	function drawMagnets() {
+		if (!gl || !textureProgram) {
+			return;
+		}
+
+		// Draw each magnet
+		for (const magnet of magnets) {
+			const letter = magnet.id; // The id is the letter type (F, A, T, etc.)
+			const texture = magnetTextures.get(letter);
+			if (!texture) {
+				continue;
+			}
+
+			// Calculate magnet position and size
+			const width = magnet.width || CONFIG.magnetSize || 100;
+			const height = magnet.height || CONFIG.magnetSize || 100;
+			const x = magnet.x - width / 2;
+			const y = magnet.y - height / 2;
+
+			// Apply any rotation or transformations
+			gl.useProgram(textureProgram);
+
+			// Create transformation matrix for rotation
+			const centerX = x + width / 2;
+			const centerY = y + height / 2;
+			const rotation = magnet.rotation || 0;
+
+			// Update vertex positions to include rotation
+			const positions = new Float32Array([
+				...rotatePoint(x, y, centerX, centerY, rotation),
+				...rotatePoint(x + width, y, centerX, centerY, rotation),
+				...rotatePoint(x, y + height, centerX, centerY, rotation),
+				...rotatePoint(x, y + height, centerX, centerY, rotation),
+				...rotatePoint(x + width, y, centerX, centerY, rotation),
+				...rotatePoint(x + width, y + height, centerX, centerY, rotation),
+			]);
+
+			gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
+			gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+			// Set up attributes and uniforms
+			const positionLoc = gl.getAttribLocation(textureProgram, 'position');
+			const texCoordLoc = gl.getAttribLocation(textureProgram, 'texCoord');
+			const resolutionLoc = gl.getUniformLocation(textureProgram, 'resolution');
+
+			gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
+			gl.enableVertexAttribArray(positionLoc);
+			gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+
+			gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+			gl.enableVertexAttribArray(texCoordLoc);
+			gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+
+			gl.uniform2f(resolutionLoc, gl.canvas.width, gl.canvas.height);
+
+			// Enable blending for transparency
+			gl.enable(gl.BLEND);
+			gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+			// Bind the texture and draw
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.drawArrays(gl.TRIANGLES, 0, 6);
+		}
+	}
+
+	// Helper function to rotate a point around a center
+	function rotatePoint(x, y, centerX, centerY, angleInDegrees) {
+		const angleInRadians = (angleInDegrees * Math.PI) / 180;
+		const cos = Math.cos(angleInRadians);
+		const sin = Math.sin(angleInRadians);
+
+		// Translate point to origin
+		const dx = x - centerX;
+		const dy = y - centerY;
+
+		// Rotate point
+		const rotatedX = dx * cos - dy * sin + centerX;
+		const rotatedY = dx * sin + dy * cos + centerY;
+
+		return [rotatedX, rotatedY];
+	}
 
 	// Draw the background hexagon grid
 	let gridCache;
@@ -616,16 +1385,16 @@
 	function findClickedMagnet(pos) {
 		return magnets.find((magnet) => {
 			const scale = magnet.scale || 1;
-			const centerX = magnet.x + (magnet.width * scale) / 2;
-			const centerY = magnet.y + (magnet.height * scale) / 2;
-			const scaledWidth = magnet.width * scale;
-			const scaledHeight = magnet.height * scale;
+			const width = magnet.width * scale;
+			const height = magnet.height * scale;
 
+			// Calculate the actual render position (centered)
+			const x = magnet.x - width / 2;
+			const y = magnet.y - height / 2;
+
+			// Check if click is within bounds
 			return (
-				pos.x >= magnet.x &&
-				pos.x <= magnet.x + scaledWidth &&
-				pos.y >= magnet.y &&
-				pos.y <= magnet.y + scaledHeight
+				pos.x >= x && pos.x <= x + width && pos.y >= y && pos.y <= y + height
 			);
 		});
 	}
@@ -650,7 +1419,7 @@
 		tempCanvas.width = maxDimension;
 		tempCanvas.height = maxDimension;
 
-		// Center and rotate
+		// Draw image at original size first
 		tempCtx.save();
 		tempCtx.translate(maxDimension / 2, maxDimension / 2);
 		tempCtx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
@@ -707,14 +1476,14 @@
 
 		for (let y = 1; y < tempCanvas.height - 1; y++) {
 			for (let x = 1; x < tempCanvas.width - 1; x++) {
-				const idx = (y * tempCanvas.width + x) * 4;
-				const alpha = data[idx + 3];
+				const i = (y * tempCanvas.width + x) * 4;
+				const alpha = data[i + 3];
 
 				if (alpha > alphaThreshold) {
-					const leftAlpha = data[idx - 4 + 3];
-					const rightAlpha = data[idx + 4 + 3];
-					const topAlpha = data[idx - tempCanvas.width * 4 + 3];
-					const bottomAlpha = data[idx + tempCanvas.width * 4 + 3];
+					const leftAlpha = data[i - 4 + 3];
+					const rightAlpha = data[i + 4 + 3];
+					const topAlpha = data[i - tempCanvas.width * 4 + 3];
+					const bottomAlpha = data[i + tempCanvas.width * 4 + 3];
 
 					const isEdge =
 						leftAlpha <= alphaThreshold ||
@@ -722,8 +1491,8 @@
 						topAlpha <= alphaThreshold ||
 						bottomAlpha <= alphaThreshold;
 
-					const newX = magnet.x + (x - offsetX);
-					const newY = magnet.y + (y - offsetY);
+					const newX = magnet.x - magnet.width / 2 + (x - offsetX);
+					const newY = magnet.y - magnet.height / 2 + (y - offsetY);
 
 					if (isEdge) {
 						for (let i = 0; i < particleDensity.edge; i++) {
@@ -771,11 +1540,11 @@
 	}
 
 	function getLetterHeight(letter) {
-		// Define height ranges for different letter groups - middle ground between previous versions
+		// Define height ranges for different letter groups - adjusted to be more centered
 		const heights = {
-			high: { base: 0.3, variance: 0.01 }, // 30-31vh from top
-			middle: { base: 0.35, variance: 0.01 }, // 35-36vh from top
-			low: { base: 0.4, variance: 0.01 }, // 40-41vh from top
+			high: { base: 0.4, variance: 0.01 }, // 40-41vh from top
+			middle: { base: 0.45, variance: 0.01 }, // 45-46vh from top
+			low: { base: 0.5, variance: 0.01 }, // 50-51vh from top
 		};
 
 		switch (letter) {
@@ -789,7 +1558,7 @@
 			case 'M':
 				return heights.low.base + Math.random() * heights.low.variance;
 			default:
-				return 0.35; // fallback to middle
+				return heights.middle.base;
 		}
 	}
 
@@ -801,7 +1570,7 @@
 			case 'A':
 				if (index === 1) {
 					// Only the first A
-					return window.innerWidth * 0.01; // Move A right by 6vw (3vw more than F to reduce gap)
+					return window.innerWidth * 0.01; // Move A right by 1vw
 				}
 				return 0;
 			default:
@@ -811,31 +1580,31 @@
 
 	function initializeMagnets() {
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-		const totalWidth = window.innerWidth * 0.4;
+		const totalWidth = window.innerWidth * 0.4; // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (window.innerWidth - totalWidth) / 2;
 
-		// Compensate for the rightward shift from letter offsets
-		const groupOffset = window.innerWidth * -0.02; // Shift everything left by 2vw to recenter
+		// Original group offset
+		const groupOffset = window.innerWidth * -0.02;
 
-		// Calculate a consistent visual height
-		const targetHeight = window.innerHeight * 0.18; // 18vh base size
+		// Original height
+		const targetHeight = window.innerHeight * 0.18;
 
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
 			const aspectRatio = img.width / img.height;
-			const height = targetHeight * (1 + Math.random() * 0.1);
+			const height = targetHeight * (1 + Math.random() * 0.1); // Original variance
 			const width = height * aspectRatio;
 			const offset = getLetterOffset(letter, index);
 
 			return {
 				id: letter,
-				x: startX + spacing * index - width / 2 + offset + groupOffset,
+				x: startX + spacing * index + offset + groupOffset, // Keep width/2 adjustment out since WebGL handles centering
 				y: window.innerHeight * getLetterHeight(letter),
 				img: img,
 				width,
 				height,
-				rotation: 0, // Add initial rotation
+				rotation: 0,
 				isPickedUp: false,
 				scale: 1,
 				grabOffsetX: 0,
@@ -863,7 +1632,7 @@
 
 			magnet.width = width;
 			magnet.height = height;
-			magnet.x = startX + spacing * index - width / 2 + offset + groupOffset;
+			magnet.x = startX + spacing * index + offset + groupOffset;
 			magnet.y = window.innerHeight * getLetterHeight(magnet.id);
 			magnet.rotation = 0;
 		});
@@ -937,7 +1706,7 @@
 			const renderGroups = new Map();
 
 			// Process all particles and group them
-			for (const [opacity, particleList] of this.particles) {
+			for (const [opacity, particleList] of this.particles.entries()) {
 				for (const particle of particleList) {
 					// Skip if particle is outside viewport
 					if (!isInViewport(particle)) continue;
@@ -1029,54 +1798,6 @@
 	const drawingBatch = new ParticleBatch();
 	const predrawnBatch = new ParticleBatch();
 
-	// Update renderAll to use batch rendering
-	function renderAll() {
-		if (!ctx) return;
-
-		// Clear and draw background
-		ctx.fillStyle = CONFIG.backgroundColor;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-		// Draw hexagon grid (already cached)
-		drawHexagonGrid();
-
-		// Clear batches
-		stampBatch.clear();
-		drawingBatch.clear();
-		predrawnBatch.clear();
-
-		// Sort particles into batches
-		if (stampParticles.length > 0) {
-			for (const particle of stampParticles) {
-				stampBatch.add(particle);
-			}
-		}
-
-		if (preDrawnParticles.length > 0) {
-			for (const particle of preDrawnParticles) {
-				predrawnBatch.add(particle);
-			}
-		}
-
-		if (particles.length > 0) {
-			for (const particle of particles) {
-				drawingBatch.add(particle);
-			}
-		}
-
-		// Render batches
-		ctx.save();
-		stampBatch.render(ctx);
-		predrawnBatch.render(ctx);
-		drawingBatch.render(ctx);
-		ctx.restore();
-
-		// Draw magnets last
-		if (magnets.length > 0) {
-			renderMagnets();
-		}
-	}
-
 	// Function to create particles along a path
 	function createParticlesAlongPath(points, options = {}) {
 		const defaultOptions = {
@@ -1092,13 +1813,14 @@
 			const distance = Math.sqrt(
 				Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
 			);
-			const particleCount = Math.floor(distance * opts.density);
+			const particleCount = Math.min(
+				Math.floor(distance * opts.density),
+				MAX_PARTICLES - particles.length
+			);
 
 			// If we're at max particles, remove oldest ones
-			if (preDrawnParticles.length + particleCount > MAX_PARTICLES) {
-				preDrawnParticles = preDrawnParticles.slice(
-					-(MAX_PARTICLES - particleCount)
-				);
+			if (particles.length + particleCount > MAX_PARTICLES) {
+				particles = particles.slice(-(MAX_PARTICLES - particleCount));
 			}
 
 			for (let j = 0; j < particleCount; j++) {
@@ -1106,19 +1828,16 @@
 				const x = start.x + (end.x - start.x) * ratio;
 				const y = start.y + (end.y - start.y) * ratio;
 
-				const offset = (Math.random() - 0.5) * opts.randomOffset;
+				// Calculate particle angle (perpendicular to drawing direction)
 				const angle =
 					Math.atan2(end.y - start.y, end.x - start.x) + Math.PI / 2;
 
-				preDrawnParticles.push({
-					x: x + (Math.random() - 0.5) * opts.randomOffset,
-					y: y + (Math.random() - 0.5) * opts.randomOffset,
-					angle: angle + (Math.random() - 0.5) * 0.2,
-					length: opts.particleSize * (0.8 + Math.random() * 0.4),
-					width: opts.particleSize * 0.3,
-					color: CONFIG.preDrawnColor,
-					isPredrawn: true,
-				});
+				// Random offset perpendicular to drawing direction
+				const offset = (Math.random() - 0.5) * opts.randomOffset;
+				const perpX = Math.cos(angle) * offset;
+				const perpY = Math.sin(angle) * offset;
+
+				particles.push(createParticle(x + perpX, y + perpY));
 			}
 		}
 	}
@@ -1131,7 +1850,7 @@
 			const tempCtx = tempCanvas.getContext('2d');
 
 			// Calculate scaled dimensions while maintaining aspect ratio
-			const scale = 0.35;
+			const scale = 0.385; // Increased from 0.35
 			const aspectRatio = img.width / img.height;
 			const maxWidth = canvas.width * 0.8; // Max 80% of canvas width
 			const maxHeight = canvas.height * 0.8; // Max 80% of canvas height
@@ -1164,8 +1883,8 @@
 			const startY = canvas.height - padding;
 
 			// Calculate sampling parameters based on scale
-			const pixelStep = Math.max(1, Math.floor(1 / scale)); // Skip pixels based on scale
-			const particleSpacing = 1.2;
+			const pixelStep = Math.max(1, Math.floor(0.25 / scale)); // Reduced to 0.25/scale for higher density
+			const particleSpacing = CONFIG.preDrawnDensity; // No multiplier for maximum density
 
 			// Track sampled positions to avoid duplicates
 			const sampledPositions = new Set();
@@ -1271,18 +1990,21 @@
 			const y = event.clientY - rect.top;
 
 			isHoveringMagnet = magnets.some((magnet) => {
-				const magnetBounds = {
-					left: magnet.x - 10, // Add some padding for easier hovering
-					right: magnet.x + magnet.width + 10,
-					top: magnet.y - 10,
-					bottom: magnet.y + magnet.height + 10,
-				};
+				const scale = magnet.scale || 1;
+				const width = magnet.width * scale;
+				const height = magnet.height * scale;
 
+				// Calculate the actual render position (centered)
+				const magnetX = magnet.x - width / 2;
+				const magnetY = magnet.y - height / 2;
+
+				// Add minimal padding for hover detection
+				const padding = 5;
 				return (
-					x >= magnetBounds.left &&
-					x <= magnetBounds.right &&
-					y >= magnetBounds.top &&
-					y <= magnetBounds.bottom
+					x >= magnetX - padding &&
+					x <= magnetX + width + padding &&
+					y >= magnetY - padding &&
+					y <= magnetY + height + padding
 				);
 			});
 			hoveredMagnet = findClickedMagnet({ x, y });
@@ -1533,6 +2255,35 @@
 		stampBatch.clearToX(x);
 
 		renderAll();
+	}
+
+	// Add particle culling
+	function cullParticles() {
+		const viewCenterX = window.innerWidth / 2;
+		const viewCenterY = window.innerHeight / 2;
+		const maxDistance = CONFIG.particleCullingDistance;
+
+		// Helper function to check if a particle is too far from view
+		function isTooFar(particle) {
+			const dx = particle.x - viewCenterX;
+			const dy = particle.y - viewCenterY;
+			return dx * dx + dy * dy > maxDistance * maxDistance;
+		}
+
+		// Cull particles that are too far from view
+		particles = particles.filter((p) => !isTooFar(p));
+		stampParticles = stampParticles.filter((p) => !isTooFar(p));
+		preDrawnParticles = preDrawnParticles.filter((p) => !isTooFar(p));
+	}
+
+	// Initialize test letter when images are loaded
+	$: {
+		if (canvas && magnetImages['F']) {
+			const testParticles = createTestLetterParticles();
+			if (testParticles) {
+				preDrawnParticles = testParticles;
+			}
+		}
 	}
 </script>
 

@@ -4,9 +4,62 @@
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 	import gsap from 'gsap';
 
+	export let canvas; // Accept canvas from parent
+
+	let container;
+	let scene;
+	let camera;
+	let renderer;
+	let model;
+	let screenMesh;
+	let sliderMesh;
+	let isSliderDragging = false;
+	let sliderStartX = 0;
+	let sliderInitialPosition;
+	let sliderMinX, sliderMaxX;
+	let isVisible = false;
+	let modelLoaded = false;
+	let animationFrameId;
+	let canvasTexture;
+	let meshAspect; // Store mesh aspect ratio at module level
+
+	function updateCanvasTexture() {
+		if (!canvas) return;
+
+		if (!canvasTexture) {
+			canvasTexture = new THREE.CanvasTexture(canvas);
+		}
+
+		// Update all texture properties
+		const textureProps = {
+			minFilter: THREE.LinearFilter,
+			magFilter: THREE.LinearFilter,
+			generateMipmaps: false,
+			encoding: THREE.sRGBEncoding,
+			flipY: true,
+			wrapS: THREE.ClampToEdgeWrapping,
+			wrapT: THREE.ClampToEdgeWrapping,
+		};
+
+		Object.assign(canvasTexture, textureProps);
+		canvasTexture.repeat.set(-1, 1);
+		canvasTexture.offset.set(1, 0);
+		canvasTexture.needsUpdate = true;
+
+		// If screen mesh exists, update its material
+		if (screenMesh?.material) {
+			screenMesh.material.map = canvasTexture;
+		}
+	}
+
+	// Make canvas updates trigger texture updates
+	$: if (canvas) {
+		updateCanvasTexture();
+	}
+
 	const CONFIG = {
 		model: {
-			path: '/models/MagnaSketch_3dModel.gltf',  // Use absolute path from root
+			path: '/models/MagnaSketch_3dModel.gltf',  // Use absolute path from root for live deployment
 			initial: {
 				position: { x: 0, y: 0, z: -2 },
 				rotation: { x: 0, y: 0, z: 0 },
@@ -44,54 +97,6 @@
 			snapBackDuration: 0.2, // Faster snap back
 		},
 	};
-
-	export let canvas; // Accept canvas from parent
-	export let onCanvasReady = undefined;
-
-	let container;
-	let scene;
-	let camera;
-	let renderer;
-	let model;
-	let screenMesh;
-	let sliderMesh;
-	let isSliderDragging = false;
-	let sliderStartX = 0;
-	let sliderInitialPosition;
-	let sliderMinX, sliderMaxX;
-	let isVisible = false;
-	let modelLoaded = false;
-	let animationFrameId;
-	let canvasTexture;
-	let meshAspect; // Store mesh aspect ratio at module level
-
-	$: if (canvas) {
-		if (!canvasTexture) {
-			// Create new texture if it doesn't exist
-			canvasTexture = new THREE.CanvasTexture(canvas);
-			// Set texture properties
-			canvasTexture.minFilter = THREE.LinearFilter;
-			canvasTexture.magFilter = THREE.LinearFilter;
-			canvasTexture.generateMipmaps = false;
-			canvasTexture.encoding = THREE.sRGBEncoding;
-			canvasTexture.flipY = true;
-			canvasTexture.wrapS = THREE.ClampToEdgeWrapping;
-			canvasTexture.wrapT = THREE.ClampToEdgeWrapping;
-			canvasTexture.repeat.set(-1, 1);
-			canvasTexture.offset.set(1, 0);
-
-			// If screen mesh exists, update its material
-			if (screenMesh?.material) {
-				screenMesh.material.map = canvasTexture;
-				screenMesh.material.needsUpdate = true;
-			}
-		}
-
-		// Always update texture when canvas changes
-		if (canvasTexture) {
-			canvasTexture.needsUpdate = true;
-		}
-	}
 
 	let isTransitioning = false;
 	const dispatch = createEventDispatcher();
@@ -260,7 +265,7 @@
 
 	async function loadModel() {
 		const loader = new GLTFLoader();
-		loader.resourcePath = '/models/';
+		loader.resourcePath = '/models/';  // Set resource path for textures and other assets
 		try {
 			const gltf = await loader.loadAsync(CONFIG.model.path);
 			model = gltf.scene;
