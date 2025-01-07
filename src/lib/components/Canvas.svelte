@@ -639,28 +639,34 @@
 	// Helper function to prepare grid vertices
 	function prepareGridVertices() {
 		const size = CONFIG.hexagonSize * 3;
-		const hexHeight = size * Math.sqrt(3);
+		const hexWidth = size * 2; // Width of a hexagon
+		const hexHeight = size * Math.sqrt(3); // Height of a hexagon
 		const vertices = [];
 
-		// Calculate grid dimensions
-		const cols = Math.ceil(canvas.width / (size * 1.5)) + 1;
-		const rows = Math.ceil(canvas.height / hexHeight) + 1;
+		// Calculate grid dimensions with proper spacing
+		const horizontalSpacing = hexWidth * 0.75; // Overlap horizontally by 1/4 of width
+		const verticalSpacing = hexHeight;
+		const cols = Math.ceil(canvas.width / horizontalSpacing) + 1;
+		const rows = Math.ceil(canvas.height / verticalSpacing) + 1;
 
 		// Generate vertices for each hexagon
 		for (let row = 0; row < rows; row++) {
 			for (let col = 0; col < cols; col++) {
-				const centerX = col * size * 1.5;
-				const centerY = row * hexHeight + (col % 2) * (hexHeight / 2);
+				// Calculate center of each hexagon
+				const centerX = col * horizontalSpacing;
+				const centerY =
+					row * verticalSpacing + (col % 2) * (verticalSpacing / 2);
 
-				// Generate 6 vertices for hexagon
+				// Generate vertices for hexagon
 				for (let i = 0; i < 6; i++) {
-					const angle = (i * Math.PI) / 3 - Math.PI / 6; // Rotate to flat-top orientation
+					// Calculate current vertex
+					const angle = (i * Math.PI) / 3;
 					const px = centerX + size * Math.cos(angle);
 					const py = centerY + size * Math.sin(angle);
 					vertices.push(px, py);
 
-					// Add the next vertex to complete the line
-					const nextAngle = ((i + 1) * Math.PI) / 3;
+					// Calculate next vertex to create line
+					const nextAngle = (((i + 1) % 6) * Math.PI) / 3;
 					const nextX = centerX + size * Math.cos(nextAngle);
 					const nextY = centerY + size * Math.sin(nextAngle);
 					vertices.push(nextX, nextY);
@@ -750,8 +756,7 @@
 
 			if (gl) {
 			}
-		} catch (e) {
-		}
+		} catch (e) {}
 
 		// Fallback to WebGL1
 		if (!gl) {
@@ -766,8 +771,7 @@
 
 				if (gl) {
 				}
-			} catch (e) {
-			}
+			} catch (e) {}
 		}
 
 		// Final fallback to experimental-webgl
@@ -783,8 +787,7 @@
 
 				if (gl) {
 				}
-			} catch (e) {
-			}
+			} catch (e) {}
 		}
 
 		if (!gl) {
@@ -881,10 +884,7 @@
 		const testPositions = new Float32Array([0, 0]);
 		const testColors = new Float32Array([1, 1, 1, 1]);
 
-		const positionLocation = gl.getAttribLocation(
-			particleProgram,
-			'position'
-		);
+		const positionLocation = gl.getAttribLocation(particleProgram, 'position');
 		const colorLocation = gl.getAttribLocation(particleProgram, 'color');
 		const resolutionLocation = gl.getUniformLocation(
 			particleProgram,
@@ -1874,12 +1874,7 @@
 			tempCtx.drawImage(img, 0, 0);
 
 			// Get image data
-			const imageData = tempCtx.getImageData(
-				0,
-				0,
-				img.width,
-				img.height
-			);
+			const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
 			const data = imageData.data;
 
 			// Position in bottom right with padding
@@ -2397,9 +2392,5 @@
 		width: 16vw;
 		z-index: 2;
 		pointer-events: none;
-	}
-
-	.scroll-indicator.hidden {
-		opacity: 0;
 	}
 </style>
