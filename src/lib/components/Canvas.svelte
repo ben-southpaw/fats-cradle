@@ -1391,9 +1391,13 @@
 			const x = magnet.x - width / 2;
 			const y = magnet.y - height / 2;
 
-			// Check if click is within bounds
+			// Add minimal padding for hover detection
+			const padding = 5;
 			return (
-				pos.x >= x && pos.x <= x + width && pos.y >= y && pos.y <= y + height
+				pos.x >= x - padding &&
+				pos.x <= x + width + padding &&
+				pos.y >= y - padding &&
+				pos.y <= y + height + padding
 			);
 		});
 	}
@@ -2115,11 +2119,21 @@
 	}
 
 	function checkCollision(magnet1, magnet2) {
+		// Use a smaller collision box (90% of original size)
+		const collisionScale = 0.9;
+		
+		// Calculate the width and height reduction
+		const widthReduction1 = (magnet1.width * (1 - collisionScale)) / 2;
+		const heightReduction1 = (magnet1.height * (1 - collisionScale)) / 2;
+		const widthReduction2 = (magnet2.width * (1 - collisionScale)) / 2;
+		const heightReduction2 = (magnet2.height * (1 - collisionScale)) / 2;
+
+		// Check collision with reduced boxes
 		return !(
-			magnet1.x > magnet2.x + magnet2.width ||
-			magnet1.x + magnet1.width < magnet2.x ||
-			magnet1.y > magnet2.y + magnet2.height ||
-			magnet1.y + magnet1.height < magnet2.y
+			(magnet1.x + widthReduction1) > (magnet2.x + magnet2.width - widthReduction2) ||
+			(magnet1.x + magnet1.width - widthReduction1) < (magnet2.x + widthReduction2) ||
+			(magnet1.y + heightReduction1) > (magnet2.y + magnet2.height - heightReduction2) ||
+			(magnet1.y + magnet1.height - heightReduction1) < (magnet2.y + heightReduction2)
 		);
 	}
 
