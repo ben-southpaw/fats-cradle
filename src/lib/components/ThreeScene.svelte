@@ -372,14 +372,28 @@
 							child.material.metalnessMap = null;
 						}
 
-						// Enhance material properties for better lighting
-						child.material.roughness = 0.5;
-						child.material.metalness = 0.6;
+						// Special handling for the white text
+						if (child.name === 'Curve003_1') {
+							child.material.roughness = 0.2;  // Very smooth for more reflection
+							child.material.metalness = 0.1;  // Minimal metalness for cleaner white
+							child.material.emissive = new THREE.Color(0xffffff);  // Add white glow
+							child.material.emissiveIntensity = 0.2;  // Subtle glow
+						} else {
+							// Default material properties for other meshes
+							child.material.roughness = 0.4;
+							child.material.metalness = 0.2;
+						}
+						
 						child.castShadow = true;
 						child.receiveShadow = true;
 					}
 				}
 			});
+
+			// Add a specific light for the logo text
+			const logoLight = new THREE.PointLight(0xffffff, 0.8);
+			logoLight.position.set(0, 2, 2);  // Position above and slightly in front of the text
+			model.add(logoLight);
 
 			// Apply initial transforms
 			model.position.set(
