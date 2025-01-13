@@ -1036,69 +1036,12 @@
 		return [rotatedX, rotatedY];
 	}
 
-	// Draw the background hexagon grid
-	let gridCache;
-
-	function drawHexagonGrid() {
-		if (!gridCache) {
-			gridCache = document.createElement('canvas');
-			gridCache.width = canvas.width;
-			gridCache.height = canvas.height;
-			const ctx = gridCache.getContext('2d');
-
-			// Set up line style
-			ctx.strokeStyle = CONFIG.gridColor;
-			ctx.lineWidth = 1;
-
-			const size = CONFIG.hexagonSize * 3; // Back to 3x multiplier
-			const width = size * Math.sqrt(3);
-			const height = size * 2;
-			const verticalSpacing = height * 0.75;
-
-			// Calculate number of hexagons needed
-			const columns = Math.ceil(canvas.width / width) + 1;
-			const rows = Math.ceil(canvas.height / verticalSpacing) + 1;
-
-			// Draw each hexagon
-			for (let row = 0; row < rows; row++) {
-				const isOddRow = row % 2 === 1;
-				const offsetX = isOddRow ? width / 2 : 0;
-
-				for (let col = -1; col < columns; col++) {
-					const x = col * width + offsetX;
-					const y = row * verticalSpacing;
-					drawHexagon(ctx, x, y, size);
-				}
-			}
-		}
-
-		// Draw the cached grid
-		ctx.drawImage(gridCache, 0, 0);
-	}
-
-	function drawHexagon(ctx, x, y, size) {
-		ctx.beginPath();
-		for (let i = 0; i < 6; i++) {
-			const angle = (i * Math.PI) / 3 - Math.PI / 6; // Rotate to flat-top orientation
-			const px = x + size * Math.cos(angle);
-			const py = y + size * Math.sin(angle);
-			if (i === 0) {
-				ctx.moveTo(px, py);
-			} else {
-				ctx.lineTo(px, py);
-			}
-		}
-		ctx.closePath();
-		ctx.stroke();
-	}
-
 	// Update resize handler to clear cache
 	const resize = () => {
 		if (!canvas) return;
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
 		gridCache = null; // Clear cache on resize
-		drawHexagonGrid();
 	};
 
 	// Shared particle creation function
@@ -1877,12 +1820,7 @@
 			tempCtx.drawImage(img, 0, 0);
 
 			// Get image data
-			const imageData = tempCtx.getImageData(
-				0,
-				0,
-				img.width,
-				img.height
-			);
+			const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
 			const data = imageData.data;
 
 			const points = [];
@@ -2165,7 +2103,7 @@
 	function checkCollision(magnet1, magnet2) {
 		// Use a smaller collision box (90% of original size)
 		const collisionScale = 0.9;
-		
+
 		// Calculate the width and height reduction
 		const widthReduction1 = (magnet1.width * (1 - collisionScale)) / 2;
 		const heightReduction1 = (magnet1.height * (1 - collisionScale)) / 2;
@@ -2174,10 +2112,14 @@
 
 		// Check collision with reduced boxes
 		return !(
-			(magnet1.x + widthReduction1) > (magnet2.x + magnet2.width - widthReduction2) ||
-			(magnet1.x + magnet1.width - widthReduction1) < (magnet2.x + widthReduction2) ||
-			(magnet1.y + heightReduction1) > (magnet2.y + magnet2.height - heightReduction2) ||
-			(magnet1.y + magnet1.height - heightReduction1) < (magnet2.y + heightReduction2)
+			magnet1.x + widthReduction1 >
+				magnet2.x + magnet2.width - widthReduction2 ||
+			magnet1.x + magnet1.width - widthReduction1 <
+				magnet2.x + widthReduction2 ||
+			magnet1.y + heightReduction1 >
+				magnet2.y + magnet2.height - heightReduction2 ||
+			magnet1.y + magnet1.height - heightReduction1 <
+				magnet2.y + heightReduction2
 		);
 	}
 
