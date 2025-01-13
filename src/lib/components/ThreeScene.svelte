@@ -80,13 +80,40 @@
 		lighting: {
 			ambient: {
 				color: 0xffffff,
-				intensity: 0.5,
+				intensity: 1.0, // Doubled ambient light
 			},
 			directional: {
 				color: 0xffffff,
-				intensity: 0.8,
-				position: { x: 5, y: 5, z: 5 },
+				intensity: 2.0, // Much stronger main light
+				position: { x: 4, y: 5, z: 2 }, // Higher and more to the right
 			},
+			pointLights: [
+				{
+					color: 0xffffff,
+					intensity: 1.5, // Doubled
+					position: { x: -2, y: 4, z: 3 }, // Left front top
+				},
+				{
+					color: 0xffffff,
+					intensity: 2.0, // Stronger right light
+					position: { x: 5, y: 5, z: 1 }, // Higher right front top
+				},
+				{
+					color: 0xffffff,
+					intensity: 1.5, // Stronger front light
+					position: { x: 0, y: 3, z: 4 }, // Higher center front
+				},
+				{
+					color: 0xffffff,
+					intensity: 1.0, // Additional fill light
+					position: { x: 3, y: 2, z: 3 }, // Right front middle
+				},
+				{
+					color: 0xffffff,
+					intensity: 1.0, // Additional fill light
+					position: { x: -3, y: 2, z: 3 }, // Left front middle
+				}
+			],
 		},
 		animation: {
 			duration: 2.3,
@@ -263,6 +290,66 @@
 		}
 	}
 
+	async function initThreeJS() {
+		scene = new THREE.Scene();
+
+		// Add ambient light
+		const ambientLight = new THREE.AmbientLight(
+			CONFIG.lighting.ambient.color,
+			CONFIG.lighting.ambient.intensity
+		);
+		scene.add(ambientLight);
+
+		// Add main directional light
+		const directionalLight = new THREE.DirectionalLight(
+			CONFIG.lighting.directional.color,
+			CONFIG.lighting.directional.intensity
+		);
+		directionalLight.position.set(
+			CONFIG.lighting.directional.position.x,
+			CONFIG.lighting.directional.position.y,
+			CONFIG.lighting.directional.position.z
+		);
+		directionalLight.castShadow = true;
+		scene.add(directionalLight);
+
+		// Add point lights for better coverage
+		CONFIG.lighting.pointLights.forEach(light => {
+			const pointLight = new THREE.PointLight(light.color, light.intensity);
+			pointLight.position.set(light.position.x, light.position.y, light.position.z);
+			scene.add(pointLight);
+		});
+
+		camera = new THREE.PerspectiveCamera(
+			CONFIG.camera.fov,
+			window.innerWidth / window.innerHeight,
+			CONFIG.camera.near,
+			CONFIG.camera.far
+		);
+		camera.position.set(
+			CONFIG.camera.position.x,
+			CONFIG.camera.position.y,
+			CONFIG.camera.position.z
+		);
+		camera.lookAt(0, 0, 0);
+
+		renderer = new THREE.WebGLRenderer({
+			antialias: true,
+			alpha: true,
+		});
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+		renderer.outputEncoding = THREE.sRGBEncoding;
+		renderer.shadowMap.enabled = true;
+		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+		container.appendChild(renderer.domElement);
+
+		await loadModel();
+
+		// Start render loop
+		animate();
+	}
+
 	async function loadModel() {
 		const loader = new GLTFLoader();
 		loader.resourcePath = '/models/';  // Set resource path for textures and other assets
@@ -270,7 +357,7 @@
 			const gltf = await loader.loadAsync(CONFIG.model.path);
 			model = gltf.scene;
 
-			// Handle materials to prevent texture loading errors
+			// Handle materials to prevent texture loading errors and enhance lighting
 			model.traverse((child) => {
 				if (child.isMesh) {
 					if (child.material) {
@@ -284,6 +371,12 @@
 						if (child.material.metalnessMap && !child.material.metalnessMap.image) {
 							child.material.metalnessMap = null;
 						}
+
+						// Enhance material properties for better lighting
+						child.material.roughness = 0.5;
+						child.material.metalness = 0.6;
+						child.castShadow = true;
+						child.receiveShadow = true;
 					}
 				}
 			});
@@ -377,55 +470,6 @@
 			console.error('Error loading model:', error);
 			throw error;
 		}
-	}
-
-	async function initThreeJS() {
-		scene = new THREE.Scene();
-
-		// Add lighting
-		const ambientLight = new THREE.AmbientLight(
-			CONFIG.lighting.ambient.color,
-			CONFIG.lighting.ambient.intensity
-		);
-		scene.add(ambientLight);
-
-		const directionalLight = new THREE.DirectionalLight(
-			CONFIG.lighting.directional.color,
-			CONFIG.lighting.directional.intensity
-		);
-		directionalLight.position.set(
-			CONFIG.lighting.directional.position.x,
-			CONFIG.lighting.directional.position.y,
-			CONFIG.lighting.directional.position.z
-		);
-		scene.add(directionalLight);
-
-		camera = new THREE.PerspectiveCamera(
-			CONFIG.camera.fov,
-			window.innerWidth / window.innerHeight,
-			CONFIG.camera.near,
-			CONFIG.camera.far
-		);
-		camera.position.set(
-			CONFIG.camera.position.x,
-			CONFIG.camera.position.y,
-			CONFIG.camera.position.z
-		);
-		camera.lookAt(0, 0, 0);
-
-		renderer = new THREE.WebGLRenderer({
-			antialias: true,
-			alpha: true,
-		});
-		renderer.setSize(window.innerWidth, window.innerHeight);
-		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-		renderer.outputEncoding = THREE.sRGBEncoding;
-		container.appendChild(renderer.domElement);
-
-		await loadModel();
-
-		// Start render loop
-		animate();
 	}
 
 	function animate() {

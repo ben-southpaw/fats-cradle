@@ -274,7 +274,7 @@
 		gsap.registerPlugin();
 
 		// Add pre-drawn elements after canvas is initialized
-		createPreDrawnElements();
+		createPreDrawnElements(magnets[0]);
 
 		// Clean up
 		return () => {
@@ -306,7 +306,7 @@
 			CONFIG;
 		if (canvas) {
 			preDrawnParticles = []; // Clear existing particles
-			createPreDrawnElements(); // Recreate with new settings
+			createPreDrawnElements(magnets[0]); // Recreate with new settings
 		}
 	}
 
@@ -1788,7 +1788,7 @@
 		}
 	}
 
-	function createPreDrawnElements() {
+	function createPreDrawnElements(magnet) {
 		const img = new Image();
 		img.onload = () => {
 			// Create temporary canvas for image
