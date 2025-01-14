@@ -392,7 +392,7 @@
 
 			// Add a specific light for the logo text
 			const logoLight = new THREE.PointLight(0xffffff, 0.8);
-			logoLight.position.set(0, 2, 2);  // Position above and slightly in front of the text
+			logoLight.position.set(3, 4, 1);  // Moved further top-right (x: right, y: up, z: forward)
 			model.add(logoLight);
 
 			// Apply initial transforms
