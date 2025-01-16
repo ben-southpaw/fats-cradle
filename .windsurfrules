@@ -1,0 +1,24 @@
+# Project Fundamentals
+
+1. Use bun instead of node
+2. Use Svelte features where applicable
+3. Don't add unprompted new styles or features
+4. Break down large tasks into smaller tasks
+5. If a better way is available, suggest it but don't assume
+6. If you don't know how to do something, ask
+
+# Credit Efficiency
+
+6. Minimize tool calls by combining related searches
+7. Prefer direct file edits over multiple view operations
+8. Focus questions on specific files or components
+9. Use specific line ranges when viewing files
+10. Provide complete context in questions to avoid follow-ups
+
+# Code Organization
+
+11. Keep related code changes in single operations
+12. Document complex logic inline to reduce future queries
+13. Use descriptive variable and function names to improve clarity
+14. Maintain a consistent file structure
+15. Keep components focused and single-purpose

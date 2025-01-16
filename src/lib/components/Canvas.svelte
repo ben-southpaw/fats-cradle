@@ -35,25 +35,21 @@
 		preDrawnParticleSize: 1,
 		preDrawnDensity: 0.9,
 		preDrawnColor: '#333333',
-		whiteParticleProbability: 0.2,
+		cursorWhiteParticleProbability: 0.35,
+		stampWhiteParticleProbability: 0.08,
 		targetFPS: 60,
-		hexagonSpacing: 2 * 3,
-		hexagonAvoidanceDistance: 0.1, // Reduced grid avoidance distance
-		predrawnAvoidanceDistance: 0,
-		stampAvoidanceDistance: 0.5,
 		hexagonLineWidth: 0.3,
-		initialStampOpacity: 0.95,
-		subsequentStampOpacity: 0.6,
+		initialStampOpacity: 0.85,
+		subsequentStampOpacity: 0.5,
 		initialStampDensity: {
 			edge: 1.4,
-			fill: 1.6,
+			fill: 1.6
 		},
 		subsequentStampDensity: {
 			edge: 1.0,
-			fill: 0.8,
+			fill: 0.8
 		},
 		maxParticles: 40000,
-		particleCullingDistance: 2000,
 	};
 
 	const FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
@@ -302,8 +298,7 @@
 
 	$: {
 		// Watch for CONFIG changes that affect predrawn elements
-		const { preDrawnDensity, preDrawnParticleSize, predrawnAvoidanceDistance } =
-			CONFIG;
+		const { preDrawnDensity, preDrawnParticleSize } = CONFIG;
 		if (canvas) {
 			preDrawnParticles = []; // Clear existing particles
 			createPreDrawnElements(magnets[0]); // Recreate with new settings
@@ -358,26 +353,92 @@
 
 		float distToHexGrid(vec2 p) {
 			float size = hexSize * 3.0;
-			float hexHeight = size * sqrt(3.0);
+			float hexWidth = size * 2.0; // Width of a hexagon
+			float hexHeight = size * sqrt(3.0); // Height of a hexagon
 			
-			// Convert to hex grid space
-			vec2 gridPos = p / vec2(size * 1.5, hexHeight);
-			float row = floor(gridPos.y);
-			float rowIsOdd = mod(row, 2.0);
-			gridPos.x += rowIsOdd * 0.5;
+			// Calculate grid position
+			float horizontalSpacing = hexWidth * 0.75;
+			float verticalSpacing = hexHeight;
 			
-			vec2 hexPos = fract(gridPos);
-			hexPos = hexPos * 2.0 - 1.0;
+			// Find the nearest hexagon center
+			float col = floor(p.x / horizontalSpacing);
+			float row = floor(p.y / verticalSpacing);
 			
+			// Calculate center of nearest hexagon
+			vec2 center = vec2(
+				col * horizontalSpacing,
+				row * verticalSpacing + mod(col, 2.0) * (verticalSpacing / 2.0)
+			);
+			
+			// Calculate distances to all edges of this hexagon
 			float minDist = 1000.0;
 			for (int i = 0; i < 6; i++) {
 				float angle = float(i) * 3.14159 / 3.0;
-				vec2 hexCorner = vec2(cos(angle), sin(angle));
-				float dist = abs(dot(hexPos, hexCorner));
+				vec2 v1 = center + vec2(size * cos(angle), size * sin(angle));
+				
+				float nextAngle = float(i + 1) * 3.14159 / 3.0;
+				vec2 v2 = center + vec2(size * cos(nextAngle), size * sin(nextAngle));
+				
+				// Calculate distance to line segment
+				vec2 edge = v2 - v1;
+				float edgeLength = length(edge);
+				vec2 edgeDir = edge / edgeLength;
+				vec2 toPoint = p - v1;
+				
+				float proj = dot(toPoint, edgeDir);
+				vec2 closest;
+				if (proj <= 0.0) {
+					closest = v1;
+				} else if (proj >= edgeLength) {
+					closest = v2;
+				} else {
+					closest = v1 + edgeDir * proj;
+				}
+				
+				float dist = length(p - closest);
 				minDist = min(minDist, dist);
 			}
 			
-			return minDist * size * 0.5;
+			// Also check adjacent hexagons for closer edges
+			for (int dx = -1; dx <= 1; dx++) {
+				for (int dy = -1; dy <= 1; dy++) {
+					if (dx == 0 && dy == 0) continue;
+					
+					vec2 adjCenter = center + vec2(
+						float(dx) * horizontalSpacing,
+						float(dy) * verticalSpacing + 
+						(mod(col + float(dx), 2.0) - mod(col, 2.0)) * (verticalSpacing / 2.0)
+					);
+					
+					for (int i = 0; i < 6; i++) {
+						float angle = float(i) * 3.14159 / 3.0;
+						vec2 v1 = adjCenter + vec2(size * cos(angle), size * sin(angle));
+						
+						float nextAngle = float(i + 1) * 3.14159 / 3.0;
+						vec2 v2 = adjCenter + vec2(size * cos(nextAngle), size * sin(nextAngle));
+						
+						vec2 edge = v2 - v1;
+						float edgeLength = length(edge);
+						vec2 edgeDir = edge / edgeLength;
+						vec2 toPoint = p - v1;
+						
+						float proj = dot(toPoint, edgeDir);
+						vec2 closest;
+						if (proj <= 0.0) {
+							closest = v1;
+						} else if (proj >= edgeLength) {
+							closest = v2;
+						} else {
+							closest = v1 + edgeDir * proj;
+						}
+						
+						float dist = length(p - closest);
+						minDist = min(minDist, dist);
+					}
+				}
+			}
+			
+			return minDist;
 		}
 		
 		void main() {
@@ -385,7 +446,7 @@
 			float gridDist = distToHexGrid(vPosition);
 			
 			// Hard cutoff very close to grid
-			if (gridDist < 0.5) {
+			if (gridDist < 1.0) {
 				discard;
 				return;
 			}
@@ -1045,109 +1106,32 @@
 	};
 
 	// Shared particle creation function
-	function createParticle(x, y, isStampParticle = false, isPredrawn = false) {
-		const angle = Math.random() * Math.PI * 2;
-
-		// Apply noise at creation time instead of render time
+	function createParticle(x, y, isStamp = false, isPredrawn = false) {
 		let finalX = x;
 		let finalY = y;
-		if (!isStampParticle) {
+
+		// Add slight randomness to position
+		if (Math.random() < 0.8) {
 			finalX += (Math.random() - 0.5) * 1.5;
 			finalY += (Math.random() - 0.5) * 1.5;
 		}
 
+		const isWhite = Math.random() < (isStamp ? CONFIG.stampWhiteParticleProbability : CONFIG.cursorWhiteParticleProbability);
+		const baseColor = isWhite ? '#FFFFFF' : CONFIG.particleColor;
+		// For stamps, make white particles slightly darker
+		const color = isStamp && isWhite ? '#CCCCCC' : baseColor;
+
 		return {
 			x: finalX,
 			y: finalY,
-			angle: angle + ((Math.random() - 0.5) * Math.PI) / 6,
+			angle: Math.random() * Math.PI * 2,
 			length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
 			width: CONFIG.particleWidth,
-			isStampParticle,
+			isStampParticle: isStamp,
 			isPredrawn,
-			isWhite: Math.random() < CONFIG.whiteParticleProbability,
+			isWhite,
+			color,
 		};
-	}
-
-	// Function to check if a point is near a hexagon line
-	function isNearHexagonLine(x, y, avoidanceDistance) {
-		const size = CONFIG.hexagonSize * 3;
-		const hexHeight = size * Math.sqrt(3);
-
-		// Get nearest hexagon centers (check multiple nearby hexagons)
-		for (let colOffset = -1; colOffset <= 1; colOffset++) {
-			for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
-				// Offset every other column for proper hexagonal tiling
-				const isOddRow = Math.round(y / hexHeight) % 2 === 1;
-				const colAdjustment = isOddRow ? 0.5 : 0;
-
-				const col = Math.round(x / (size * 1.5) - colAdjustment) + colOffset;
-				const row = Math.round(y / hexHeight) + rowOffset;
-
-				// Calculate center with offset for odd rows
-				const centerX = (col + (isOddRow ? colAdjustment : 0)) * size * 1.5;
-				const centerY = row * hexHeight;
-
-				// Check distance to each vertex of the hexagon
-				const vertices = [];
-				for (let i = 0; i < 6; i++) {
-					const angle = (i * Math.PI) / 3 - Math.PI / 6; // Rotate to flat-top orientation
-					vertices.push({
-						x: centerX + size * Math.cos(angle),
-						y: centerY + size * Math.sin(angle),
-					});
-				}
-
-				// Check each edge of the hexagon
-				for (let i = 0; i < 6; i++) {
-					const v1 = vertices[i];
-					const v2 = vertices[(i + 1) % 6];
-
-					// Calculate distance from point to line segment
-					const edgeX = v2.x - v1.x;
-					const edgeY = v2.y - v1.y;
-					const edgeLength = Math.sqrt(edgeX * edgeX + edgeY * edgeY);
-
-					// Calculate normalized edge vector
-					const edgeNormalX = edgeX / edgeLength;
-					const edgeNormalY = edgeY / edgeLength;
-
-					// Calculate vector from point to first vertex
-					const pointX = x - v1.x;
-					const pointY = y - v1.y;
-
-					// Project point onto edge
-					const projection = pointX * edgeNormalX + pointY * edgeNormalY;
-
-					// Find closest point on edge
-					let closestX, closestY;
-					if (projection <= 0) {
-						closestX = v1.x;
-						closestY = v1.y;
-					} else if (projection >= edgeLength) {
-						closestX = v2.x;
-						closestY = v2.y;
-					} else {
-						closestX = v1.x + edgeNormalX * projection;
-						closestY = v1.y + edgeNormalY * projection;
-					}
-
-					// Calculate distance to closest point
-					const dx = x - closestX;
-					const dy = y - closestY;
-					const distance = Math.sqrt(dx * dx + dy * dy);
-
-					if (distance < avoidanceDistance) {
-						return {
-							isNear: true,
-							dx: dx / distance,
-							dy: dy / distance,
-						};
-					}
-				}
-			}
-		}
-
-		return { isNear: false };
 	}
 
 	// Generate magnetic particles along the line
@@ -1656,24 +1640,6 @@
 				for (const particle of particleList) {
 					// Skip if particle is outside viewport
 					if (!isInViewport(particle)) continue;
-
-					// Check hexagon line avoidance
-					let avoidanceDistance;
-					if (particle.isPredrawn) {
-						avoidanceDistance = CONFIG.predrawnAvoidanceDistance;
-					} else if (particle.isStampParticle) {
-						avoidanceDistance = CONFIG.stampAvoidanceDistance;
-					} else {
-						avoidanceDistance = CONFIG.hexagonAvoidanceDistance;
-					}
-
-					const hexCheck = isNearHexagonLine(
-						particle.x,
-						particle.y,
-						avoidanceDistance
-					);
-
-					if (hexCheck.isNear) continue;
 
 					// Create group key based on visual properties
 					const color = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
@@ -2261,35 +2227,6 @@
 		stampBatch.clearToX(x);
 
 		renderAll();
-	}
-
-	// Add particle culling
-	function cullParticles() {
-		const viewCenterX = window.innerWidth / 2;
-		const viewCenterY = window.innerHeight / 2;
-		const maxDistance = CONFIG.particleCullingDistance;
-
-		// Helper function to check if a particle is too far from view
-		function isTooFar(particle) {
-			const dx = particle.x - viewCenterX;
-			const dy = particle.y - viewCenterY;
-			return dx * dx + dy * dy > maxDistance * maxDistance;
-		}
-
-		// Cull particles that are too far from view
-		particles = particles.filter((p) => !isTooFar(p));
-		stampParticles = stampParticles.filter((p) => !isTooFar(p));
-		preDrawnParticles = preDrawnParticles.filter((p) => !isTooFar(p));
-	}
-
-	// Initialize test letter when images are loaded
-	$: {
-		if (canvas && magnetImages['F']) {
-			// const testParticles = createTestLetterParticles();
-			// if (testParticles) {
-			// 	preDrawnParticles = testParticles;
-			// }
-		}
 	}
 </script>
 
