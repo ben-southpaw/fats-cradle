@@ -1393,6 +1393,11 @@
 		const offsetX = (tempCanvas.width - magnet.width) / 2;
 		const offsetY = (tempCanvas.height - magnet.height) / 2;
 
+		// Add specific offsets for multi-text image
+		const isMultiText = magnet.img.src.includes('multi-text');
+		const multiTextOffsetX = isMultiText ? (window.innerWidth / 2) - (window.innerWidth * 0.15) + (window.innerWidth * 0.08) : 0; // Half screen minus 15% plus 8vw
+		const multiTextOffsetY = isMultiText ? 300 - (window.innerHeight * 0.15) : 0;  // 300px minus 15% of height
+
 		// Function to check if a point already has a stamp nearby using spatial grid
 		const proximityThreshold = 1.5;
 		function hasNearbyStamp(x, y) {
@@ -1421,8 +1426,8 @@
 						topAlpha <= alphaThreshold ||
 						bottomAlpha <= alphaThreshold;
 
-					const newX = magnet.x - magnet.width / 2 + (x - offsetX);
-					const newY = magnet.y - magnet.height / 2 + (y - offsetY);
+					const newX = magnet.x - magnet.width / 2 + (x - offsetX) + multiTextOffsetX;
+					const newY = magnet.y - magnet.height / 2 + (y - offsetY) + multiTextOffsetY;
 
 					if (isEdge) {
 						for (let i = 0; i < particleDensity.edge; i++) {
@@ -1812,6 +1817,11 @@
 			const offsetX = (tempCanvas.width - magnet.width) / 2;
 			const offsetY = (tempCanvas.height - magnet.height) / 2;
 
+			// Add specific offsets for multi-text image
+			const isMultiText = img.src.includes('multi-text');
+			const multiTextOffsetX = isMultiText ? (window.innerWidth / 2) - (window.innerWidth * 0.15) + (window.innerWidth * 0.08) : 0; // Half screen minus 15% plus 8vw
+			const multiTextOffsetY = isMultiText ? 300 - (window.innerHeight * 0.15) : 0;  // 300px minus 15% of height
+
 			// Function to check if a point already has a stamp nearby using spatial grid
 			const proximityThreshold = 1.5;
 			function hasNearbyStamp(x, y) {
@@ -1840,8 +1850,8 @@
 							topAlpha <= alphaThreshold ||
 							bottomAlpha <= alphaThreshold;
 
-						const newX = magnet.x - magnet.width / 2 + (x - offsetX);
-						const newY = magnet.y - magnet.height / 2 + (y - offsetY);
+						const newX = magnet.x - magnet.width / 2 + (x - offsetX) + multiTextOffsetX;
+						const newY = magnet.y - magnet.height / 2 + (y - offsetY) + multiTextOffsetY;
 
 						if (isEdge) {
 							for (let i = 0; i < particleDensity.edge; i++) {
