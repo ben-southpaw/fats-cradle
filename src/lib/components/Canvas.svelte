@@ -1801,12 +1801,7 @@
 			tempCtx.drawImage(img, 0, 0);
 
 			// Get image data
-			const imageData = tempCtx.getImageData(
-				0,
-				0,
-				img.width,
-				img.height
-			);
+			const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
 			const data = imageData.data;
 
 			const points = [];
@@ -1839,7 +1834,9 @@
 					window.innerWidth * 0.15 +
 					window.innerWidth * 0.08
 				: 0; // Half screen minus 15% plus 8vw
-			const multiTextOffsetY = isMultiText ? 300 - window.innerHeight * 0.15 : 0; // 300px minus 15% of height
+			const multiTextOffsetY = isMultiText
+				? 300 - window.innerHeight * 0.15
+				: 0; // 300px minus 15% of height
 
 			// Function to check if a point already has a stamp nearby using spatial grid
 			const proximityThreshold = 1.5;
@@ -2221,17 +2218,17 @@
 	}
 
 	function handleWheel(event) {
-		if (event.deltaY !== 0) {
-			if (scrollToExploreComponent) {
-				scrollToExploreComponent.play();
+		if (!hasTriggeredTransition) {
+			hasTriggeredTransition = true;
+			if (scrollToExploreComponent && !scrollToExploreComponent.hasAnimated) {
+				isScrollAnimating = true;
+				scrollToExploreComponent.startAnimation().then(() => {
+					isScrollAnimating = false;
+				});
 			}
-
-			if (!hasTriggeredTransition) {
-				hasTriggeredTransition = true;
-				if (threeSceneComponent) {
-					threeSceneComponent.startTransition();
-					dispatch('transitionstart');
-				}
+			if (threeSceneComponent) {
+				threeSceneComponent.startTransition();
+				dispatch('transitionstart');
 			}
 		}
 	}
@@ -2291,10 +2288,7 @@
 	/>
 	{#if showScrollToExplore || isScrollAnimating}
 		<div class="scroll-to-explore">
-			<ScrollToExplore 
-				bind:this={scrollToExploreComponent} 
-				on:complete={() => showScrollToExplore = false}
-			/>
+			<ScrollToExplore />
 		</div>
 	{/if}
 </div>

@@ -1,64 +1,54 @@
 <script>
 	import { onMount } from 'svelte';
-	import { fade } from 'svelte/transition';
-	import { createEventDispatcher } from 'svelte';
 	import scrollToExploreAnimation from '$lib/images/lottie/animations/0619d505-1c63-42a8-972d-70aeeb5d2763.json';
 
-	const dispatch = createEventDispatcher();
 	let container;
 	let LottiePlayer;
-	let mounted = false;
-	let visible = false;
 	let lottieInstance;
+	let mounted = false;
+	let isPlaying = false;
+	let wheelTimeout;
+
+	function handleWheel() {
+		if (!lottieInstance || isPlaying) return;
+		
+		isPlaying = true;
+		lottieInstance.play();
+
+		// Stop after one play
+		lottieInstance.addEventListener('complete', () => {
+			isPlaying = false;
+			lottieInstance.stop();
+		});
+	}
 
 	onMount(async () => {
 		const module = await import('@lottiefiles/svelte-lottie-player');
 		LottiePlayer = module.LottiePlayer;
 		mounted = true;
 
-		// Delay showing the component
-		setTimeout(() => {
-			visible = true;
-		}, 800);
+		// Add wheel event listener to window
+		window.addEventListener('wheel', handleWheel, { passive: true });
 
-		// Listen for scroll events
-		window.addEventListener('scroll', handleScroll);
-		return () => window.removeEventListener('scroll', handleScroll);
+		return () => {
+			window.removeEventListener('wheel', handleWheel);
+		};
 	});
-
-	function handleScroll() {
-		if (lottieInstance) {
-			lottieInstance.play();
-		}
-	}
-
-	export function play() {
-		if (lottieInstance) {
-			lottieInstance.play();
-			// Listen for complete event
-			lottieInstance.addEventListener('complete', () => {
-				dispatch('complete');
-			});
-		}
-	}
 </script>
 
 <div class="container" bind:this={container}>
-	{#if mounted && LottiePlayer && visible}
-		<div transition:fade={{ duration: 800 }}>
-			<svelte:component
-				this={LottiePlayer}
-				src={scrollToExploreAnimation}
-				autoplay={false}
-				loop={false}
-				controls={false}
-				renderer="svg"
-				background="transparent"
-				controlsLayout={[]}
-				class="lottie-player"
-				on:load={(e) => (lottieInstance = e.detail.instance)}
-			/>
-		</div>
+	{#if mounted && LottiePlayer}
+		<svelte:component
+			this={LottiePlayer}
+			bind:this={lottieInstance}
+			src={scrollToExploreAnimation}
+			autoplay={false}
+			controls={false}
+			renderer="svg"
+			background="transparent"
+			controlsLayout={[]}
+			class="lottie-player"
+		/>
 	{/if}
 </div>
 
