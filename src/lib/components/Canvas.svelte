@@ -43,11 +43,11 @@
 		subsequentStampOpacity: 0.5,
 		initialStampDensity: {
 			edge: 1.4,
-			fill: 1.6
+			fill: 1.6,
 		},
 		subsequentStampDensity: {
 			edge: 1.0,
-			fill: 0.8
+			fill: 0.8,
 		},
 		maxParticles: 40000,
 	};
@@ -1116,7 +1116,11 @@
 			finalY += (Math.random() - 0.5) * 1.5;
 		}
 
-		const isWhite = Math.random() < (isStamp ? CONFIG.stampWhiteParticleProbability : CONFIG.cursorWhiteParticleProbability);
+		const isWhite =
+			Math.random() <
+			(isStamp
+				? CONFIG.stampWhiteParticleProbability
+				: CONFIG.cursorWhiteParticleProbability);
 		const baseColor = isWhite ? '#FFFFFF' : CONFIG.particleColor;
 		// For stamps, make white particles slightly darker
 		const color = isStamp && isWhite ? '#CCCCCC' : baseColor;
@@ -1395,8 +1399,12 @@
 
 		// Add specific offsets for multi-text image
 		const isMultiText = magnet.img.src.includes('multi-text');
-		const multiTextOffsetX = isMultiText ? (window.innerWidth / 2) - (window.innerWidth * 0.15) + (window.innerWidth * 0.08) : 0; // Half screen minus 15% plus 8vw
-		const multiTextOffsetY = isMultiText ? 300 - (window.innerHeight * 0.15) : 0;  // 300px minus 15% of height
+		const multiTextOffsetX = isMultiText
+			? window.innerWidth / 2 -
+				window.innerWidth * 0.15 +
+				window.innerWidth * 0.08
+			: 0; // Half screen minus 15% plus 8vw
+		const multiTextOffsetY = isMultiText ? 300 - window.innerHeight * 0.15 : 0; // 300px minus 15% of height
 
 		// Function to check if a point already has a stamp nearby using spatial grid
 		const proximityThreshold = 1.5;
@@ -1426,8 +1434,10 @@
 						topAlpha <= alphaThreshold ||
 						bottomAlpha <= alphaThreshold;
 
-					const newX = magnet.x - magnet.width / 2 + (x - offsetX) + multiTextOffsetX;
-					const newY = magnet.y - magnet.height / 2 + (y - offsetY) + multiTextOffsetY;
+					const newX =
+						magnet.x - magnet.width / 2 + (x - offsetX) + multiTextOffsetX;
+					const newY =
+						magnet.y - magnet.height / 2 + (y - offsetY) + multiTextOffsetY;
 
 					if (isEdge) {
 						for (let i = 0; i < particleDensity.edge; i++) {
@@ -1791,7 +1801,12 @@
 			tempCtx.drawImage(img, 0, 0);
 
 			// Get image data
-			const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+			const imageData = tempCtx.getImageData(
+				0,
+				0,
+				img.width,
+				img.height
+			);
 			const data = imageData.data;
 
 			const points = [];
@@ -1819,8 +1834,12 @@
 
 			// Add specific offsets for multi-text image
 			const isMultiText = img.src.includes('multi-text');
-			const multiTextOffsetX = isMultiText ? (window.innerWidth / 2) - (window.innerWidth * 0.15) + (window.innerWidth * 0.08) : 0; // Half screen minus 15% plus 8vw
-			const multiTextOffsetY = isMultiText ? 300 - (window.innerHeight * 0.15) : 0;  // 300px minus 15% of height
+			const multiTextOffsetX = isMultiText
+				? window.innerWidth / 2 -
+					window.innerWidth * 0.15 +
+					window.innerWidth * 0.08
+				: 0; // Half screen minus 15% plus 8vw
+			const multiTextOffsetY = isMultiText ? 300 - window.innerHeight * 0.15 : 0; // 300px minus 15% of height
 
 			// Function to check if a point already has a stamp nearby using spatial grid
 			const proximityThreshold = 1.5;
@@ -1850,8 +1869,10 @@
 							topAlpha <= alphaThreshold ||
 							bottomAlpha <= alphaThreshold;
 
-						const newX = magnet.x - magnet.width / 2 + (x - offsetX) + multiTextOffsetX;
-						const newY = magnet.y - magnet.height / 2 + (y - offsetY) + multiTextOffsetY;
+						const newX =
+							magnet.x - magnet.width / 2 + (x - offsetX) + multiTextOffsetX;
+						const newY =
+							magnet.y - magnet.height / 2 + (y - offsetY) + multiTextOffsetY;
 
 						if (isEdge) {
 							for (let i = 0; i < particleDensity.edge; i++) {
@@ -2200,17 +2221,17 @@
 	}
 
 	function handleWheel(event) {
-		if (!hasTriggeredTransition) {
-			hasTriggeredTransition = true;
-			if (scrollToExploreComponent && !scrollToExploreComponent.hasAnimated) {
-				isScrollAnimating = true;
-				scrollToExploreComponent.startAnimation().then(() => {
-					isScrollAnimating = false;
-				});
+		if (event.deltaY !== 0) {
+			if (scrollToExploreComponent) {
+				scrollToExploreComponent.play();
 			}
-			if (threeSceneComponent) {
-				threeSceneComponent.startTransition();
-				dispatch('transitionstart');
+
+			if (!hasTriggeredTransition) {
+				hasTriggeredTransition = true;
+				if (threeSceneComponent) {
+					threeSceneComponent.startTransition();
+					dispatch('transitionstart');
+				}
 			}
 		}
 	}
@@ -2269,8 +2290,11 @@
 		on:transitioncomplete={handleTransitionComplete}
 	/>
 	{#if showScrollToExplore || isScrollAnimating}
-		<div class="scroll-indicator">
-			<ScrollToExplore bind:this={scrollToExploreComponent} />
+		<div class="scroll-to-explore">
+			<ScrollToExplore 
+				bind:this={scrollToExploreComponent} 
+				on:complete={() => showScrollToExplore = false}
+			/>
 		</div>
 	{/if}
 </div>
@@ -2336,13 +2360,12 @@
 		object-fit: contain;
 	}
 
-	.scroll-indicator {
-		position: fixed;
-		top: 40px;
+	.scroll-to-explore {
+		pointer-events: none;
+		position: absolute;
+		top: -9vh;
 		left: 50%;
 		transform: translateX(-50%);
-		width: 16vw;
-		z-index: 2;
-		pointer-events: none;
+		z-index: 10;
 	}
 </style>

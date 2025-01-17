@@ -1,53 +1,78 @@
 <script>
 	import { onMount } from 'svelte';
-	import { gsap } from 'gsap';
-	import scrollToExplore from '$lib/images/scrolltoexplore.svg?url';
+	import { fade } from 'svelte/transition';
+	import { createEventDispatcher } from 'svelte';
+	import scrollToExploreAnimation from '$lib/images/lottie/animations/0619d505-1c63-42a8-972d-70aeeb5d2763.json';
 
-	export let onAnimationComplete = () => {};
+	const dispatch = createEventDispatcher();
 	let container;
-	export let hasAnimated = false;
+	let LottiePlayer;
+	let mounted = false;
+	let visible = false;
+	let lottieInstance;
 
-	onMount(() => {
-		// Ensure initial position
-		gsap.set(container, {
-			y: 0,
-			opacity: 1
-		});
+	onMount(async () => {
+		const module = await import('@lottiefiles/svelte-lottie-player');
+		LottiePlayer = module.LottiePlayer;
+		mounted = true;
+
+		// Delay showing the component
+		setTimeout(() => {
+			visible = true;
+		}, 800);
+
+		// Listen for scroll events
+		window.addEventListener('scroll', handleScroll);
+		return () => window.removeEventListener('scroll', handleScroll);
 	});
 
-	export function startAnimation() {
-		if (hasAnimated) return;
-		hasAnimated = true;
+	function handleScroll() {
+		if (lottieInstance) {
+			lottieInstance.play();
+		}
+	}
 
-		return new Promise((resolve) => {
-			gsap.to(container, {
-				y: -80,
-				opacity: 0,
-				duration: 1,
-				ease: "power2.inOut",
-				onComplete: () => {
-					onAnimationComplete();
-					resolve();
-				}
+	export function play() {
+		if (lottieInstance) {
+			lottieInstance.play();
+			// Listen for complete event
+			lottieInstance.addEventListener('complete', () => {
+				dispatch('complete');
 			});
-		});
+		}
 	}
 </script>
 
 <div class="container" bind:this={container}>
-	<img src={scrollToExplore} alt="scroll to explore" />
+	{#if mounted && LottiePlayer && visible}
+		<div transition:fade={{ duration: 800 }}>
+			<svelte:component
+				this={LottiePlayer}
+				src={scrollToExploreAnimation}
+				autoplay={false}
+				loop={false}
+				controls={false}
+				renderer="svg"
+				background="transparent"
+				controlsLayout={[]}
+				class="lottie-player"
+				on:load={(e) => (lottieInstance = e.detail.instance)}
+			/>
+		</div>
+	{/if}
 </div>
 
 <style>
 	.container {
 		width: 100%;
 		height: 100%;
-		transform: translate(0, 0);
+		display: flex;
+		justify-content: center;
+		align-items: center;
 	}
-	
-	img {
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
+
+	:global(.lottie-player) {
+		width: min(600px, 80vw) !important;
+		height: min(300px, 40vh) !important;
 	}
 </style>
