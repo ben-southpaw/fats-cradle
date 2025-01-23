@@ -259,6 +259,8 @@
 						loadedCount++;
 						if (loadedCount === totalImages) {
 							initializeMagnets();
+							// Create pre-drawn elements only after all images are loaded
+							createPreDrawnElements(magnets[0]);
 						}
 					});
 				}
@@ -268,9 +270,6 @@
 
 		// Register GSAP plugin
 		gsap.registerPlugin();
-
-		// Add pre-drawn elements after canvas is initialized
-		createPreDrawnElements(magnets[0]);
 
 		// Clean up
 		return () => {
@@ -1801,21 +1800,22 @@
 			tempCtx.drawImage(img, 0, 0);
 
 			// Get image data
-			const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+			const imageData = tempCtx.getImageData(
+				0,
+				0,
+				img.width,
+				img.height
+			);
 			const data = imageData.data;
 
 			const points = [];
 			const alphaThreshold = 100;
 
-			// Determine if this is the initial stamp for this magnet
-			const isInitialStamp = !stampParticles.some(
-				(p) => p.magnetId === magnet.id
-			);
-
-			// Use different densities based on whether this is the initial stamp
-			const particleDensity = isInitialStamp
-				? CONFIG.initialStampDensity
-				: CONFIG.subsequentStampDensity;
+			// For predrawn elements, we want consistent density
+			const particleDensity = {
+				edge: CONFIG.initialStampDensity.edge,
+				fill: CONFIG.initialStampDensity.fill
+			};
 
 			const particleSize = {
 				length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
@@ -1834,9 +1834,7 @@
 					window.innerWidth * 0.15 +
 					window.innerWidth * 0.08
 				: 0; // Half screen minus 15% plus 8vw
-			const multiTextOffsetY = isMultiText
-				? 300 - window.innerHeight * 0.15
-				: 0; // 300px minus 15% of height
+			const multiTextOffsetY = isMultiText ? 300 - window.innerHeight * 0.15 : 0; // 300px minus 15% of height
 
 			// Function to check if a point already has a stamp nearby using spatial grid
 			const proximityThreshold = 1.5;
@@ -1901,10 +1899,8 @@
 			points.forEach((point) => {
 				const particle = createParticle(point.x, point.y, true);
 				particle.magnetId = magnet.id;
-				particle.opacity = isInitialStamp
-					? CONFIG.initialStampOpacity
-					: CONFIG.subsequentStampOpacity;
-				stampParticles.push(particle);
+				particle.opacity = CONFIG.initialStampOpacity;
+				preDrawnParticles.push(particle);
 				spatialGrid.addParticle(particle); // Add to spatial grid
 			});
 

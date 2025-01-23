@@ -6,19 +6,34 @@
 4. Break down large tasks into smaller tasks
 5. If a better way is available, suggest it but don't assume
 6. If you don't know how to do something, ask
+7. Read all .md docs for project context
 
-# Credit Efficiency
+## Documentation and Context
 
-6. Minimize tool calls by combining related searches
-7. Prefer direct file edits over multiple view operations
-8. Focus questions on specific files or components
-9. Use specific line ranges when viewing files
-10. Provide complete context in questions to avoid follow-ups
+8. Review PROJECT.md for overall architecture and goals
+9. Check gotchas.md for implementation details and learnings
+10. Verify existing variable usage before suggesting new ones
+11. Consider full component context before suggesting changes
 
-# Code Organization
+## Change Management
 
-11. Keep related code changes in single operations
-12. Document complex logic inline to reduce future queries
-13. Use descriptive variable and function names to improve clarity
-14. Maintain a consistent file structure
-15. Keep components focused and single-purpose
+12. Never make design decisions without explicit consent
+13. Present improvements as suggestions, not actions
+14. Wait for approval before implementing any changes
+15. Document approved changes in appropriate .md files
+
+## Development Process
+
+16. Check for existing implementations before suggesting new ones
+17. Maintain existing functionality unless explicitly asked to change
+18. Keep track of related files and their dependencies
+19. Document any new learnings or gotchas immediately
+20. Ensure backward compatibility unless specified otherwise
+
+## Communication
+
+21. Be explicit about potential impacts of suggested changes
+22. Highlight dependencies and relationships between components
+23. Ask for clarification when requirements are unclear
+24. Provide rationale for improvement suggestions
+25. Keep responses focused on the current task
