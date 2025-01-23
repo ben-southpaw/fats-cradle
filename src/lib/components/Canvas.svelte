@@ -23,8 +23,8 @@
 	let pendingRender = false;
 	let lastRenderTime = 0;
 	const CONFIG = {
-		particleSize: 0.3,
-		particleDensity: 18,
+		particleSize: 0.2,
+		particleDensity: 10,
 		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
 		gridColor: '#DADADA',
@@ -35,26 +35,26 @@
 		preDrawnParticleSize: 1,
 		preDrawnDensity: 0.9,
 		preDrawnColor: '#333333',
-		cursorWhiteParticleProbability: 0.35,
-		stampWhiteParticleProbability: 0.08,
+		cursorWhiteParticleProbability: 0.4,
+		stampWhiteParticleProbability: 0.2,
 		targetFPS: 60,
-		idleFPS: 30,  // Lower FPS when not interacting
+		idleFPS: 30, // Lower FPS when not interacting
 		idleTimeout: 1000, // Time in ms before switching to idle FPS
 		hexagonLineWidth: 0.3,
 		initialStampOpacity: 0.85,
-		subsequentStampOpacity: 0.5,
+		subsequentStampOpacity: 0.6,
 		initialStampDensity: {
 			edge: 1.4,
 			fill: 1.6,
 		},
 		subsequentStampDensity: {
-			edge: 1.0,
-			fill: 0.8,
+			edge: 1.2,
+			fill: 1,
 		},
 		maxParticles: 40000,
 	};
 
-	let FRAME_INTERVAL = 1000 / CONFIG.targetFPS;  // Make this reactive
+	let FRAME_INTERVAL = 1000 / CONFIG.targetFPS; // Make this reactive
 	let lastParticleUpdate = 0;
 	let lastInteractionTime = performance.now();
 	let isIdle = false;
@@ -66,34 +66,33 @@
 			const angle = (i * Math.PI) / 4;
 			return {
 				x: Math.cos(angle),
-				y: Math.sin(angle)
+				y: Math.sin(angle),
 			};
 		}),
-		
+
 		// 6 size variations (0.85 to 1.15)
-		sizes: Array.from({ length: 6 }, (_, i) => 
-			0.85 + (0.3 * i / 5)
-		),
-		
+		sizes: Array.from({ length: 6 }, (_, i) => 0.85 + (0.3 * i) / 5),
+
 		// 8 opacity variations (0.8 to 1.0)
-		opacities: Array.from({ length: 8 }, (_, i) => 
-			0.8 + (0.2 * i / 7)
-		)
+		opacities: Array.from({ length: 8 }, (_, i) => 0.8 + (0.2 * i) / 7),
 	};
 
 	// Get deterministic particle properties based on index
 	function getParticleProperties(index) {
-		const posPattern = PARTICLE_PATTERNS.positions[index % PARTICLE_PATTERNS.positions.length];
-		const sizePattern = PARTICLE_PATTERNS.sizes[index % PARTICLE_PATTERNS.sizes.length];
-		const opacityPattern = PARTICLE_PATTERNS.opacities[index % PARTICLE_PATTERNS.opacities.length];
-		
+		const posPattern =
+			PARTICLE_PATTERNS.positions[index % PARTICLE_PATTERNS.positions.length];
+		const sizePattern =
+			PARTICLE_PATTERNS.sizes[index % PARTICLE_PATTERNS.sizes.length];
+		const opacityPattern =
+			PARTICLE_PATTERNS.opacities[index % PARTICLE_PATTERNS.opacities.length];
+
 		return {
 			offset: {
 				x: posPattern.x * CONFIG.lineWidth * 0.3,
-				y: posPattern.y * CONFIG.lineWidth * 0.3
+				y: posPattern.y * CONFIG.lineWidth * 0.3,
 			},
 			size: CONFIG.particleSize * sizePattern,
-			opacity: opacityPattern
+			opacity: opacityPattern,
 		};
 	}
 
@@ -1806,7 +1805,7 @@
 
 				// Get deterministic properties based on current index
 				const props = getParticleProperties(particleIndex++);
-				
+
 				// Calculate angle based on line direction
 				const dx = end.x - start.x;
 				const dy = end.y - start.y;
@@ -1820,7 +1819,9 @@
 					width: CONFIG.particleWidth,
 					angle: angle,
 					opacity: props.opacity,
-					isWhite: Math.floor(particleIndex * 1.618033988749895) % 100 < CONFIG.cursorWhiteParticleProbability * 100
+					isWhite:
+						Math.floor(particleIndex * 1.618033988749895) % 100 <
+						CONFIG.cursorWhiteParticleProbability * 100,
 				};
 
 				particles.push(particle);
@@ -1860,12 +1861,7 @@
 			tempCtx.drawImage(img, 0, 0);
 
 			// Get image data
-			const imageData = tempCtx.getImageData(
-				0,
-				0,
-				img.width,
-				img.height
-			);
+			const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
 			const data = imageData.data;
 
 			const points = [];
@@ -1874,7 +1870,7 @@
 			// For predrawn elements, we want consistent density
 			const particleDensity = {
 				edge: CONFIG.initialStampDensity.edge,
-				fill: CONFIG.initialStampDensity.fill
+				fill: CONFIG.initialStampDensity.fill,
 			};
 
 			const particleSize = {
@@ -1894,7 +1890,9 @@
 					window.innerWidth * 0.15 +
 					window.innerWidth * 0.08
 				: 0; // Half screen minus 15% plus 8vw
-			const multiTextOffsetY = isMultiText ? 300 - window.innerHeight * 0.15 : 0; // 300px minus 15% of height
+			const multiTextOffsetY = isMultiText
+				? 300 - window.innerHeight * 0.15
+				: 0; // 300px minus 15% of height
 
 			// Function to check if a point already has a stamp nearby using spatial grid
 			const proximityThreshold = 1.5;
