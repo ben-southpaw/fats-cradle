@@ -38,6 +38,8 @@
 		cursorWhiteParticleProbability: 0.35,
 		stampWhiteParticleProbability: 0.08,
 		targetFPS: 60,
+		idleFPS: 30,  // Lower FPS when not interacting
+		idleTimeout: 1000, // Time in ms before switching to idle FPS
 		hexagonLineWidth: 0.3,
 		initialStampOpacity: 0.85,
 		subsequentStampOpacity: 0.5,
@@ -52,8 +54,10 @@
 		maxParticles: 40000,
 	};
 
-	const FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
+	let FRAME_INTERVAL = 1000 / CONFIG.targetFPS;  // Make this reactive
 	let lastParticleUpdate = 0;
+	let lastInteractionTime = performance.now();
+	let isIdle = false;
 
 	// Canvas setup
 	let canvas;
@@ -225,6 +229,12 @@
 		function animate() {
 			animationFrameId = requestAnimationFrame(animate);
 			const currentTime = performance.now();
+
+			// Check if we should switch to idle FPS
+			if (!isIdle && currentTime - lastInteractionTime > CONFIG.idleTimeout) {
+				isIdle = true;
+				FRAME_INTERVAL = 1000 / CONFIG.idleFPS;
+			}
 
 			if (currentTime - lastRenderTime >= FRAME_INTERVAL) {
 				renderAll();
@@ -1960,6 +1970,11 @@
 
 	// Handle mouse events
 	function handleMousemove(event) {
+		lastInteractionTime = performance.now();
+		if (isIdle) {
+			isIdle = false;
+			FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
+		}
 		m.x = event.clientX;
 		m.y = event.clientY;
 
@@ -1992,6 +2007,11 @@
 	}
 
 	function handleMousedown(e) {
+		lastInteractionTime = performance.now();
+		if (isIdle) {
+			isIdle = false;
+			FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
+		}
 		isClicking = true;
 
 		if (isHoveringMagnet && hoveredMagnet) {
