@@ -59,6 +59,44 @@
 	let lastInteractionTime = performance.now();
 	let isIdle = false;
 
+	// Deterministic patterns for particle properties
+	const PARTICLE_PATTERNS = {
+		// 8-directional offset pattern in a circle
+		positions: Array.from({ length: 8 }, (_, i) => {
+			const angle = (i * Math.PI) / 4;
+			return {
+				x: Math.cos(angle),
+				y: Math.sin(angle)
+			};
+		}),
+		
+		// 6 size variations (0.85 to 1.15)
+		sizes: Array.from({ length: 6 }, (_, i) => 
+			0.85 + (0.3 * i / 5)
+		),
+		
+		// 8 opacity variations (0.8 to 1.0)
+		opacities: Array.from({ length: 8 }, (_, i) => 
+			0.8 + (0.2 * i / 7)
+		)
+	};
+
+	// Get deterministic particle properties based on index
+	function getParticleProperties(index) {
+		const posPattern = PARTICLE_PATTERNS.positions[index % PARTICLE_PATTERNS.positions.length];
+		const sizePattern = PARTICLE_PATTERNS.sizes[index % PARTICLE_PATTERNS.sizes.length];
+		const opacityPattern = PARTICLE_PATTERNS.opacities[index % PARTICLE_PATTERNS.opacities.length];
+		
+		return {
+			offset: {
+				x: posPattern.x * CONFIG.lineWidth * 0.3,
+				y: posPattern.y * CONFIG.lineWidth * 0.3
+			},
+			size: CONFIG.particleSize * sizePattern,
+			opacity: opacityPattern
+		};
+	}
+
 	// Canvas setup
 	let canvas;
 	let ctx;
@@ -1742,6 +1780,7 @@
 			randomOffset: CONFIG.lineWidth * 0.3,
 		};
 		const opts = { ...defaultOptions, ...options };
+		let particleIndex = particles.length; // Track index for pattern lookup
 
 		for (let i = 1; i < points.length; i++) {
 			const start = points[i - 1];
@@ -1757,6 +1796,7 @@
 			// If we're at max particles, remove oldest ones
 			if (particles.length + particleCount > MAX_PARTICLES) {
 				particles = particles.slice(-(MAX_PARTICLES - particleCount));
+				particleIndex = particles.length;
 			}
 
 			for (let j = 0; j < particleCount; j++) {
@@ -1764,16 +1804,26 @@
 				const x = start.x + (end.x - start.x) * ratio;
 				const y = start.y + (end.y - start.y) * ratio;
 
-				// Calculate particle angle (perpendicular to drawing direction)
-				const angle =
-					Math.atan2(end.y - start.y, end.x - start.x) + Math.PI / 2;
+				// Get deterministic properties based on current index
+				const props = getParticleProperties(particleIndex++);
+				
+				// Calculate angle based on line direction
+				const dx = end.x - start.x;
+				const dy = end.y - start.y;
+				const angle = Math.atan2(dy, dx);
 
-				// Random offset perpendicular to drawing direction
-				const offset = (Math.random() - 0.5) * opts.randomOffset;
-				const perpX = Math.cos(angle) * offset;
-				const perpY = Math.sin(angle) * offset;
+				// Create particle with deterministic properties
+				const particle = {
+					x: x + props.offset.x,
+					y: y + props.offset.y,
+					length: opts.particleSize * props.size,
+					width: CONFIG.particleWidth,
+					angle: angle,
+					opacity: props.opacity,
+					isWhite: Math.floor(particleIndex * 1.618033988749895) % 100 < CONFIG.cursorWhiteParticleProbability * 100
+				};
 
-				particles.push(createParticle(x + perpX, y + perpY));
+				particles.push(particle);
 			}
 		}
 	}
