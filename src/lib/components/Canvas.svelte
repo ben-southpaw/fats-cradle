@@ -2063,6 +2063,7 @@
 		isClicking = true;
 
 		if (isHoveringMagnet && hoveredMagnet) {
+			// Start magnet drag
 			isDraggingMagnet = true;
 			selectedMagnet = hoveredMagnet;
 			selectedMagnet.grabOffsetX = hoveredMagnet.x - e.clientX;
@@ -2273,7 +2274,7 @@
 		// Fade out the canvas
 		gsap.to(canvas, {
 			opacity: 0,
-			duration: 0.5,
+			duration: 0.15,
 			ease: 'power2.inOut',
 			onComplete: () => {
 				isCanvasVisible = false;
@@ -2393,7 +2394,7 @@
 		width: 100%;
 		height: 100%;
 		opacity: 1;
-		transition: opacity 0.3s ease;
+		transition: opacity 0.15s ease;
 	}
 
 	canvas.hidden {

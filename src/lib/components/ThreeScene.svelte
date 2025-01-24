@@ -59,23 +59,23 @@
 
 	const CONFIG = {
 		model: {
-			path: '/models/MagnaSketch_3dModel.gltf',  // Use absolute path from root for live deployment
+			path: '/models/MagnaSketch_3dModel.gltf',
 			initial: {
-				position: { x: 0, y: 0, z: -2 },
+				position: { x: 0, y: 0, z: 0 }, // Centered at origin
 				rotation: { x: 0, y: 0, z: 0 },
-				scale: { x: 2.25, y: 2.25, z: 2.25 }, // Start at 2.25
+				scale: { x: 1, y: 1, z: 1 }, // Will be calculated dynamically
 			},
 			final: {
 				position: { x: 0, y: 0, z: -2 },
-				rotation: { x: 0, y: Math.PI * 2, z: 0 }, // Full 360 rotation
-				scale: { x: 1.25, y: 1.25, z: 1.25 }, // End at 1.25
+				rotation: { x: 0, y: Math.PI * 2, z: 0 },
+				scale: { x: 1.5, y: 1.5, z: 1.5 },
 			},
 		},
 		camera: {
-			fov: 45,
+			fov: 35, // Narrower FOV for less perspective distortion
 			near: 0.1,
 			far: 800,
-			position: { x: 0, y: 0, z: 5 },
+			position: { x: 0, y: 0, z: 10 }, // Further back to accommodate full screen
 		},
 		lighting: {
 			ambient: {
@@ -116,12 +116,12 @@
 			],
 		},
 		animation: {
-			duration: 2.3,
-			delay: 0.4, // Shorter initial delay
-			sliderDelay: 0.8, // Delay before slider starts
-			sliderDuration: 2.0, // Slower slider movement
+			duration: 2.0, // Slightly faster main animation
+			delay: 0.2, // Shorter initial delay
+			sliderDelay: 0.4, // Start slider movement sooner
+			sliderDuration: 1.6, // Faster slider movement
 			snapBackDelay: 0, // Immediate snap back
-			snapBackDuration: 0.2, // Faster snap back
+			snapBackDuration: 0.2, // Quick snap back
 		},
 	};
 
@@ -198,6 +198,19 @@
 		// Ensure clipping planes are set up before animation
 		setupClippingPlanes();
 
+		// Start invisible and show after scroll animation + delay
+		isVisible = false;
+		gsap.to(
+			{},
+			{
+				duration: CONFIG.animation.delay + 0.2, // Shorter delay for quicker start
+				onComplete: () => {
+					isVisible = true;
+					dispatch('transitioncomplete');
+				},
+			}
+		);
+
 		// Animation sequence
 		const timeline = gsap.timeline({
 			delay: CONFIG.animation.delay,
@@ -206,43 +219,22 @@
 			},
 		});
 
-		// Start invisible and show after scroll animation + delay
-		isVisible = false;
-		gsap.to(
-			{},
-			{
-				duration: CONFIG.animation.delay + 0.5, // Add extra time for scroll animation
-				onComplete: () => {
-					isVisible = true;
-					dispatch('transitioncomplete'); // Trigger canvas fade when model appears
-				},
-			}
-		);
-
-		// Start from initial state
-		model.scale.set(
-			CONFIG.model.initial.scale.x,
-			CONFIG.model.initial.scale.y,
-			CONFIG.model.initial.scale.z
-		);
-		model.rotation.set(
-			CONFIG.model.initial.rotation.x,
-			CONFIG.model.initial.rotation.y,
-			CONFIG.model.initial.rotation.z
-		);
-
-		// Move slider to start position instantly
-		if (sliderMesh) {
-			sliderMesh.position.x = sliderMinX;
-		}
-
 		// Animate scale down and rotate
 		timeline
-			.to(model.rotation, {
-				y: CONFIG.model.final.rotation.y,
+			.to(model.position, {
+				z: CONFIG.model.final.position.z,
 				duration: CONFIG.animation.duration,
-				ease: 'power3.inOut',
+				ease: 'power2.inOut',
 			})
+			.to(
+				model.rotation,
+				{
+					y: CONFIG.model.final.rotation.y,
+					duration: CONFIG.animation.duration,
+					ease: 'power2.inOut',
+				},
+				0
+			)
 			.to(
 				model.scale,
 				{
@@ -250,33 +242,33 @@
 					y: CONFIG.model.final.scale.y,
 					z: CONFIG.model.final.scale.z,
 					duration: CONFIG.animation.duration,
-					ease: 'expo.out',
+					ease: 'power3.inOut',
 				},
 				0
 			);
 
-		// Add slider animation to run during the rotation
+		// Add slider animation
 		if (sliderMesh) {
 			timeline
 				.to(
 					sliderMesh.position,
 					{
 						x: sliderMaxX,
-						duration: CONFIG.animation.sliderDuration,
-						ease: 'power2.inOut', // Smooth movement to right
+						duration: CONFIG.animation.duration * 0.8, // Slightly faster than main animation
+						ease: 'power2.inOut',
 						onUpdate: () => {
 							const progress = calculateWipeProgress(sliderMesh.position.x);
 							dispatch('wipe', { progress });
 						},
 					},
-					CONFIG.animation.sliderDelay
+					CONFIG.animation.delay
 				)
 				.to(
 					sliderMesh.position,
 					{
 						x: sliderMinX,
 						duration: CONFIG.animation.snapBackDuration,
-						ease: 'power1.in', // Snappy movement back
+						ease: 'power1.in',
 						onStart: () => {
 							dispatch('snapbackstart');
 						},
@@ -285,7 +277,7 @@
 							dispatch('wipe', { progress });
 						},
 					},
-					'>' // Start immediately after previous animation
+					'>'
 				);
 		}
 	}
@@ -395,26 +387,6 @@
 			logoLight.position.set(3, 4, 1);  // Moved further top-right (x: right, y: up, z: forward)
 			model.add(logoLight);
 
-			// Apply initial transforms
-			model.position.set(
-				CONFIG.model.initial.position.x,
-				CONFIG.model.initial.position.y,
-				CONFIG.model.initial.position.z
-			);
-			model.rotation.set(
-				CONFIG.model.initial.rotation.x,
-				CONFIG.model.initial.rotation.y,
-				CONFIG.model.initial.rotation.z
-			);
-
-			// Set initial scale but keep invisible
-			model.scale.set(
-				CONFIG.model.initial.scale.x,
-				CONFIG.model.initial.scale.y,
-				CONFIG.model.initial.scale.z
-			);
-			isVisible = false; // Start invisible
-
 			// Find screen and slider meshes
 			let foundScreen = false;
 			model.traverse((child) => {
@@ -456,21 +428,10 @@
 					screenMesh.rotateZ(Math.PI);
 				} else if (child.name === 'Slider') {
 					sliderMesh = child;
-					// Store initial position for reset
 					sliderInitialPosition = child.position.clone();
-
-					// Set slider bounds to 90% of rail width (-1.63 to 1.63)
-					// This should only hide about 20% of the knob width on each end
-					sliderMinX = -1.47; // 90% of -1.63
-					sliderMaxX = 1.47; // 90% of 1.63
-
-					// Move slider to left end initially
+					sliderMinX = -1.47;
+					sliderMaxX = 1.47;
 					sliderMesh.position.x = sliderMinX;
-				} else if (child.name === 'Rail') {
-					// Get bounds for slider movement
-					const box = new THREE.Box3().setFromObject(child);
-					sliderMinX = box.min.x;
-					sliderMaxX = box.max.x;
 				}
 			});
 
@@ -478,12 +439,53 @@
 				throw new Error('No screen mesh found in model');
 			}
 
+			// Set initial position and rotation
+			model.position.set(
+				CONFIG.model.initial.position.x,
+				CONFIG.model.initial.position.y,
+				CONFIG.model.initial.position.z
+			);
+			model.rotation.set(
+				CONFIG.model.initial.rotation.x,
+				CONFIG.model.initial.rotation.y,
+				CONFIG.model.initial.rotation.z
+			);
+
+			// Calculate and set initial scale to match screen
+			const screenScale = calculateScreenMatchingScale();
+			model.scale.set(
+				screenScale.x,
+				screenScale.y,
+				screenScale.z
+			);
+
 			scene.add(model);
 			modelLoaded = true;
 		} catch (error) {
 			console.error('Error loading model:', error);
 			throw error;
 		}
+	}
+
+	// Calculate scale to match screen dimensions
+	function calculateScreenMatchingScale() {
+		if (!screenMesh || !camera) return { x: 1, y: 1, z: 1 };
+
+		// Get the camera's field of view in radians
+		const fovRad = (CONFIG.camera.fov * Math.PI) / 180;
+		
+		// Calculate the visible height at the model's position
+		const distance = Math.abs(camera.position.z - model.position.z);
+		const visibleHeight = 2 * Math.tan(fovRad / 2) * distance;
+		
+		// Get the screen mesh's current dimensions
+		const box = new THREE.Box3().setFromObject(screenMesh);
+		const meshHeight = box.max.y - box.min.y;
+		
+		// Calculate scale needed to match screen height
+		const scale = visibleHeight / meshHeight;
+		
+		return { x: scale, y: scale, z: scale };
 	}
 
 	function animate() {
@@ -572,17 +574,40 @@
 		isSliderDragging = false;
 	}
 
+	// Handle mousewheel event
+	function handleWheel(event) {
+		if (!model || !isVisible) return;
+		
+		event.preventDefault();
+		
+		// Calculate target scale based on wheel direction
+		const wheelDelta = event.deltaY;
+		const scaleFactor = wheelDelta > 0 ? 1 : 1.6; // Scale between 1.25x and 2x (1.25 * 1.6)
+		const targetScale = CONFIG.model.final.scale.x * scaleFactor;
+		
+		// Animate to target scale
+		gsap.to(model.scale, {
+			x: targetScale,
+			y: targetScale,
+			z: targetScale,
+			duration: 0.5,
+			ease: "power2.out"
+		});
+	}
+
 	onMount(async () => {
 		await initThreeJS();
 		window.addEventListener('resize', handleResize);
 		window.addEventListener('mousedown', handleMouseDown);
 		window.addEventListener('mousemove', handleMouseMove);
 		window.addEventListener('mouseup', handleMouseUp);
+		window.addEventListener('wheel', handleWheel);
 		return () => {
 			window.removeEventListener('resize', handleResize);
 			window.removeEventListener('mousedown', handleMouseDown);
 			window.removeEventListener('mousemove', handleMouseMove);
 			window.removeEventListener('mouseup', handleMouseUp);
+			window.removeEventListener('wheel', handleWheel);
 			if (animationFrameId) {
 				cancelAnimationFrame(animationFrameId);
 			}
@@ -593,8 +618,10 @@
 <div
 	class="three-container"
 	class:visible={isVisible}
-	bind:this={container}
-></div>
+	on:wheel={handleWheel}
+>
+	<div bind:this={container} />
+</div>
 
 <style>
 	.three-container {
