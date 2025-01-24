@@ -121,6 +121,25 @@
 - Check for magnet.img.complete before processing
 - Set width/height on magnet object if not already set
 
+### Multitext Configuration
+
+- Multitext elements use custom configuration separate from regular stamps
+- Key configuration areas:
+  - Particle density (edge and fill rates)
+  - Random offset controls for particle placement
+  - Proximity threshold for particle spacing
+  - Custom positioning with percentage-based offsets
+  - Appearance settings for colors and opacity
+
+### Multitext Appearance
+
+- Uses darker base color (#1a1a1a) for better contrast
+- Reduced white particle probability (15%) for cleaner look
+- Higher opacity values for both initial and subsequent stamps
+- Custom white particle color (#e6e6e6) for subtle variation
+- Tighter particle clustering on edges (0 random offset)
+- More spread in fill areas (1.8 random offset)
+
 ### Magnet Animation
 
 - Magnet rotation is velocity-based during drag

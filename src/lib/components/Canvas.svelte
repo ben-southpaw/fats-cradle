@@ -24,7 +24,7 @@
 	let lastRenderTime = 0;
 	const CONFIG = {
 		particleSize: 0.2,
-		particleDensity: 10,
+		particleDensity: 12,
 		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
 		gridColor: '#DADADA',
@@ -35,7 +35,7 @@
 		preDrawnParticleSize: 1,
 		preDrawnDensity: 0.9,
 		preDrawnColor: '#333333',
-		cursorWhiteParticleProbability: 0.4,
+		cursorWhiteParticleProbability: 0.35,
 		stampWhiteParticleProbability: 0.2,
 		targetFPS: 60,
 		idleFPS: 30, // Lower FPS when not interacting
@@ -52,6 +52,30 @@
 			fill: 1,
 		},
 		maxParticles: 40000,
+		multitext: {
+			particleDensity: {
+				edge: 18,
+				fill: 2,
+			},
+			randomOffset: {
+				edge: 0,
+				fill: 1.8,
+			},
+			proximityThreshold: 4,
+			positioning: {
+				offsetXPercent: 0.15,
+				offsetYPx: 300,
+				heightPercent: 0.15,
+			},
+			appearance: {
+				color: '#1a1a1a', // Darker base color
+				whiteParticleProbability: 0.05, // Fewer white particles
+				whiteParticleColor: '#e6e6e6', // Slightly darker white
+				opacity: {
+					initial: 0.99, // Higher initial opacity
+				},
+			},
+		},
 	};
 
 	let FRAME_INTERVAL = 1000 / CONFIG.targetFPS; // Make this reactive
@@ -1452,15 +1476,20 @@
 
 		// Add specific offsets for multi-text image
 		const isMultiText = magnet.img.src.includes('multi-text');
+		const { positioning } = CONFIG.multitext;
 		const multiTextOffsetX = isMultiText
 			? window.innerWidth / 2 -
-				window.innerWidth * 0.15 +
-				window.innerWidth * 0.08
-			: 0; // Half screen minus 15% plus 8vw
-		const multiTextOffsetY = isMultiText ? 300 - window.innerHeight * 0.15 : 0; // 300px minus 15% of height
+				window.innerWidth * positioning.offsetXPercent +
+				window.innerWidth * (positioning.offsetXPercent / 2)
+			: 0;
+		const multiTextOffsetY = isMultiText
+			? positioning.offsetYPx - window.innerHeight * positioning.heightPercent
+			: 0;
 
 		// Function to check if a point already has a stamp nearby using spatial grid
-		const proximityThreshold = 1.5;
+		const proximityThreshold = isMultiText
+			? CONFIG.multitext.proximityThreshold
+			: 1.5;
 		function hasNearbyStamp(x, y) {
 			const nearbyParticles = spatialGrid.queryParticles(
 				x,
@@ -1488,14 +1517,27 @@
 						bottomAlpha <= alphaThreshold;
 
 					const newX =
-						magnet.x - (magnet?.width || magnet.img.width) / 2 + (x - offsetX) + multiTextOffsetX;
+						magnet.x -
+						(magnet?.width || magnet.img.width) / 2 +
+						(x - offsetX) +
+						multiTextOffsetX;
 					const newY =
-						magnet.y - (magnet?.height || magnet.img.height) / 2 + (y - offsetY) + multiTextOffsetY;
+						magnet.y -
+						(magnet?.height || magnet.img.height) / 2 +
+						(y - offsetY) +
+						multiTextOffsetY;
 
 					if (isEdge) {
-						for (let i = 0; i < particleDensity.edge; i++) {
-							const finalX = newX + (Math.random() - 0.5) * 0.8;
-							const finalY = newY + (Math.random() - 0.5) * 0.8;
+						const edgeDensity = isMultiText
+							? CONFIG.multitext.particleDensity.edge
+							: particleDensity.edge;
+						const edgeOffset = isMultiText
+							? CONFIG.multitext.randomOffset.edge
+							: 0.8;
+
+						for (let i = 0; i < edgeDensity; i++) {
+							const finalX = newX + (Math.random() - 0.5) * edgeOffset;
+							const finalY = newY + (Math.random() - 0.5) * edgeOffset;
 							if (!hasNearbyStamp(finalX, finalY)) {
 								points.push({
 									x: finalX,
@@ -1504,15 +1546,24 @@
 								});
 							}
 						}
-					} else if (Math.random() < particleDensity.fill) {
-						const finalX = newX + (Math.random() - 0.5) * 1.5;
-						const finalY = newY + (Math.random() - 0.5) * 1.5;
-						if (!hasNearbyStamp(finalX, finalY)) {
-							points.push({
-								x: finalX,
-								y: finalY,
-								isEdge: false,
-							});
+					} else {
+						const fillDensity = isMultiText
+							? CONFIG.multitext.particleDensity.fill
+							: particleDensity.fill;
+						const fillOffset = isMultiText
+							? CONFIG.multitext.randomOffset.fill
+							: 1.5;
+
+						if (Math.random() < fillDensity) {
+							const finalX = newX + (Math.random() - 0.5) * fillOffset;
+							const finalY = newY + (Math.random() - 0.5) * fillOffset;
+							if (!hasNearbyStamp(finalX, finalY)) {
+								points.push({
+									x: finalX,
+									y: finalY,
+									isEdge: false,
+								});
+							}
 						}
 					}
 				}
@@ -1522,9 +1573,23 @@
 		points.forEach((point) => {
 			const particle = createParticle(point.x, point.y, true);
 			particle.magnetId = magnet.id;
-			particle.opacity = isInitialStamp
-				? CONFIG.initialStampOpacity
-				: CONFIG.subsequentStampOpacity;
+
+			// Apply multitext-specific appearance if applicable
+			if (isMultiText) {
+				const isWhite =
+					Math.random() < CONFIG.multitext.appearance.whiteParticleProbability;
+				particle.color = isWhite
+					? CONFIG.multitext.appearance.whiteParticleColor
+					: CONFIG.multitext.appearance.color;
+				particle.opacity = isInitialStamp
+					? CONFIG.multitext.appearance.opacity.initial
+					: CONFIG.multitext.appearance.opacity.subsequent;
+			} else {
+				particle.opacity = isInitialStamp
+					? CONFIG.initialStampOpacity
+					: CONFIG.subsequentStampOpacity;
+			}
+
 			stampParticles.push(particle);
 			spatialGrid.addParticle(particle); // Add to spatial grid
 		});
@@ -1907,17 +1972,20 @@
 
 			// Add specific offsets for multi-text image
 			const isMultiText = img.src.includes('multi-text');
+			const { positioning } = CONFIG.multitext;
 			const multiTextOffsetX = isMultiText
 				? window.innerWidth / 2 -
-					window.innerWidth * 0.15 +
-					window.innerWidth * 0.08
-				: 0; // Half screen minus 15% plus 8vw
+					window.innerWidth * positioning.offsetXPercent +
+					window.innerWidth * (positioning.offsetXPercent / 2)
+				: 0;
 			const multiTextOffsetY = isMultiText
-				? 300 - window.innerHeight * 0.15
-				: 0; // 300px minus 15% of height
+				? positioning.offsetYPx - window.innerHeight * positioning.heightPercent
+				: 0;
 
 			// Function to check if a point already has a stamp nearby using spatial grid
-			const proximityThreshold = 1.5;
+			const proximityThreshold = isMultiText
+				? CONFIG.multitext.proximityThreshold
+				: 1.5;
 			function hasNearbyStamp(x, y) {
 				const nearbyParticles = spatialGrid.queryParticles(
 					x,
@@ -1950,9 +2018,16 @@
 							magnet.y - magnet.height / 2 + (y - offsetY) + multiTextOffsetY;
 
 						if (isEdge) {
-							for (let i = 0; i < particleDensity.edge; i++) {
-								const finalX = newX + (Math.random() - 0.5) * 0.8;
-								const finalY = newY + (Math.random() - 0.5) * 0.8;
+							const edgeDensity = isMultiText
+								? CONFIG.multitext.particleDensity.edge
+								: particleDensity.edge;
+							const edgeOffset = isMultiText
+								? CONFIG.multitext.randomOffset.edge
+								: 0.8;
+
+							for (let i = 0; i < edgeDensity; i++) {
+								const finalX = newX + (Math.random() - 0.5) * edgeOffset;
+								const finalY = newY + (Math.random() - 0.5) * edgeOffset;
 								if (!hasNearbyStamp(finalX, finalY)) {
 									points.push({
 										x: finalX,
@@ -1961,15 +2036,24 @@
 									});
 								}
 							}
-						} else if (Math.random() < particleDensity.fill) {
-							const finalX = newX + (Math.random() - 0.5) * 1.5;
-							const finalY = newY + (Math.random() - 0.5) * 1.5;
-							if (!hasNearbyStamp(finalX, finalY)) {
-								points.push({
-									x: finalX,
-									y: finalY,
-									isEdge: false,
-								});
+						} else {
+							const fillDensity = isMultiText
+								? CONFIG.multitext.particleDensity.fill
+								: particleDensity.fill;
+							const fillOffset = isMultiText
+								? CONFIG.multitext.randomOffset.fill
+								: 1.5;
+
+							if (Math.random() < fillDensity) {
+								const finalX = newX + (Math.random() - 0.5) * fillOffset;
+								const finalY = newY + (Math.random() - 0.5) * fillOffset;
+								if (!hasNearbyStamp(finalX, finalY)) {
+									points.push({
+										x: finalX,
+										y: finalY,
+										isEdge: false,
+									});
+								}
 							}
 						}
 					}
