@@ -345,7 +345,7 @@
 	$: {
 		// Watch for CONFIG changes that affect predrawn elements
 		const { preDrawnDensity, preDrawnParticleSize } = CONFIG;
-		if (canvas) {
+		if (canvas && magnets && magnets.length > 0 && magnets[0]?.img) {
 			preDrawnParticles = []; // Clear existing particles
 			createPreDrawnElements(magnets[0]); // Recreate with new settings
 		}
@@ -1293,10 +1293,12 @@
 			magnet.x = e.clientX + magnet.grabOffsetX;
 			magnet.y = e.clientY + magnet.grabOffsetY;
 
+			gsap.killTweensOf(magnet);
 			gsap.to(magnet, {
 				scale: 1,
-				duration: 0.6,
-				ease: 'power3.out',
+				rotation: 0,
+				duration: 0.3,
+				ease: 'power2.out',
 				onUpdate: () => scheduleRender(),
 				onComplete: () => {
 					magnet.isPickedUp = false;
@@ -1440,8 +1442,13 @@
 		};
 
 		// Calculate offset to center the stamp particles around the magnet's position
-		const offsetX = (tempCanvas.width - magnet.width) / 2;
-		const offsetY = (tempCanvas.height - magnet.height) / 2;
+		let offsetX = magnet?.width ? magnet.width / 2 : magnet.img.width / 2;
+		let offsetY = magnet?.height ? magnet.height / 2 : magnet.img.height / 2;
+
+		if (tempCanvas) {
+			offsetX = (tempCanvas.width - (magnet?.width || magnet.img.width)) / 2;
+			offsetY = (tempCanvas.height - (magnet?.height || magnet.img.height)) / 2;
+		}
 
 		// Add specific offsets for multi-text image
 		const isMultiText = magnet.img.src.includes('multi-text');
@@ -1481,9 +1488,9 @@
 						bottomAlpha <= alphaThreshold;
 
 					const newX =
-						magnet.x - magnet.width / 2 + (x - offsetX) + multiTextOffsetX;
+						magnet.x - (magnet?.width || magnet.img.width) / 2 + (x - offsetX) + multiTextOffsetX;
 					const newY =
-						magnet.y - magnet.height / 2 + (y - offsetY) + multiTextOffsetY;
+						magnet.y - (magnet?.height || magnet.img.height) / 2 + (y - offsetY) + multiTextOffsetY;
 
 					if (isEdge) {
 						for (let i = 0; i < particleDensity.edge; i++) {
@@ -1570,6 +1577,8 @@
 	}
 
 	function initializeMagnets() {
+		if (!magnetImages) return;
+
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
 		const totalWidth = window.innerWidth * 0.4; // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
@@ -1830,8 +1839,16 @@
 	}
 
 	function createPreDrawnElements(magnet) {
+		if (!magnet) return;
+
 		const img = new Image();
 		img.onload = () => {
+			// Ensure magnet dimensions are set
+			if (!magnet.width || !magnet.height) {
+				magnet.width = img.width;
+				magnet.height = img.height;
+			}
+
 			// Create temporary canvas for image
 			const tempCanvas = document.createElement('canvas');
 			const tempCtx = tempCanvas.getContext('2d');
@@ -1880,8 +1897,13 @@
 			};
 
 			// Calculate offset to center the stamp particles around the magnet's position
-			const offsetX = (tempCanvas.width - magnet.width) / 2;
-			const offsetY = (tempCanvas.height - magnet.height) / 2;
+			let offsetX = magnet.width / 2;
+			let offsetY = magnet.height / 2;
+
+			if (tempCanvas) {
+				offsetX = (tempCanvas.width - magnet.width) / 2;
+				offsetY = (tempCanvas.height - magnet.height) / 2;
+			}
 
 			// Add specific offsets for multi-text image
 			const isMultiText = img.src.includes('multi-text');
@@ -2128,7 +2150,7 @@
 				}
 			}
 
-			// Animate position, rotation, and scale together
+			gsap.killTweensOf(droppedMagnet);
 			gsap.to(droppedMagnet, {
 				x: finalX,
 				y: finalY,
