@@ -151,6 +151,14 @@
 - Rotation should be clamped during movement and zeroed on drop
 - Multiple concurrent GSAP animations may cause interference
 
+### Custom Cursor
+
+- Custom cursor starts invisible and fades in on first mousemove
+- Uses CSS transitions for smooth opacity animation (0.35s ease)
+- Cursor visibility state is tracked separately from opacity
+- Maintains all existing cursor positioning and behavior
+- Initial opacity is 0 to prevent flash on page load
+
 ### Event Listeners
 
 - Always clean up timeouts in component destroy/unmount

@@ -138,7 +138,8 @@
 
 	let cursorElement;
 	let m = { x: 0, y: 0 };
-	let cursorOpacity = 1;
+	let cursorOpacity = 0;
+	let cursorVisible = false;
 
 	let lastMouseX = 0;
 	let lastMouseY = 0;
@@ -2158,6 +2159,7 @@
 			});
 			hoveredMagnet = findClickedMagnet({ x, y });
 		}
+		cursorVisible = true;
 	}
 
 	function handleMousedown(e) {
@@ -2467,7 +2469,8 @@
 <div
 	class="cursor"
 	bind:this={cursorElement}
-	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
+	class:visible={cursorVisible}
+	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity}; transition: opacity 0.35s ease;"
 >
 	<img
 		src={isClicking && isHoveringMagnet
@@ -2517,6 +2520,8 @@
 		width: 32px;
 		height: 32px;
 		transform-origin: center;
+		opacity: 0;
+		transition: opacity 0.35s ease;
 	}
 
 	.cursor img {
