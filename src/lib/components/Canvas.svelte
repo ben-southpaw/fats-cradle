@@ -44,15 +44,15 @@
 		idleFPS: 30, // Lower FPS when not interacting
 		idleTimeout: 1000, // Time in ms before switching to idle FPS
 		hexagonLineWidth: 0.3,
-		initialStampOpacity: 0.85,
-		subsequentStampOpacity: 0.6,
+		initialStampOpacity: .9,
+		subsequentStampOpacity: 0.65,
 		initialStampDensity: {
 			edge: 1.4,
 			fill: 1.6,
 		},
 		subsequentStampDensity: {
 			edge: 1.2,
-			fill: 1,
+			fill: .9,
 		},
 		maxParticles: 40000,
 	};
@@ -1573,7 +1573,9 @@
 			const isWhite = Math.random() < CONFIG.multitextWhiteProb;
 			const particle = createParticle(point.x, point.y, true);
 			particle.magnetId = magnet.id;
-			particle.opacity = CONFIG.multitextOpacity;
+			particle.opacity = isInitialStamp
+				? CONFIG.initialStampOpacity
+				: CONFIG.subsequentStampOpacity;
 			stampParticles.push(particle);
 			spatialGrid.addParticle(particle); // Add to spatial grid
 		});
