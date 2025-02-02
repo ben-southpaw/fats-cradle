@@ -140,6 +140,34 @@
 - Tighter particle clustering on edges (0 random offset)
 - More spread in fill areas (1.8 random offset)
 
+### Multitext Visibility Challenges
+
+### Attempted Approaches
+
+1. Separate MULTITEXT_CONFIG for particle properties
+
+   - Tried using custom config for color, density, and opacity
+   - Didn't resolve visibility issues
+   - Added complexity without clear benefits
+
+2. Direct Particle Creation
+   - Attempted to bypass createParticlesAlongPath
+   - Generated points directly from image data
+   - Led to reference errors and rendering issues
+
+### Key Learnings
+
+- Keep particle generation consistent across all types (cursor, stamp, multitext)
+- Avoid introducing separate configuration objects unless absolutely necessary
+- Stick with the existing particle generation pipeline
+- Test changes incrementally rather than large refactors
+
+### Next Steps to Consider
+
+- Focus on adjusting existing particle properties rather than creating new systems
+- Look into the particle rendering pipeline for visibility improvements
+- Consider tweaking opacity and density in the current system
+
 ### Magnet Animation
 
 - Magnet rotation is velocity-based during drag
@@ -187,6 +215,22 @@
 - Wait for component mount before accessing bound elements
 
 - Clean up any event listeners or timeouts in onDestroy
+
+## WebGL Setup and Debugging
+
+1. When using WebGL with Svelte, ensure all helper functions (createShader, createProgram, etc.) are defined before they're used in the setup function
+2. Always add the `?url` suffix to image imports when they'll be used as textures
+3. WebGL context creation should be wrapped in try-catch blocks to handle potential failures gracefully
+4. Use a debug logging system to track WebGL initialization steps and catch issues early
+5. When falling back from WebGL2 to WebGL1, maintain consistent context attributes
+
+## Multitext Particle System
+
+1. Multitext particles require specific configuration separate from regular particles
+2. Image dimensions should fall back to the source image dimensions if not explicitly set
+3. When handling multiple particle types (multitext vs regular), always check the particle type before applying configurations
+4. Edge detection for particle placement should consider both the particle type and the image data
+5. Maintain separate density and offset configurations for edge vs fill particles
 
 ## Particle System Requirements
 

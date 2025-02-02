@@ -35,6 +35,8 @@
 		preDrawnParticleSize: 1,
 		preDrawnDensity: 0.9,
 		preDrawnColor: '#333333',
+		multitextDensity: 4.0, // Higher density just for multitext
+		multitextOpacity: 1, // Higher opacity just for multitext
 		cursorWhiteParticleProbability: 0.35,
 		stampWhiteParticleProbability: 0.2,
 		targetFPS: 60,
@@ -60,19 +62,23 @@
 	let isIdle = false;
 
 	// Pre-computed pattern tables for particle optimization
-	const OFFSET_PATTERNS = new Float32Array(16);  // Pre-computed offsets
-	const WHITE_PATTERN = new Uint8Array(10);      // Pre-computed white particle positions
+	const OFFSET_PATTERNS = new Float32Array(16); // Pre-computed offsets
+	const WHITE_PATTERN = new Uint8Array(10); // Pre-computed white particle positions
 
 	// Initialize pattern tables
 	function initializePatterns() {
 		// Create a small set of offset patterns that look natural
 		for (let i = 0; i < OFFSET_PATTERNS.length; i++) {
-			OFFSET_PATTERNS[i] = (i / OFFSET_PATTERNS.length - 0.5) * CONFIG.lineWidth;
+			OFFSET_PATTERNS[i] =
+				(i / OFFSET_PATTERNS.length - 0.5) * CONFIG.lineWidth;
 		}
-		
+
 		// Pre-compute white particle positions based on probability
 		for (let i = 0; i < WHITE_PATTERN.length; i++) {
-			WHITE_PATTERN[i] = i < (WHITE_PATTERN.length * CONFIG.cursorWhiteParticleProbability) ? 1 : 0;
+			WHITE_PATTERN[i] =
+				i < WHITE_PATTERN.length * CONFIG.cursorWhiteParticleProbability
+					? 1
+					: 0;
 		}
 	}
 
@@ -1172,7 +1178,13 @@
 	};
 
 	// Shared particle creation function
-	function createParticle(x, y, isStamp = false, isPredrawn = false, isWhite = null) {
+	function createParticle(
+		x,
+		y,
+		isStamp = false,
+		isPredrawn = false,
+		isWhite = null
+	) {
 		let finalX = x;
 		let finalY = y;
 
@@ -1183,7 +1195,11 @@
 
 		// For stamps, use stamp probability instead of cursor probability
 		if (isWhite === null) {
-			isWhite = Math.random() < (isStamp ? CONFIG.stampWhiteParticleProbability : CONFIG.cursorWhiteParticleProbability);
+			isWhite =
+				Math.random() <
+				(isStamp
+					? CONFIG.stampWhiteParticleProbability
+					: CONFIG.cursorWhiteParticleProbability);
 		}
 
 		const baseColor = isWhite ? '#FFFFFF' : CONFIG.particleColor;
@@ -1228,14 +1244,17 @@
 			// Use pattern table instead of random
 			const patternIndex = (i + Math.floor(x + y)) % OFFSET_PATTERNS.length;
 			const offset = OFFSET_PATTERNS[patternIndex];
-			
+
 			const perpX = Math.cos(angle) * offset;
 			const perpY = Math.sin(angle) * offset;
 
 			// Use white pattern table for color determination
-			const isWhite = WHITE_PATTERN[(i + Math.floor(x + y)) % WHITE_PATTERN.length] === 1;
+			const isWhite =
+				WHITE_PATTERN[(i + Math.floor(x + y)) % WHITE_PATTERN.length] === 1;
 
-			particles.push(createParticle(x + perpX, y + perpY, false, false, isWhite));
+			particles.push(
+				createParticle(x + perpX, y + perpY, false, false, isWhite)
+			);
 		}
 	}
 
@@ -1512,9 +1531,15 @@
 						bottomAlpha <= alphaThreshold;
 
 					const newX =
-						magnet.x - (magnet?.width || magnet.img.width) / 2 + (x - offsetX) + multiTextOffsetX;
+						magnet.x -
+						(magnet?.width || magnet.img.width) / 2 +
+						(x - offsetX) +
+						multiTextOffsetX;
 					const newY =
-						magnet.y - (magnet?.height || magnet.img.height) / 2 + (y - offsetY) + multiTextOffsetY;
+						magnet.y -
+						(magnet?.height || magnet.img.height) / 2 +
+						(y - offsetY) +
+						multiTextOffsetY;
 
 					if (isEdge) {
 						for (let i = 0; i < particleDensity.edge; i++) {
@@ -1910,8 +1935,8 @@
 
 			// For predrawn elements, we want consistent density
 			const particleDensity = {
-				edge: CONFIG.initialStampDensity.edge,
-				fill: CONFIG.initialStampDensity.fill,
+				edge: CONFIG.multitextDensity, // Use multitext-specific density
+				fill: CONFIG.multitextDensity, // Same density for both edge and fill
 			};
 
 			const particleSize = {
@@ -2003,7 +2028,7 @@
 			points.forEach((point) => {
 				const particle = createParticle(point.x, point.y, true);
 				particle.magnetId = magnet.id;
-				particle.opacity = CONFIG.initialStampOpacity;
+				particle.opacity = CONFIG.multitextOpacity;
 				preDrawnParticles.push(particle);
 				spatialGrid.addParticle(particle); // Add to spatial grid
 			});
@@ -2456,7 +2481,8 @@
 		z-index: 9999;
 		width: 32px;
 		height: 32px;
-		transform-origin: center	}
+		transform-origin: center;
+	}
 
 	.cursor img {
 		width: 100%;
