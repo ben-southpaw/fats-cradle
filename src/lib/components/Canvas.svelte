@@ -24,7 +24,7 @@
 	let lastRenderTime = 0;
 	const CONFIG = {
 		particleSize: 0.2,
-		particleDensity: 10,
+		particleDensity: 12,
 		lineWidth: 6,
 		backgroundColor: '#e8e8e8',
 		gridColor: '#DADADA',
@@ -35,7 +35,7 @@
 		preDrawnParticleSize: 1,
 		preDrawnDensity: 0.9,
 		preDrawnColor: '#333333',
-		cursorWhiteParticleProbability: 0.4,
+		cursorWhiteParticleProbability: 0.35,
 		stampWhiteParticleProbability: 0.2,
 		targetFPS: 60,
 		idleFPS: 30, // Lower FPS when not interacting
@@ -58,6 +58,23 @@
 	let lastParticleUpdate = 0;
 	let lastInteractionTime = performance.now();
 	let isIdle = false;
+
+	// Pre-computed pattern tables for particle optimization
+	const OFFSET_PATTERNS = new Float32Array(16);  // Pre-computed offsets
+	const WHITE_PATTERN = new Uint8Array(10);      // Pre-computed white particle positions
+
+	// Initialize pattern tables
+	function initializePatterns() {
+		// Create a small set of offset patterns that look natural
+		for (let i = 0; i < OFFSET_PATTERNS.length; i++) {
+			OFFSET_PATTERNS[i] = (i / OFFSET_PATTERNS.length - 0.5) * CONFIG.lineWidth;
+		}
+		
+		// Pre-compute white particle positions based on probability
+		for (let i = 0; i < WHITE_PATTERN.length; i++) {
+			WHITE_PATTERN[i] = i < (WHITE_PATTERN.length * CONFIG.cursorWhiteParticleProbability) ? 1 : 0;
+		}
+	}
 
 	// Deterministic patterns for particle properties
 	const PARTICLE_PATTERNS = {
@@ -232,6 +249,9 @@
 	// Initialize the canvas and set up event listeners
 	onMount(() => {
 		if (!canvas) return;
+
+		// Initialize pattern tables
+		initializePatterns();
 
 		// Set canvas dimensions
 		canvas.width = window.innerWidth;
@@ -1152,21 +1172,20 @@
 	};
 
 	// Shared particle creation function
-	function createParticle(x, y, isStamp = false, isPredrawn = false) {
+	function createParticle(x, y, isStamp = false, isPredrawn = false, isWhite = null) {
 		let finalX = x;
 		let finalY = y;
 
-		// Add slight randomness to position
 		if (Math.random() < 0.8) {
 			finalX += (Math.random() - 0.5) * 1.5;
 			finalY += (Math.random() - 0.5) * 1.5;
 		}
 
-		const isWhite =
-			Math.random() <
-			(isStamp
-				? CONFIG.stampWhiteParticleProbability
-				: CONFIG.cursorWhiteParticleProbability);
+		// For stamps, use stamp probability instead of cursor probability
+		if (isWhite === null) {
+			isWhite = Math.random() < (isStamp ? CONFIG.stampWhiteParticleProbability : CONFIG.cursorWhiteParticleProbability);
+		}
+
 		const baseColor = isWhite ? '#FFFFFF' : CONFIG.particleColor;
 		// For stamps, make white particles slightly darker
 		const color = isStamp && isWhite ? '#CCCCCC' : baseColor;
@@ -1175,7 +1194,7 @@
 			x: finalX,
 			y: finalY,
 			angle: Math.random() * Math.PI * 2,
-			length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
+			length: CONFIG.particleLength,
 			width: CONFIG.particleWidth,
 			isStampParticle: isStamp,
 			isPredrawn,
@@ -1203,15 +1222,20 @@
 			const x = x1 + (x2 - x1) * ratio;
 			const y = y1 + (y2 - y1) * ratio;
 
-			// Calculate particle angle (perpendicular to drawing direction)
+			// Calculate angle (perpendicular to drawing direction)
 			const angle = Math.atan2(y2 - y1, x2 - x1) + Math.PI / 2;
 
-			// Random offset perpendicular to drawing direction
-			const offset = (Math.random() - 0.5) * CONFIG.lineWidth;
+			// Use pattern table instead of random
+			const patternIndex = (i + Math.floor(x + y)) % OFFSET_PATTERNS.length;
+			const offset = OFFSET_PATTERNS[patternIndex];
+			
 			const perpX = Math.cos(angle) * offset;
 			const perpY = Math.sin(angle) * offset;
 
-			particles.push(createParticle(x + perpX, y + perpY));
+			// Use white pattern table for color determination
+			const isWhite = WHITE_PATTERN[(i + Math.floor(x + y)) % WHITE_PATTERN.length] === 1;
+
+			particles.push(createParticle(x + perpX, y + perpY, false, false, isWhite));
 		}
 	}
 
@@ -2432,8 +2456,7 @@
 		z-index: 9999;
 		width: 32px;
 		height: 32px;
-		transform-origin: center;
-	}
+		transform-origin: center	}
 
 	.cursor img {
 		width: 100%;

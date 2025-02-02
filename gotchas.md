@@ -121,6 +121,25 @@
 - Check for magnet.img.complete before processing
 - Set width/height on magnet object if not already set
 
+### Multitext Configuration
+
+- Multitext elements use custom configuration separate from regular stamps
+- Key configuration areas:
+  - Particle density (edge and fill rates)
+  - Random offset controls for particle placement
+  - Proximity threshold for particle spacing
+  - Custom positioning with percentage-based offsets
+  - Appearance settings for colors and opacity
+
+### Multitext Appearance
+
+- Uses darker base color (#1a1a1a) for better contrast
+- Reduced white particle probability (15%) for cleaner look
+- Higher opacity values for both initial and subsequent stamps
+- Custom white particle color (#e6e6e6) for subtle variation
+- Tighter particle clustering on edges (0 random offset)
+- More spread in fill areas (1.8 random offset)
+
 ### Magnet Animation
 
 - Magnet rotation is velocity-based during drag
@@ -131,6 +150,21 @@
   - Consider implementing a "settle" state to prevent micro-movements
 - Rotation should be clamped during movement and zeroed on drop
 - Multiple concurrent GSAP animations may cause interference
+
+### Rendering Optimizations
+
+- Static particles (predrawn and stamps) are only re-rendered when their count changes
+- Uses a safety check comparing current vs last static particle count
+- Dynamic particles are still rendered every frame
+- Self-healing: will re-render static particles if they change unexpectedly
+
+### Custom Cursor
+
+- Custom cursor starts invisible and fades in on first mousemove
+- Uses CSS transitions for smooth opacity animation (0.35s ease)
+- Cursor visibility state is tracked separately from opacity
+- Maintains all existing cursor positioning and behavior
+- Initial opacity is 0 to prevent flash on page load
 
 ### Event Listeners
 
@@ -153,3 +187,39 @@
 - Wait for component mount before accessing bound elements
 
 - Clean up any event listeners or timeouts in onDestroy
+
+## Particle System Requirements
+
+- Particle randomization vs deterministic patterns:
+  - While randomization isn't strictly essential (earlier versions worked without it)
+  - Attempted optimization using golden ratio and coordinate-based patterns failed
+  - Key learnings:
+    - Simple coordinate-based patterns create visible artifacts
+    - Complex mathematical patterns (golden ratio) didn't improve visuals
+    - Mouse movement alone isn't enough to create natural-looking variation
+  - Future optimization attempts should:
+    - Reference earlier working deterministic version
+    - Avoid overly complex mathematical patterns
+    - Test visual quality with different cursor movement speeds
+    - Consider hybrid approach (some random, some deterministic)
+
+### Critical Dependencies
+
+- Multitext config must be maintained for proper text rendering
+- Cursor transition system relies on specific particle behaviors
+- White particle distribution affects overall visual quality
+- Random particle generation is essential for natural appearance
+
+### Known Issues
+
+- Attempts to optimize with deterministic patterns can work but need careful implementation
+- Performance optimizations must preserve existing functionality
+- Changes to particle generation require careful testing of all dependent systems
+
+### Recovery Steps
+
+1. Revert to last known working state if particle system is broken
+2. Reinstate multitext config first
+3. Restore cursor transition system
+4. Only then attempt performance optimizations
+5. Test all dependent systems after any changes
