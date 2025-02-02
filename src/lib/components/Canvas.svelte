@@ -35,8 +35,9 @@
 		preDrawnParticleSize: 1,
 		preDrawnDensity: 0.9,
 		preDrawnColor: '#333333',
-		multitextDensity: 4.0, // Higher density just for multitext
+		multitextDensity: 9.0, // Higher density just for multitext
 		multitextOpacity: 1, // Higher opacity just for multitext
+		multitextWhiteProb: 0, // Lower white probability for better visibility
 		cursorWhiteParticleProbability: 0.35,
 		stampWhiteParticleProbability: 0.2,
 		targetFPS: 60,
@@ -1569,11 +1570,10 @@
 		}
 
 		points.forEach((point) => {
+			const isWhite = Math.random() < CONFIG.multitextWhiteProb;
 			const particle = createParticle(point.x, point.y, true);
 			particle.magnetId = magnet.id;
-			particle.opacity = isInitialStamp
-				? CONFIG.initialStampOpacity
-				: CONFIG.subsequentStampOpacity;
+			particle.opacity = CONFIG.multitextOpacity;
 			stampParticles.push(particle);
 			spatialGrid.addParticle(particle); // Add to spatial grid
 		});
@@ -1869,20 +1869,20 @@
 				const dy = end.y - start.y;
 				const angle = Math.atan2(dy, dx);
 
-				// Create particle with deterministic properties
-				const particle = {
-					x: x + props.offset.x,
-					y: y + props.offset.y,
-					length: opts.particleSize * props.size,
-					width: CONFIG.particleWidth,
-					angle: angle,
-					opacity: props.opacity,
-					isWhite:
-						Math.floor(particleIndex * 1.618033988749895) % 100 <
-						CONFIG.cursorWhiteParticleProbability * 100,
-				};
+				// Use pattern table instead of random
+				const patternIndex = (j + Math.floor(x + y)) % OFFSET_PATTERNS.length;
+				const offset = OFFSET_PATTERNS[patternIndex];
 
-				particles.push(particle);
+				const perpX = Math.cos(angle) * offset;
+				const perpY = Math.sin(angle) * offset;
+
+				// Use white pattern table for color determination
+				const isWhite =
+					WHITE_PATTERN[(j + Math.floor(x + y)) % WHITE_PATTERN.length] === 1;
+
+				particles.push(
+					createParticle(x + perpX, y + perpY, false, false, isWhite)
+				);
 			}
 		}
 	}
@@ -2026,7 +2026,8 @@
 			}
 
 			points.forEach((point) => {
-				const particle = createParticle(point.x, point.y, true);
+				const isWhite = Math.random() < CONFIG.multitextWhiteProb;
+				const particle = createParticle(point.x, point.y, true, true, isWhite);
 				particle.magnetId = magnet.id;
 				particle.opacity = CONFIG.multitextOpacity;
 				preDrawnParticles.push(particle);
