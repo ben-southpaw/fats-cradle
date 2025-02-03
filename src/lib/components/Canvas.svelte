@@ -138,7 +138,10 @@
 
 	let cursorElement;
 	let m = { x: 0, y: 0 };
-	let cursorOpacity = 1;
+	let cursorOpacity = 0; // Start invisible
+	let cursorImage;
+	let cursorHoverImage;
+	let cursorClickImage;
 
 	let lastMouseX = 0;
 	let lastMouseY = 0;
@@ -2304,11 +2307,25 @@
 	}
 
 	function handleCanvasMouseEnter() {
-		cursorOpacity = 1;
+		gsap.to({ value: cursorOpacity }, {
+			value: 1,
+			duration: 0.3,
+			ease: 'power2.out',
+			onUpdate: function() {
+				cursorOpacity = this.targets()[0].value;
+			}
+		});
 	}
 
 	function handleCanvasMouseLeave() {
-		cursorOpacity = 0;
+		gsap.to({ value: cursorOpacity }, {
+			value: 0,
+			duration: 0.3,
+			ease: 'power2.out',
+			onUpdate: function() {
+				cursorOpacity = this.targets()[0].value;
+			}
+		});
 	}
 
 	let threeSceneComponent;
