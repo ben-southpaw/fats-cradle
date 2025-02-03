@@ -2424,6 +2424,19 @@
 		on:transitionstart={handleTransitionStart}
 		on:snapbackstart={handleSnapBackStart}
 		on:transitioncomplete={handleTransitionComplete}
+		on:wipe={({ detail: { progress } }) => {
+			// Clear particles based on wipe progress
+			const canvasWidth = canvas.width;
+			const clearX = (1 - progress) * canvasWidth; // Invert progress for left-to-right clearing
+			
+			// Keep particles to the right of clearX
+			particles = particles.filter(p => p.x > clearX);
+			stampParticles = stampParticles.filter(p => p.x > clearX);
+			preDrawnParticles = preDrawnParticles.filter(p => p.x > clearX);
+			
+			// Force a render to update the canvas
+			renderAll();
+		}}
 	/>
 	{#if showScrollToExplore || isScrollAnimating}
 		<div class="scroll-to-explore">

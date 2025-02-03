@@ -117,11 +117,12 @@
 		},
 		animation: {
 			duration: 2.0, // Slightly faster main animation
-			delay: 0.2, // Shorter initial delay
+			delay: 0.5, // Shorter initial delay
+			wipeDelay: 2.0, // 2 second delay before wipe
 			sliderDelay: 0.4, // Start slider movement sooner
 			sliderDuration: 1.6, // Faster slider movement
 			snapBackDelay: 0, // Immediate snap back
-			snapBackDuration: 0.2, // Quick snap back
+			snapBackDuration: 0.3, // Quick snap back
 		},
 	};
 
@@ -186,7 +187,8 @@
 
 	// Calculate normalized progress (0 to 1) based on slider position
 	function calculateWipeProgress(x) {
-		return (x - sliderMinX) / (sliderMaxX - sliderMinX);
+		// Invert the progress since we want to clear from left to right
+		return 1 - ((x - sliderMinX) / (sliderMaxX - sliderMinX));
 	}
 
 	export function startTransition() {
@@ -249,36 +251,20 @@
 
 		// Add slider animation
 		if (sliderMesh) {
-			timeline
-				.to(
-					sliderMesh.position,
-					{
-						x: sliderMaxX,
-						duration: CONFIG.animation.duration * 0.8, // Slightly faster than main animation
-						ease: 'power2.inOut',
-						onUpdate: () => {
-							const progress = calculateWipeProgress(sliderMesh.position.x);
-							dispatch('wipe', { progress });
-						},
+			timeline.to(
+				sliderMesh.position,
+				{
+					x: sliderMaxX,
+					duration: CONFIG.animation.duration * 0.8, // Slightly faster than main animation
+					delay: CONFIG.animation.wipeDelay, // Start after wipe delay
+					ease: 'power2.inOut',
+					onUpdate: () => {
+						const progress = calculateWipeProgress(sliderMesh.position.x);
+						dispatch('wipe', { progress });
 					},
-					CONFIG.animation.delay
-				)
-				.to(
-					sliderMesh.position,
-					{
-						x: sliderMinX,
-						duration: CONFIG.animation.snapBackDuration,
-						ease: 'power1.in',
-						onStart: () => {
-							dispatch('snapbackstart');
-						},
-						onUpdate: () => {
-							const progress = calculateWipeProgress(sliderMesh.position.x);
-							dispatch('wipe', { progress });
-						},
-					},
-					'>'
-				);
+				},
+				0 // Start at beginning of timeline
+			);
 		}
 	}
 
@@ -431,7 +417,7 @@
 					sliderInitialPosition = child.position.clone();
 					sliderMinX = -1.47;
 					sliderMaxX = 1.47;
-					sliderMesh.position.x = sliderMinX;
+					sliderMesh.position.x = sliderMinX; // Start from left side
 				}
 			});
 
