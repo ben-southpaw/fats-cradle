@@ -218,6 +218,8 @@
 			delay: CONFIG.animation.delay,
 			onComplete: () => {
 				isTransitioning = false;
+				// Remove wheel listener after transition
+				window.removeEventListener('wheel', handleWheel);
 			},
 		});
 

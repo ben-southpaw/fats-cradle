@@ -2103,6 +2103,13 @@
 		m.x = event.clientX;
 		m.y = event.clientY;
 
+		// Stop magnet interactions if transitioning
+		if (isTransitioning) {
+			isHoveringMagnet = false;
+			hoveredMagnet = null;
+			return;
+		}
+
 		// Check if hovering over any magnet
 		if (canvas) {
 			const rect = canvas.getBoundingClientRect();
@@ -2139,6 +2146,8 @@
 		}
 		isClicking = true;
 
+		if (isTransitioning) return;
+
 		if (isHoveringMagnet && hoveredMagnet) {
 			// Start magnet drag
 			isDraggingMagnet = true;
@@ -2162,6 +2171,8 @@
 
 	function handleMouseup(e) {
 		isClicking = false;
+
+		if (isTransitioning) return;
 
 		if (isDraggingMagnet && selectedMagnet) {
 			const droppedMagnet = selectedMagnet;

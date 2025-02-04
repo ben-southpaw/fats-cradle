@@ -267,3 +267,28 @@
 3. Restore cursor transition system
 4. Only then attempt performance optimizations
 5. Test all dependent systems after any changes
+
+## Iframe Embedding
+
+### Security Headers
+
+- Site requires specific headers in `hooks.server.js` for iframe embedding:
+  - X-Frame-Options: ALLOW-FROM \*
+  - Content-Security-Policy with frame-ancestors
+  - Cross-Origin-Resource-Policy for resource sharing
+  - Access-Control-Allow-Origin for CORS
+
+### Content Security Policy
+
+- CSP needs to allow:
+  - Inline scripts and eval for Three.js functionality
+  - Inline styles for dynamic styling
+  - Data URIs and blobs for image handling
+  - Same-origin connections for API calls
+
+### Responsive Considerations
+
+- Canvas and Three.js scene use viewport units (100vh)
+- Touch events work within iframe context
+- Mouse position calculations remain accurate in iframe
+- Scroll-to-explore component may need adjustment if iframe is in scrolling page
