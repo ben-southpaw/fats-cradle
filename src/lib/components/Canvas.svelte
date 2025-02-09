@@ -1231,7 +1231,7 @@
 			const perpY = Math.sin(angle) * offset;
 
 			particles.push(
-				createParticle(x + perpX, y + perpY, false, false)
+				createParticle(x + perpX, y + perpY)
 			);
 		}
 	}
@@ -1249,9 +1249,13 @@
 		const offsetXPx = CURSOR_OFFSET_X * remToPx;
 		const offsetYPx = CURSOR_OFFSET_Y * remToPx;
 
+		const y = e.clientY - rect.top + offsetYPx;
+		// Clamp Y to 0 if we're within 5 pixels of the top
+		const clampedY = y < 5 ? 0 : y;
+
 		return {
 			x: e.clientX - rect.left + offsetXPx,
-			y: e.clientY - rect.top + offsetYPx,
+			y: clampedY
 		};
 	}
 
@@ -1310,12 +1314,17 @@
 
 		if (isDraggingMagnet && selectedMagnet) {
 			const magnet = selectedMagnet;
-			// Keep the magnet exactly where it is
+			// Set initial position from pointer
 			magnet.x = e.clientX + magnet.grabOffsetX;
 			magnet.y = e.clientY + magnet.grabOffsetY;
+			
+			// Check and adjust for canvas bounds
+			const boundedPosition = checkCanvasBounds(magnet);
 
 			gsap.killTweensOf(magnet);
 			gsap.to(magnet, {
+				x: boundedPosition.x,
+				y: boundedPosition.y,
 				scale: 1,
 				rotation: 0,
 				duration: 0.3,
@@ -2068,7 +2077,6 @@
 			isIdle = false;
 			FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
 		}
-
 		m.x = event.clientX;
 		m.y = event.clientY;
 
@@ -2079,45 +2087,13 @@
 			return;
 		}
 
-		// Check if cursor should be visible
-		const rect = canvas?.getBoundingClientRect();
-		if (rect) {
-			const isInCanvas = event.clientX >= rect.left && event.clientX <= rect.right && 
-							event.clientY >= rect.top && event.clientY <= rect.bottom;
-
-			if (isInCanvas && cursorOpacity !== 1) {
-				gsap.to({ value: cursorOpacity }, {
-					value: 1,
-					duration: 0.3,
-					ease: 'power2.out',
-					onUpdate: function() {
-						cursorOpacity = this.targets()[0].value;
-					}
-				});
-			} else if (!isInCanvas && cursorOpacity !== 0) {
-				gsap.to({ value: cursorOpacity }, {
-					value: 0,
-					duration: 0.3,
-					ease: 'power2.out',
-					onUpdate: function() {
-						cursorOpacity = this.targets()[0].value;
-					}
-				});
-			}
-		}
-
-		// Update magnet hover state
+		// Check if hovering over any magnet
 		if (canvas) {
-			const pos = getPointerPos(event);
-			const x = pos.x;
-			const y = pos.y;
+			const rect = canvas.getBoundingClientRect();
+			const x = event.clientX - rect.left;
+			const y = event.clientY - rect.top;
 
-			const wasHovering = isHoveringMagnet;
-			isHoveringMagnet = false;
-
-			magnets.forEach((magnet) => {
-				if (magnet.isPickedUp) return;
-
+			isHoveringMagnet = magnets.some((magnet) => {
 				const scale = magnet.scale || 1;
 				const width = magnet.width * scale;
 				const height = magnet.height * scale;
@@ -2128,21 +2104,27 @@
 
 				// Add minimal padding for hover detection
 				const padding = 5;
-				if (
+				return (
 					x >= magnetX - padding &&
 					x <= magnetX + width + padding &&
 					y >= magnetY - padding &&
 					y <= magnetY + height + padding
-				) {
-					isHoveringMagnet = true;
+				);
+			});
+			hoveredMagnet = findClickedMagnet({ x, y });
+		}
+
+		// Only animate if cursor opacity is 0
+		if (cursorOpacity === 0) {
+			const obj = { value: 0 };
+			gsap.to(obj, {
+				value: 1,
+				duration: 0.3,
+				ease: 'power2.out',
+				onUpdate: () => {
+					cursorOpacity = obj.value;
 				}
 			});
-
-			if (wasHovering !== isHoveringMagnet) {
-				scheduleRender();
-			}
-
-			hoveredMagnet = findClickedMagnet({ x, y });
 		}
 	}
 
@@ -2189,56 +2171,28 @@
 			const finalY = e.clientY + droppedMagnet.grabOffsetY;
 			const finalRotation = Math.round(droppedMagnet.rotation / 5) * 5;
 
-			// Check for collisions with other magnets
-			let collidedMagnet = null;
-			for (const other of magnets) {
-				if (other === droppedMagnet) continue;
-				if (
-					checkCollision(
-						{
-							x: finalX,
-							y: finalY,
-							width: droppedMagnet.width,
-							height: droppedMagnet.height,
-						},
-						other
-					)
-				) {
-					collidedMagnet = other;
-					break;
-				}
-			}
-
-			if (collidedMagnet) {
-				// Find free space for the bottom magnet
-				const newPosition = findFreeSpace(collidedMagnet, magnets);
-				if (newPosition) {
-					// Move the bottom magnet with more subtle animation
-					gsap.to(collidedMagnet, {
-						x: newPosition.x,
-						y: newPosition.y,
-						duration: 0.4,
-						ease: 'power2.out',
-						onUpdate: () => scheduleRender(),
-					});
-				}
-			}
+			// Check canvas bounds and get corrected position
+			const boundedPosition = checkCanvasBounds(droppedMagnet);
 
 			gsap.killTweensOf(droppedMagnet);
 			gsap.to(droppedMagnet, {
-				x: finalX,
-				y: finalY,
+				x: boundedPosition.x,
+				y: boundedPosition.y,
+				scale: 1,
 				rotation: finalRotation,
-				scale: 1.0,
-				duration: 0.2,
+				duration: 0.3,
 				ease: 'power2.out',
+				onUpdate: () => scheduleRender(),
 				onComplete: () => {
+					droppedMagnet.isPickedUp = false;
+					// Create stamp after animation completes with final position
 					createMagnetStamp(droppedMagnet);
+					restoreMagnetPosition(droppedMagnet, selectedMagnetIndex);
+					selectedMagnet = null;
+					selectedMagnetIndex = -1;
 					scheduleRender();
 				},
 			});
-
-			selectedMagnet = null;
 		}
 	}
 
@@ -2325,8 +2279,62 @@
 		return null; // No free space found
 	}
 
-	function handleCanvasMouseEnter() {}
-	function handleCanvasMouseLeave() {}
+	function checkCanvasBounds(magnet) {
+		if (!canvas) return { x: magnet.x, y: magnet.y };
+		
+		const scale = magnet.scale || 1;
+		const width = magnet.width * scale;
+		const height = magnet.height * scale;
+		
+		// Add padding to keep magnets fully visible
+		const padding = 10;
+		
+		// Calculate bounds with padding
+		let x = magnet.x;
+		let y = magnet.y;
+		
+		// Left boundary
+		x = Math.max(width/2 + padding, x);
+		// Right boundary
+		x = Math.min(canvas.width - width/2 - padding, x);
+		// Top boundary
+		y = Math.max(height/2 + padding, y);
+		// Bottom boundary
+		y = Math.min(canvas.height - height/2 - padding, y);
+		
+		return { x, y };
+	}
+
+	function handleCanvasMouseEnter(e) {
+		gsap.to({ value: cursorOpacity }, {
+			value: 1,
+			duration: 0.3,
+			ease: 'power2.out',
+			onUpdate: function() {
+				cursorOpacity = this.targets()[0].value;
+			}
+		});
+		shouldDraw = true;
+		// Capture initial point on enter
+		const pos = getPointerPos(e);
+		lastX = pos.x;
+		lastY = pos.y;
+	}
+
+	function handleCanvasMouseLeave() {
+		gsap.to({ value: cursorOpacity }, {
+			value: 0,
+			duration: 0.3,
+			ease: 'power2.out',
+			onUpdate: function() {
+				cursorOpacity = this.targets()[0].value;
+			}
+		});
+		// Reset drawing state when leaving canvas
+		lastX = null;
+		lastY = null;
+		shouldDraw = false;
+	}
 
 	let threeSceneComponent;
 	let scrollToExploreComponent;
