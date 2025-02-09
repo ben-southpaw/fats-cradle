@@ -1231,7 +1231,7 @@
 			const perpY = Math.sin(angle) * offset;
 
 			particles.push(
-				createParticle(x + perpX, y + perpY)
+				createParticle(x + perpX, y + perpY, false, false)
 			);
 		}
 	}
@@ -1855,7 +1855,7 @@
 				const perpY = Math.sin(angle) * offset;
 
 				particles.push(
-					createParticle(x + perpX, y + perpY, false, false)
+					createParticle(x + perpX, y + perpY)
 				);
 			}
 		}
@@ -2068,6 +2068,7 @@
 			isIdle = false;
 			FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
 		}
+
 		m.x = event.clientX;
 		m.y = event.clientY;
 
@@ -2078,13 +2079,45 @@
 			return;
 		}
 
-		// Check if hovering over any magnet
-		if (canvas) {
-			const rect = canvas.getBoundingClientRect();
-			const x = event.clientX - rect.left;
-			const y = event.clientY - rect.top;
+		// Check if cursor should be visible
+		const rect = canvas?.getBoundingClientRect();
+		if (rect) {
+			const isInCanvas = event.clientX >= rect.left && event.clientX <= rect.right && 
+							event.clientY >= rect.top && event.clientY <= rect.bottom;
 
-			isHoveringMagnet = magnets.some((magnet) => {
+			if (isInCanvas && cursorOpacity !== 1) {
+				gsap.to({ value: cursorOpacity }, {
+					value: 1,
+					duration: 0.3,
+					ease: 'power2.out',
+					onUpdate: function() {
+						cursorOpacity = this.targets()[0].value;
+					}
+				});
+			} else if (!isInCanvas && cursorOpacity !== 0) {
+				gsap.to({ value: cursorOpacity }, {
+					value: 0,
+					duration: 0.3,
+					ease: 'power2.out',
+					onUpdate: function() {
+						cursorOpacity = this.targets()[0].value;
+					}
+				});
+			}
+		}
+
+		// Update magnet hover state
+		if (canvas) {
+			const pos = getPointerPos(event);
+			const x = pos.x;
+			const y = pos.y;
+
+			const wasHovering = isHoveringMagnet;
+			isHoveringMagnet = false;
+
+			magnets.forEach((magnet) => {
+				if (magnet.isPickedUp) return;
+
 				const scale = magnet.scale || 1;
 				const width = magnet.width * scale;
 				const height = magnet.height * scale;
@@ -2095,13 +2128,20 @@
 
 				// Add minimal padding for hover detection
 				const padding = 5;
-				return (
+				if (
 					x >= magnetX - padding &&
 					x <= magnetX + width + padding &&
 					y >= magnetY - padding &&
 					y <= magnetY + height + padding
-				);
+				) {
+					isHoveringMagnet = true;
+				}
 			});
+
+			if (wasHovering !== isHoveringMagnet) {
+				scheduleRender();
+			}
+
 			hoveredMagnet = findClickedMagnet({ x, y });
 		}
 	}
@@ -2285,27 +2325,8 @@
 		return null; // No free space found
 	}
 
-	function handleCanvasMouseEnter() {
-		gsap.to({ value: cursorOpacity }, {
-			value: 1,
-			duration: 0.3,
-			ease: 'power2.out',
-			onUpdate: function() {
-				cursorOpacity = this.targets()[0].value;
-			}
-		});
-	}
-
-	function handleCanvasMouseLeave() {
-		gsap.to({ value: cursorOpacity }, {
-			value: 0,
-			duration: 0.3,
-			ease: 'power2.out',
-			onUpdate: function() {
-				cursorOpacity = this.targets()[0].value;
-			}
-		});
-	}
+	function handleCanvasMouseEnter() {}
+	function handleCanvasMouseLeave() {}
 
 	let threeSceneComponent;
 	let scrollToExploreComponent;

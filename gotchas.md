@@ -268,6 +268,56 @@
 4. Only then attempt performance optimizations
 5. Test all dependent systems after any changes
 
+## Slider and Wipe Animation
+
+#### Screen Space vs World Space
+
+- Screen space coordinates work better than world space for slider interaction
+- Project slider bounds to screen space for accurate mouse position mapping
+- Convert back to world space for actual slider movement
+- This prevents perspective distortion affecting slider response
+
+#### Drag Interaction
+
+- Store initial click offset from slider center
+- Maintain this offset throughout the drag
+- Allows dragging from any part of the knob (left, center, right)
+- Formula: `dragOffset = event.clientX - sliderScreenX`
+- Apply offset during movement: `adjustedX = event.clientX - dragOffset`
+
+#### Wipe Animation
+
+- Wipe progress is inversely proportional to slider position
+- Formula: `1 - (x - sliderMinX) / (sliderMaxX - sliderMinX)`
+- Dispatch progress updates:
+  - Immediately during drag
+  - On animation update during scroll
+  - Ensures smooth canvas wipe effect
+
+#### Scroll Behavior
+
+- Use GSAP for smooth scroll animation
+- Longer duration (0.5s) with power3.out easing
+- Debounce scroll updates (16ms) to prevent rapid-fire
+- Keep scroll sensitivity low (0.0005) for fine control
+- Clean up animations and timeouts on component destroy
+
+#### Slider Bounds
+
+- Hardcoded bounds: `sliderMinX = -1.47, sliderMaxX = 1.47`
+- Project these to screen space for accurate interaction
+- Clamp all movements within these bounds
+- Consider model scale when calculating bounds
+
+#### Key Learnings
+
+1. Screen space coordinates provide more intuitive interaction
+2. Maintain drag offset for natural knob movement
+3. Separate immediate (drag) and animated (scroll) updates
+4. Clean up all animations and timeouts
+5. Use appropriate easing for smooth movement
+6. Dispatch progress updates consistently for smooth wipe effect
+
 ## Iframe Embedding
 
 ### Security Headers
