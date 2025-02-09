@@ -46,7 +46,7 @@
 		idleTimeout: 1000,
 		hexagonLineWidth: 0.3,
 		initialStampOpacity: .99,
-		subsequentStampOpacity: 0.65,
+		subsequentStampOpacity: 0.75,
 		initialStampDensity: {
 			edge: 1.4,
 			fill: 1.6,
