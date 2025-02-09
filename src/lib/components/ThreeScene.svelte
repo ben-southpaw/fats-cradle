@@ -1,5 +1,5 @@
 <script>
-	import { onMount, createEventDispatcher } from 'svelte';
+	import { onMount, createEventDispatcher, onDestroy } from 'svelte';
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 	import gsap from 'gsap';
@@ -22,6 +22,7 @@
 	let animationFrameId;
 	let canvasTexture;
 	let meshAspect; // Store mesh aspect ratio at module level
+	let knobWidth = 0;
 
 	function updateCanvasTexture() {
 		if (!canvas) return;
@@ -112,7 +113,7 @@
 					color: 0xffffff,
 					intensity: 1.0, // Additional fill light
 					position: { x: -3, y: 2, z: 3 }, // Left front middle
-				}
+				},
 			],
 		},
 		animation: {
@@ -127,7 +128,172 @@
 	};
 
 	let isTransitioning = false;
+	let isFirstTransitionComplete = false;
+	let totalScrollAmount = 0;
+	let currentSliderPosition = 0;
+	const SCROLL_SENSITIVITY = 0.0005; // Reduced sensitivity
+	let isDragging = false;
+	let dragOffset = 0;
+	let scrollAnimation;
+	let scrollTimeout;
 	const dispatch = createEventDispatcher();
+
+	// Function to calculate effective track length accounting for knob width
+	function getEffectiveTrackLength() {
+		return sliderMaxX - sliderMinX - knobWidth;
+	}
+
+	// Function to convert world position to normalized position (0-1)
+	function worldToNormalizedPosition(worldX) {
+		const effectiveMin = sliderMinX + (knobWidth / 2);
+		const effectiveMax = sliderMaxX - (knobWidth / 2);
+		return (worldX - effectiveMin) / (effectiveMax - effectiveMin);
+	}
+
+	// Function to convert normalized position (0-1) to world position
+	function normalizedToWorldPosition(normalized) {
+		const effectiveMin = sliderMinX + (knobWidth / 2);
+		const effectiveMax = sliderMaxX - (knobWidth / 2);
+		return effectiveMin + (normalized * (effectiveMax - effectiveMin));
+	}
+
+	// Reactive statement to update slider position whenever currentSliderPosition changes
+	$: if (sliderMesh && isFirstTransitionComplete) {
+		const newX = sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
+		sliderMesh.position.x = newX;
+	}
+
+	function updateSliderPosition(x, immediate = false) {
+		if (!sliderMesh) return;
+		
+		// Clamp to bounds
+		const newX = Math.max(sliderMinX, Math.min(sliderMaxX, x));
+		
+		if (immediate) {
+			// Direct update for dragging
+			sliderMesh.position.x = newX;
+			// Immediately update wipe effect for dragging
+			const progress = calculateWipeProgress(newX);
+			dispatch('wipe', { progress });
+		} else {
+			// Animated update for scrolling
+			if (scrollAnimation) scrollAnimation.kill();
+			
+			scrollAnimation = gsap.to(sliderMesh.position, {
+				x: newX,
+				duration: 0.5, // Longer duration
+				ease: "power3.out", // Smoother easing
+				onUpdate: () => {
+					// Calculate and dispatch progress during animation
+					const progress = calculateWipeProgress(sliderMesh.position.x);
+					dispatch('wipe', { progress });
+				}
+			});
+		}
+
+		// Calculate normalized position
+		currentSliderPosition = (newX - sliderMinX) / (sliderMaxX - sliderMinX);
+		totalScrollAmount = currentSliderPosition;
+
+		// Check if we've reached the end
+		if (currentSliderPosition >= 1) {
+			console.log('end of animations');
+			window.removeEventListener('wheel', handlePostTransitionScroll);
+		}
+	}
+
+	function calculateWipeProgress(x) {
+		// Invert the progress since we want to clear from left to right
+		return 1 - (x - sliderMinX) / (sliderMaxX - sliderMinX);
+	}
+
+	function handleMouseDown(event) {
+		if (!isFirstTransitionComplete || !sliderMesh) return;
+		
+		// Convert mouse coordinates to normalized device coordinates (-1 to +1)
+		mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+		mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+		// Update the picking ray with the camera and mouse position
+		raycaster.setFromCamera(mouse, camera);
+
+		// Calculate objects intersecting the picking ray
+		const intersects = raycaster.intersectObject(sliderMesh, true);
+
+		if (intersects.length > 0) {
+			isDragging = true;
+
+			// Get screen coordinates
+			const rect = container.getBoundingClientRect();
+			
+			// Project current slider position to screen space
+			const sliderPos = new THREE.Vector3(sliderMesh.position.x, sliderMesh.position.y, sliderMesh.position.z);
+			sliderPos.project(camera);
+			const sliderScreenX = (sliderPos.x + 1) * rect.width / 2;
+			
+			// Calculate and store the offset from the cursor to the knob center
+			dragOffset = event.clientX - sliderScreenX;
+		}
+	}
+
+	function handleMouseMove(event) {
+		if (!isDragging || !isFirstTransitionComplete || !sliderMesh) return;
+
+		// Get screen coordinates
+		const rect = container.getBoundingClientRect();
+		
+		// Adjust mouse position by the initial drag offset
+		const adjustedX = event.clientX - dragOffset;
+		const x = adjustedX - rect.left;
+
+		// Project slider bounds to screen space
+		const minPoint = new THREE.Vector3(sliderMinX, sliderMesh.position.y, sliderMesh.position.z);
+		const maxPoint = new THREE.Vector3(sliderMaxX, sliderMesh.position.y, sliderMesh.position.z);
+		
+		// Convert to screen space
+		minPoint.project(camera);
+		maxPoint.project(camera);
+		
+		// Convert to pixel coordinates
+		const minScreenX = (minPoint.x + 1) * rect.width / 2;
+		const maxScreenX = (maxPoint.x + 1) * rect.width / 2;
+		
+		// Calculate position within track bounds
+		const trackScreenWidth = maxScreenX - minScreenX;
+		const mouseOffset = x - minScreenX;
+		const progress = Math.max(0, Math.min(1, mouseOffset / trackScreenWidth));
+
+		// Convert screen position back to world space
+		const worldX = sliderMinX + (sliderMaxX - sliderMinX) * progress;
+		updateSliderPosition(worldX, true); // Use immediate update for dragging
+	}
+
+	function handleMouseUp() {
+		isDragging = false;
+		dragOffset = 0;
+	}
+
+	function handlePostTransitionScroll(event) {
+		if (!isFirstTransitionComplete || !sliderMesh || isDragging) return;
+
+		// Clear any existing timeout
+		if (scrollTimeout) clearTimeout(scrollTimeout);
+
+		// Debounce the scroll updates
+		scrollTimeout = setTimeout(() => {
+			// Accumulate scroll amount and clamp it between 0 and 1
+			currentSliderPosition = Math.max(0, Math.min(1, currentSliderPosition + event.deltaY * SCROLL_SENSITIVITY));
+			totalScrollAmount = currentSliderPosition;
+
+			// Convert to world position and update with animation
+			const worldX = sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
+			updateSliderPosition(worldX, false); // Use animated update for scrolling
+		}, 16); // ~60fps timing
+	}
+
+	// Create a raycaster for slider interaction
+	const raycaster = new THREE.Raycaster();
+	const mouse = new THREE.Vector2();
 
 	// Function to setup clipping planes
 	function setupClippingPlanes() {
@@ -181,95 +347,6 @@
 		}
 	}
 
-	// Create a raycaster for slider interaction
-	const raycaster = new THREE.Raycaster();
-	const mouse = new THREE.Vector2();
-
-	// Calculate normalized progress (0 to 1) based on slider position
-	function calculateWipeProgress(x) {
-		// Invert the progress since we want to clear from left to right
-		return 1 - ((x - sliderMinX) / (sliderMaxX - sliderMinX));
-	}
-
-	export function startTransition() {
-		if (!modelLoaded || !model || isTransitioning) return;
-
-		isTransitioning = true;
-		dispatch('transitionstart');
-
-		// Ensure clipping planes are set up before animation
-		setupClippingPlanes();
-
-		// Start invisible and show after scroll animation + delay
-		isVisible = false;
-		gsap.to(
-			{},
-			{
-				duration: CONFIG.animation.delay + 0.2, // Shorter delay for quicker start
-				onComplete: () => {
-					isVisible = true;
-					dispatch('transitioncomplete');
-				},
-			}
-		);
-
-		// Animation sequence
-		const timeline = gsap.timeline({
-			delay: CONFIG.animation.delay,
-			onComplete: () => {
-				isTransitioning = false;
-				// Remove wheel listener after transition
-				window.removeEventListener('wheel', handleWheel);
-			},
-		});
-
-		// Animate scale down and rotate
-		timeline
-			.to(model.position, {
-				z: CONFIG.model.final.position.z,
-				duration: CONFIG.animation.duration,
-				ease: 'power2.inOut',
-			})
-			.to(
-				model.rotation,
-				{
-					y: CONFIG.model.final.rotation.y,
-					duration: CONFIG.animation.duration,
-					ease: 'power2.inOut',
-				},
-				0
-			)
-			.to(
-				model.scale,
-				{
-					x: CONFIG.model.final.scale.x,
-					y: CONFIG.model.final.scale.y,
-					z: CONFIG.model.final.scale.z,
-					duration: CONFIG.animation.duration,
-					ease: 'power3.inOut',
-				},
-				0
-			);
-
-		// Add slider animation
-		if (sliderMesh) {
-			timeline.to(
-				sliderMesh.position,
-				{
-					x: sliderMaxX,
-					duration: CONFIG.animation.duration * 0.8, // Slightly faster than main animation
-					delay: CONFIG.animation.wipeDelay, // Start after wipe delay
-					ease: 'power2.inOut',
-					onUpdate: () => {
-						const progress = calculateWipeProgress(sliderMesh.position.x);
-						dispatch('wipe', { progress });
-					},
-				},
-				0 // Start at beginning of timeline
-			);
-		}
-	}
-
 	async function initThreeJS() {
 		scene = new THREE.Scene();
 
@@ -294,9 +371,13 @@
 		scene.add(directionalLight);
 
 		// Add point lights for better coverage
-		CONFIG.lighting.pointLights.forEach(light => {
+		CONFIG.lighting.pointLights.forEach((light) => {
 			const pointLight = new THREE.PointLight(light.color, light.intensity);
-			pointLight.position.set(light.position.x, light.position.y, light.position.z);
+			pointLight.position.set(
+				light.position.x,
+				light.position.y,
+				light.position.z
+			);
 			scene.add(pointLight);
 		});
 
@@ -332,7 +413,7 @@
 
 	async function loadModel() {
 		const loader = new GLTFLoader();
-		loader.resourcePath = '/models/';  // Set resource path for textures and other assets
+		loader.resourcePath = '/models/'; // Set resource path for textures and other assets
 		try {
 			const gltf = await loader.loadAsync(CONFIG.model.path);
 			model = gltf.scene;
@@ -345,25 +426,31 @@
 						if (child.material.normalMap && !child.material.normalMap.image) {
 							child.material.normalMap = null;
 						}
-						if (child.material.roughnessMap && !child.material.roughnessMap.image) {
+						if (
+							child.material.roughnessMap &&
+							!child.material.roughnessMap.image
+						) {
 							child.material.roughnessMap = null;
 						}
-						if (child.material.metalnessMap && !child.material.metalnessMap.image) {
+						if (
+							child.material.metalnessMap &&
+							!child.material.metalnessMap.image
+						) {
 							child.material.metalnessMap = null;
 						}
 
 						// Special handling for the white text
 						if (child.name === 'Curve003_1') {
-							child.material.roughness = 0.2;  // Very smooth for more reflection
-							child.material.metalness = 0.1;  // Minimal metalness for cleaner white
-							child.material.emissive = new THREE.Color(0xffffff);  // Add white glow
-							child.material.emissiveIntensity = 0.2;  // Subtle glow
+							child.material.roughness = 0.2; // Very smooth for more reflection
+							child.material.metalness = 0.1; // Minimal metalness for cleaner white
+							child.material.emissive = new THREE.Color(0xffffff); // Add white glow
+							child.material.emissiveIntensity = 0.2; // Subtle glow
 						} else {
 							// Default material properties for other meshes
 							child.material.roughness = 0.4;
 							child.material.metalness = 0.2;
 						}
-						
+
 						child.castShadow = true;
 						child.receiveShadow = true;
 					}
@@ -372,7 +459,7 @@
 
 			// Add a specific light for the logo text
 			const logoLight = new THREE.PointLight(0xffffff, 0.8);
-			logoLight.position.set(3, 4, 1);  // Moved further top-right (x: right, y: up, z: forward)
+			logoLight.position.set(3, 4, 1); // Moved further top-right (x: right, y: up, z: forward)
 			model.add(logoLight);
 
 			// Find screen and slider meshes
@@ -420,6 +507,10 @@
 					sliderMinX = -1.47;
 					sliderMaxX = 1.47;
 					sliderMesh.position.x = sliderMinX; // Start from left side
+
+					// Calculate knob width using bounding box
+					const bbox = new THREE.Box3().setFromObject(sliderMesh);
+					knobWidth = bbox.max.x - bbox.min.x;
 				}
 			});
 
@@ -441,11 +532,7 @@
 
 			// Calculate and set initial scale to match screen
 			const screenScale = calculateScreenMatchingScale();
-			model.scale.set(
-				screenScale.x,
-				screenScale.y,
-				screenScale.z
-			);
+			model.scale.set(screenScale.x, screenScale.y, screenScale.z);
 
 			scene.add(model);
 			modelLoaded = true;
@@ -461,18 +548,18 @@
 
 		// Get the camera's field of view in radians
 		const fovRad = (CONFIG.camera.fov * Math.PI) / 180;
-		
+
 		// Calculate the visible height at the model's position
 		const distance = Math.abs(camera.position.z - model.position.z);
 		const visibleHeight = 2 * Math.tan(fovRad / 2) * distance;
-		
+
 		// Get the screen mesh's current dimensions
 		const box = new THREE.Box3().setFromObject(screenMesh);
 		const meshHeight = box.max.y - box.min.y;
-		
+
 		// Calculate scale needed to match screen height
 		const scale = visibleHeight / meshHeight;
-		
+
 		return { x: scale, y: scale, z: scale };
 	}
 
@@ -519,67 +606,107 @@
 		setupClippingPlanes();
 	}
 
-	function handleMouseDown(event) {
+	export function startTransition() {
+		if (!modelLoaded || !model || isTransitioning) return;
+
+		isTransitioning = true;
+		dispatch('transitionstart');
+
+		// Ensure clipping planes are set up before animation
+		setupClippingPlanes();
+
+		// Start invisible and show after scroll animation + delay
+		isVisible = false;
+		gsap.to(
+			{},
+			{
+				duration: CONFIG.animation.delay + 0.2,
+				onComplete: () => {
+					isVisible = true;
+					dispatch('transitioncomplete');
+				},
+			}
+		);
+
+		// Animation sequence
+		const timeline = gsap.timeline({
+			delay: CONFIG.animation.delay,
+			onComplete: () => {
+				isTransitioning = false;
+				isFirstTransitionComplete = true;
+				// Remove initial wheel listener
+				window.removeEventListener('wheel', handleWheel);
+				// Add new scroll listener for wipe animation
+				window.addEventListener('wheel', handlePostTransitionScroll);
+			},
+		});
+
+		// Animate scale down and rotate
+		timeline
+			.to(model.position, {
+				z: CONFIG.model.final.position.z,
+				duration: CONFIG.animation.duration,
+				ease: 'power2.inOut',
+			})
+			.to(
+				model.rotation,
+				{
+					y: CONFIG.model.final.rotation.y,
+					duration: CONFIG.animation.duration,
+					ease: 'power2.inOut',
+				},
+				0
+			)
+			.to(
+				model.scale,
+				{
+					x: CONFIG.model.final.scale.x,
+					y: CONFIG.model.final.scale.y,
+					z: CONFIG.model.final.scale.z,
+					duration: CONFIG.animation.duration,
+					ease: 'power3.inOut',
+				},
+				0
+			);
+	}
+
+	// Separate wipe animation function
+	export function startWipeAnimation() {
 		if (!sliderMesh) return;
 
-		// Convert mouse position to normalized device coordinates
-		mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-		mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-		// Update the picking ray with the camera and mouse position
-		raycaster.setFromCamera(mouse, camera);
-
-		// Check if we clicked on the slider
-		const intersects = raycaster.intersectObject(sliderMesh, true);
-		if (intersects.length > 0) {
-			isSliderDragging = true;
-			sliderStartX = event.clientX;
-		}
-	}
-
-	function handleMouseMove(event) {
-		if (!isSliderDragging || !sliderMesh) return;
-
-		// Calculate movement (adjusted sensitivity)
-		const movement = (event.clientX - sliderStartX) * 0.003; // Reduced sensitivity for more control
-		const newX = sliderMesh.position.x + movement;
-
-		// Clamp to bounds
-		const clampedX = Math.min(Math.max(newX, sliderMinX), sliderMaxX);
-		sliderMesh.position.x = clampedX;
-
-		// Calculate normalized position (0 to 1)
-		const normalizedPosition = calculateWipeProgress(clampedX);
-
-		// Update start position for next frame
-		sliderStartX = event.clientX;
-
-		// Emit wipe progress event
-		dispatch('wipe', { progress: normalizedPosition });
-	}
-
-	function handleMouseUp() {
-		isSliderDragging = false;
+		const timeline = gsap.timeline();
+		timeline.to(
+			sliderMesh.position,
+			{
+				x: sliderMaxX,
+				duration: CONFIG.animation.duration * 0.8,
+				ease: 'power2.inOut',
+				onUpdate: () => {
+					const progress = calculateWipeProgress(sliderMesh.position.x);
+					dispatch('wipe', { progress });
+				},
+			}
+		);
 	}
 
 	// Handle mousewheel event
 	function handleWheel(event) {
 		if (!model || !isVisible) return;
-		
+
 		event.preventDefault();
-		
+
 		// Calculate target scale based on wheel direction
 		const wheelDelta = event.deltaY;
 		const scaleFactor = wheelDelta > 0 ? 1 : 1.6; // Scale between 1.25x and 2x (1.25 * 1.6)
 		const targetScale = CONFIG.model.final.scale.x * scaleFactor;
-		
+
 		// Animate to target scale
 		gsap.to(model.scale, {
 			x: targetScale,
 			y: targetScale,
 			z: targetScale,
 			duration: 0.5,
-			ease: "power2.out"
+			ease: 'power2.out',
 		});
 	}
 
@@ -589,26 +716,24 @@
 		window.addEventListener('mousedown', handleMouseDown);
 		window.addEventListener('mousemove', handleMouseMove);
 		window.addEventListener('mouseup', handleMouseUp);
-		window.addEventListener('wheel', handleWheel);
+
 		return () => {
-			window.removeEventListener('resize', handleResize);
+			// Clean up event listeners
 			window.removeEventListener('mousedown', handleMouseDown);
 			window.removeEventListener('mousemove', handleMouseMove);
 			window.removeEventListener('mouseup', handleMouseUp);
-			window.removeEventListener('wheel', handleWheel);
-			if (animationFrameId) {
-				cancelAnimationFrame(animationFrameId);
-			}
+			window.removeEventListener('wheel', handlePostTransitionScroll);
 		};
+	});
+
+	onDestroy(() => {
+		if (scrollAnimation) scrollAnimation.kill();
+		if (scrollTimeout) clearTimeout(scrollTimeout);
 	});
 </script>
 
-<div
-	class="three-container"
-	class:visible={isVisible}
-	on:wheel={handleWheel}
->
-	<div bind:this={container} />
+<div class="three-container" class:visible={isVisible} on:wheel={handleWheel}>
+	<div bind:this={container}></div>
 </div>
 
 <style>

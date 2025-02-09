@@ -76,6 +76,32 @@
 
 ## ThreeScene Component
 
+### Transition Phases
+
+The transition system is split into three distinct phases:
+
+1. Scale Phase (Phase 1)
+
+   - Model scales to final size
+   - No rotation occurs
+   - Canvas drawing remains visible
+
+2. Rotation Phase (Phase 2)
+
+   - Model rotates after scaling
+   - Already at final scale from phase 1
+   - Canvas drawing remains visible
+
+3. Wipe Phase (Phase 3)
+   - Clears canvas drawing
+   - Model maintains final position and rotation
+   - Wipe effect moves from left to right
+
+State is managed through Svelte stores:
+
+- `transitionPhase`: Current phase (1-3)
+- `transitionProgress`: Progress within current phase (0-1)
+
 ### Magnet Sizing
 
 - Magnet dimensions in the 3D scene should be based on canvas width only, not height
@@ -268,55 +294,35 @@
 4. Only then attempt performance optimizations
 5. Test all dependent systems after any changes
 
-## Slider and Wipe Animation
+## Recent Breaking Changes and Fixes
 
-#### Screen Space vs World Space
+### ScrollToExplore Component (FIXED)
 
-- Screen space coordinates work better than world space for slider interaction
-- Project slider bounds to screen space for accurate mouse position mapping
-- Convert back to world space for actual slider movement
-- This prevents perspective distortion affecting slider response
+- DO NOT modify the Lottie animation implementation
+- DO NOT add new UI elements (arrows, text) to this component
+- KEEP the original animation behavior
+- The component uses a specific Lottie animation file, changing the UI breaks the intended design
 
-#### Drag Interaction
+### ThreeScene Breaking Changes (FIXED)
 
-- Store initial click offset from slider center
-- Maintain this offset throughout the drag
-- Allows dragging from any part of the knob (left, center, right)
-- Formula: `dragOffset = event.clientX - sliderScreenX`
-- Apply offset during movement: `adjustedX = event.clientX - dragOffset`
+- DO NOT remove existing animation handlers and timeline logic
+- The component relies on GSAP timeline for coordinated animations
+- Replacing with direct state management breaks the animation flow
+- Keep the original animation system and extend it rather than replace it
 
-#### Wipe Animation
+### State Management Issues (FIXED)
 
-- Wipe progress is inversely proportional to slider position
-- Formula: `1 - (x - sliderMinX) / (sliderMaxX - sliderMinX)`
-- Dispatch progress updates:
-  - Immediately during drag
-  - On animation update during scroll
-  - Ensures smooth canvas wipe effect
+- DO NOT create new stores without checking existing state management
+- The app already has mechanisms for handling transitions
+- Adding parallel state management systems causes conflicts
+- Always check existing state handling before adding new ones
 
-#### Scroll Behavior
+### UI/UX Guidelines
 
-- Use GSAP for smooth scroll animation
-- Longer duration (0.5s) with power3.out easing
-- Debounce scroll updates (16ms) to prevent rapid-fire
-- Keep scroll sensitivity low (0.0005) for fine control
-- Clean up animations and timeouts on component destroy
-
-#### Slider Bounds
-
-- Hardcoded bounds: `sliderMinX = -1.47, sliderMaxX = 1.47`
-- Project these to screen space for accurate interaction
-- Clamp all movements within these bounds
-- Consider model scale when calculating bounds
-
-#### Key Learnings
-
-1. Screen space coordinates provide more intuitive interaction
-2. Maintain drag offset for natural knob movement
-3. Separate immediate (drag) and animated (scroll) updates
-4. Clean up all animations and timeouts
-5. Use appropriate easing for smooth movement
-6. Dispatch progress updates consistently for smooth wipe effect
+- Never add new UI elements without explicit approval
+- Maintain existing animation and interaction patterns
+- Document all UI-related changes in this file
+- Test changes with existing animation system before committing
 
 ## Iframe Embedding
 

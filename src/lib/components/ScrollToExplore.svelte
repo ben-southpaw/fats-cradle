@@ -7,19 +7,18 @@
 	let lottieInstance;
 	let mounted = false;
 	let isPlaying = false;
-	let wheelTimeout;
 
 	function handleWheel() {
 		if (!lottieInstance || isPlaying) return;
-		
+
 		isPlaying = true;
 		lottieInstance.play();
 
-		// Stop after one play
-		lottieInstance.addEventListener('complete', () => {
-			isPlaying = false;
-			lottieInstance.stop();
-		});
+		// // Stop after one play
+		// lottieInstance.addEventListener('complete', () => {
+		// 	isPlaying = false;
+		// 	lottieInstance.stop();
+		// });
 	}
 
 	onMount(async () => {
