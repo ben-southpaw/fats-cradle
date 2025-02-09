@@ -76,6 +76,32 @@
 
 ## ThreeScene Component
 
+### Transition Phases
+
+The transition system is split into three distinct phases:
+
+1. Scale Phase (Phase 1)
+
+   - Model scales to final size
+   - No rotation occurs
+   - Canvas drawing remains visible
+
+2. Rotation Phase (Phase 2)
+
+   - Model rotates after scaling
+   - Already at final scale from phase 1
+   - Canvas drawing remains visible
+
+3. Wipe Phase (Phase 3)
+   - Clears canvas drawing
+   - Model maintains final position and rotation
+   - Wipe effect moves from left to right
+
+State is managed through Svelte stores:
+
+- `transitionPhase`: Current phase (1-3)
+- `transitionProgress`: Progress within current phase (0-1)
+
 ### Magnet Sizing
 
 - Magnet dimensions in the 3D scene should be based on canvas width only, not height
@@ -267,6 +293,36 @@
 3. Restore cursor transition system
 4. Only then attempt performance optimizations
 5. Test all dependent systems after any changes
+
+## Recent Breaking Changes and Fixes
+
+### ScrollToExplore Component (FIXED)
+
+- DO NOT modify the Lottie animation implementation
+- DO NOT add new UI elements (arrows, text) to this component
+- KEEP the original animation behavior
+- The component uses a specific Lottie animation file, changing the UI breaks the intended design
+
+### ThreeScene Breaking Changes (FIXED)
+
+- DO NOT remove existing animation handlers and timeline logic
+- The component relies on GSAP timeline for coordinated animations
+- Replacing with direct state management breaks the animation flow
+- Keep the original animation system and extend it rather than replace it
+
+### State Management Issues (FIXED)
+
+- DO NOT create new stores without checking existing state management
+- The app already has mechanisms for handling transitions
+- Adding parallel state management systems causes conflicts
+- Always check existing state handling before adding new ones
+
+### UI/UX Guidelines
+
+- Never add new UI elements without explicit approval
+- Maintain existing animation and interaction patterns
+- Document all UI-related changes in this file
+- Test changes with existing animation system before committing
 
 ## Iframe Embedding
 
