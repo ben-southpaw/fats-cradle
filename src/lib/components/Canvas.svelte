@@ -28,7 +28,7 @@
 		lineWidth: 8,
 		backgroundColor: '#e8e8e8',
 		gridColor: '#DADADA',
-		hexagonSize: 2,
+		hexagonSize: 3,
 		particleLength: 6,
 		particleWidth: 0.3,
 		particleColor: '#333333',
@@ -65,7 +65,6 @@
 
 	// Pre-computed pattern tables for particle optimization
 	const OFFSET_PATTERNS = new Float32Array(16); // Pre-computed offsets
-	const WHITE_PATTERN = new Uint8Array(10); // Pre-computed white particle positions
 
 	// Initialize pattern tables
 	function initializePatterns() {
@@ -73,14 +72,6 @@
 		for (let i = 0; i < OFFSET_PATTERNS.length; i++) {
 			OFFSET_PATTERNS[i] =
 				(i / OFFSET_PATTERNS.length - 0.5) * CONFIG.lineWidth;
-		}
-
-		// Pre-compute white particle positions based on probability
-		for (let i = 0; i < WHITE_PATTERN.length; i++) {
-			WHITE_PATTERN[i] =
-				i < WHITE_PATTERN.length * CONFIG.cursorWhiteParticleProbability
-					? 1
-					: 0;
 		}
 	}
 
@@ -1187,8 +1178,7 @@
 		x,
 		y,
 		isStamp = false,
-		isPredrawn = false,
-		isWhite = null
+		isPredrawn = false
 	) {
 		let finalX = x;
 		let finalY = y;
@@ -1198,19 +1188,6 @@
 			finalY += (Math.random() - 0.5) * 1.5;
 		}
 
-		// For stamps, use stamp probability instead of cursor probability
-		if (isWhite === null) {
-			isWhite =
-				Math.random() <
-				(isStamp
-					? CONFIG.stampWhiteParticleProbability
-					: CONFIG.cursorWhiteParticleProbability);
-		}
-
-		const baseColor = isWhite ? '#FFFFFF' : CONFIG.particleColor;
-		// For stamps, make white particles slightly darker
-		const color = isStamp && isWhite ? '#CCCCCC' : baseColor;
-
 		return {
 			x: finalX,
 			y: finalY,
@@ -1219,9 +1196,8 @@
 			width: CONFIG.particleWidth,
 			isStampParticle: isStamp,
 			isPredrawn,
-			isWhite,
 			opacity: isStamp ? (isPredrawn ? CONFIG.multitextOpacity : CONFIG.subsequentStampOpacity) : CONFIG.particleOpacity,
-			color
+			color: CONFIG.particleColor
 		};
 	}
 
@@ -1254,12 +1230,8 @@
 			const perpX = Math.cos(angle) * offset;
 			const perpY = Math.sin(angle) * offset;
 
-			// Use white pattern table for color determination
-			const isWhite =
-				WHITE_PATTERN[(i + Math.floor(x + y)) % WHITE_PATTERN.length] === 1;
-
 			particles.push(
-				createParticle(x + perpX, y + perpY, false, false, isWhite)
+				createParticle(x + perpX, y + perpY)
 			);
 		}
 	}
@@ -1575,7 +1547,6 @@
 		}
 
 		points.forEach((point) => {
-			const isWhite = Math.random() < CONFIG.multitextWhiteProb;
 			const particle = createParticle(point.x, point.y, true);
 			particle.magnetId = magnet.id;
 			particle.opacity = isInitialStamp
@@ -1768,7 +1739,7 @@
 					if (!isInViewport(particle)) continue;
 
 					// Create group key based on visual properties
-					const color = particle.isWhite ? '#ffffff' : CONFIG.particleColor;
+					const color = particle.color;
 					const finalOpacity =
 						particle.opacity !== undefined ? particle.opacity : opacity;
 					const key = `${color}-${finalOpacity}-${particle.isPredrawn}-${particle.isStampParticle}`;
@@ -1883,12 +1854,8 @@
 				const perpX = Math.cos(angle) * offset;
 				const perpY = Math.sin(angle) * offset;
 
-				// Use white pattern table for color determination
-				const isWhite =
-					WHITE_PATTERN[(j + Math.floor(x + y)) % WHITE_PATTERN.length] === 1;
-
 				particles.push(
-					createParticle(x + perpX, y + perpY, false, false, isWhite)
+					createParticle(x + perpX, y + perpY, false, false)
 				);
 			}
 		}
@@ -2033,8 +2000,7 @@
 			}
 
 			points.forEach((point) => {
-				const isWhite = Math.random() < CONFIG.multitextWhiteProb;
-				const particle = createParticle(point.x, point.y, true, true, isWhite);
+				const particle = createParticle(point.x, point.y, true, true);
 				particle.magnetId = magnet.id;
 				particle.opacity = CONFIG.multitextOpacity;
 				preDrawnParticles.push(particle);
