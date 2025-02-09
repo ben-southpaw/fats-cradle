@@ -24,27 +24,28 @@
 	let lastRenderTime = 0;
 	const CONFIG = {
 		particleSize: 0.2,
-		particleDensity: 12,
-		lineWidth: 6,
+		particleDensity: 10, // Match multitextDensity
+		lineWidth: 8,
 		backgroundColor: '#e8e8e8',
 		gridColor: '#DADADA',
 		hexagonSize: 2,
 		particleLength: 6,
 		particleWidth: 0.3,
 		particleColor: '#333333',
+		particleOpacity: 1, // Match multitextOpacity
 		preDrawnParticleSize: 1,
 		preDrawnDensity: 0.9,
 		preDrawnColor: '#333333',
-		multitextDensity: 9.0, // Higher density just for multitext
-		multitextOpacity: 1, // Higher opacity just for multitext
-		multitextWhiteProb: 0, // Lower white probability for better visibility
-		cursorWhiteParticleProbability: 0.35,
+		multitextDensity: 9.0,
+		multitextOpacity: 1,
+		multitextWhiteProb: 0,
+		cursorWhiteParticleProbability: 0, // Match multitextWhiteProb
 		stampWhiteParticleProbability: 0.2,
 		targetFPS: 60,
-		idleFPS: 30, // Lower FPS when not interacting
-		idleTimeout: 1000, // Time in ms before switching to idle FPS
+		idleFPS: 30,
+		idleTimeout: 1000,
 		hexagonLineWidth: 0.3,
-		initialStampOpacity: .9,
+		initialStampOpacity: .99,
 		subsequentStampOpacity: 0.65,
 		initialStampDensity: {
 			edge: 1.4,
@@ -1219,7 +1220,8 @@
 			isStampParticle: isStamp,
 			isPredrawn,
 			isWhite,
-			color,
+			opacity: isStamp ? (isPredrawn ? CONFIG.multitextOpacity : CONFIG.subsequentStampOpacity) : CONFIG.particleOpacity,
+			color
 		};
 	}
 
