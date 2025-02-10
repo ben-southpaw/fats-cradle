@@ -205,12 +205,14 @@
 
 	function emitEndAnimationEvent() {
 		const event = new Event('iframeScrolled');
-		console.log(event, 'event should follow me');
 		window.dispatchEvent(event);
 		const message = {
 			type: 'animationComplete',
 		};
-		window.parent.postMessage(message, 'https://my.readymag.com/');
+		window.parent.postMessage(
+			message,
+			'https://my.readymag.com/edit/5081906/preview/'
+		);
 	}
 
 	function calculateWipeProgress(x) {
