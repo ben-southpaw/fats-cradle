@@ -197,18 +197,14 @@
 
 		// Check if we've reached the end
 		if (currentSliderPosition >= 1) {
-			let iframeElement = document.getElementById('iframe');
-            let test = document.querySelectorAll('[data-id="67a9639504763da79d6610b4"]');
-			console.log(test, '<-- test', iframeElement, 'end of animations');
 			emitEndAnimationEvent();
 			window.removeEventListener('wheel', handlePostTransitionScroll);
+			console.log('end of animations');
 		}
 	}
 
 	function emitEndAnimationEvent() {
-		const event = new CustomEvent('iframeScrolled', {
-			detail: { message: 'Iframe Scrolled!' },
-		});
+		const event = new Event('iframeScrolled');
 		window.dispatchEvent(event);
 	}
 
