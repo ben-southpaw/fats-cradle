@@ -199,20 +199,17 @@
 		if (currentSliderPosition >= 1) {
 			emitEndAnimationEvent();
 			window.removeEventListener('wheel', handlePostTransitionScroll);
-			console.log('first log here 2');
+			console.log('first log here 3');
 		}
 	}
 
 	function emitEndAnimationEvent() {
-		const event = new Event('iframeScrolled');
-		window.dispatchEvent(event);
 		const message = {
 			type: 'animationComplete',
 		};
-		window.parent.postMessage(
-			message,
-			'https://my.readymag.com/edit/5081906/preview/'
-		);
+		window.parent.postMessage(message, 'https://my.readymag.com/');
+		const event = new Event('iframeScrolled');
+		window.dispatchEvent(event);
 	}
 
 	function calculateWipeProgress(x) {
