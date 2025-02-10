@@ -199,7 +199,7 @@
 		if (currentSliderPosition >= 1) {
 			emitEndAnimationEvent();
 			window.removeEventListener('wheel', handlePostTransitionScroll);
-			console.log('first log here 4');
+			console.log('first log here 5');
 		}
 	}
 
@@ -207,9 +207,10 @@
 		const message = {
 			type: 'animationComplete',
 		};
-		window.parent.postMessage(message, 'https://fats-cradle.vercel.app');
-		const event = new Event('iframeScrolled');
-		window.dispatchEvent(event);
+		window.parent.postMessage(
+			message,
+			'https://my.readymag.com/edit/5081906/preview/'
+		);
 	}
 
 	function calculateWipeProgress(x) {
