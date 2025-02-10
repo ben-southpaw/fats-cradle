@@ -1711,8 +1711,10 @@
 
 		magnets.forEach((magnet, index) => {
 			const aspectRatio = magnet.img.width / magnet.img.height;
-			const width = targetWidth; // Base width for all magnets
-			const height = width / aspectRatio;
+			// Limit width to original image width
+			const width = Math.min(targetWidth, magnet.img.width);
+			// Calculate height maintaining aspect ratio, but limit to original image height
+			const height = Math.min(width / aspectRatio, magnet.img.height);
 			const offset = getLetterOffset(magnet.id, index);
 
 			magnet.width = width;
