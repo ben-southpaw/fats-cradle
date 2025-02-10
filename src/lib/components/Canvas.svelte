@@ -19,36 +19,43 @@
 	export let onScreenCanvasReady = () => {};
 	export let showScrollToExplore = true;
 
-	let animationFrameId = null;
-	let pendingRender = false;
-	let lastRenderTime = 0;
-	const CONFIG = {
-		particleSize: 0.2,
-		particleDensity: 10, // Match multitextDensity
-		lineWidth: 8,
-		backgroundColor: '#e8e8e8',
-		gridColor: '#DADADA',
-		hexagonSize: 3,
-		particleLength: 6,
-		particleWidth: 0.3,
-		particleColor: '#333333',
-		particleOpacity: 1, // Match multitextOpacity
-		preDrawnParticleSize: 1,
-		preDrawnDensity: 0.9,
-		preDrawnColor: '#333333',
-		multitextDensity: 9.0,
-		multitextOpacity: 1,
-		multitextWhiteProb: 0,
-		cursorWhiteParticleProbability: 0, // Match multitextWhiteProb
-		stampWhiteParticleProbability: 0.2,
-		targetFPS: 60,
-		idleFPS: 30,
-		idleTimeout: 1000,
-		hexagonLineWidth: 0.3,
-		initialStampOpacity: .99,
-		subsequentStampOpacity: 0.75,
-		initialStampDensity: {
-			edge: 1.4,
+    // Base design dimensions (you can adjust these based on your target design size)
+    const DESIGN_WIDTH = 1440;
+    const DESIGN_HEIGHT = 700;
+
+    // Function to calculate viewport scale
+    function calculateViewportScale() {
+        return Math.min(window.innerWidth / DESIGN_WIDTH, window.innerHeight / DESIGN_HEIGHT);
+    }
+
+    // Base config values
+    const BASE_CONFIG = {
+    particleSize: 0.2,
+    particleDensity: 10,
+    lineWidth: 8,
+    backgroundColor: '#e8e8e8',
+    gridColor: '#DADADA',
+    hexagonSize: 3,
+    particleLength: 6,
+    particleWidth: 0.3,
+    particleColor: '#333333',
+    particleOpacity: 1,
+    preDrawnParticleSize: 1,
+    preDrawnDensity: 0.9,
+    preDrawnColor: '#333333',
+    multitextDensity: 9.0,
+    multitextOpacity: 1,
+    multitextWhiteProb: 0,
+    cursorWhiteParticleProbability: 0,
+    stampWhiteParticleProbability: 0.2,
+    targetFPS: 60,
+    idleFPS: 30,
+    idleTimeout: 1000,
+    hexagonLineWidth: 0.3,
+    initialStampOpacity: .99,
+    subsequentStampOpacity: 0.75,
+    initialStampDensity: {
+        edge: 1.4,
 			fill: 1.6,
 		},
 		subsequentStampDensity: {
@@ -58,13 +65,29 @@
 		maxParticles: 40000,
 	};
 
-	let FRAME_INTERVAL = 1000 / CONFIG.targetFPS; // Make this reactive
-	let lastParticleUpdate = 0;
-	let lastInteractionTime = performance.now();
-	let isIdle = false;
+    // Initialize CONFIG with BASE_CONFIG
+    let CONFIG = {
+        ...BASE_CONFIG,
+        initialStampDensity: {
+            edge: BASE_CONFIG.initialStampDensity.edge,
+            fill: BASE_CONFIG.initialStampDensity.fill
+        },
+        subsequentStampDensity: {
+            edge: BASE_CONFIG.subsequentStampDensity.edge,
+            fill: BASE_CONFIG.subsequentStampDensity.fill
+        }
+    };
 
-	// Pre-computed pattern tables for particle optimization
-	const OFFSET_PATTERNS = new Float32Array(16); // Pre-computed offsets
+    let animationFrameId = null;
+    let pendingRender = false;
+    let lastRenderTime = 0;
+    let FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
+    let lastParticleUpdate = 0;
+    let lastInteractionTime = performance.now();
+    let isIdle = false;
+
+    // Pre-computed pattern tables for particle optimization
+    const OFFSET_PATTERNS = new Float32Array(16); // Pre-computed offsets
 
 	// Initialize pattern tables
 	function initializePatterns() {
@@ -249,11 +272,37 @@
 	}
 
 	// Initialize the canvas and set up event listeners
-	onMount(() => {
-		if (!canvas) return;
+	// Function to update CONFIG based on viewport scale
+function updateConfig() {
+    const scale = calculateViewportScale();
+    CONFIG = {
+        ...BASE_CONFIG,
+        particleSize: BASE_CONFIG.particleSize * scale,
+        lineWidth: BASE_CONFIG.lineWidth * scale,
+        hexagonSize: BASE_CONFIG.hexagonSize * scale,
+        particleLength: BASE_CONFIG.particleLength * scale,
+        particleWidth: BASE_CONFIG.particleWidth * scale,
+        preDrawnParticleSize: BASE_CONFIG.preDrawnParticleSize * scale,
+        hexagonLineWidth: BASE_CONFIG.hexagonLineWidth * scale,
+        initialStampDensity: {
+            edge: BASE_CONFIG.initialStampDensity.edge * scale,
+            fill: BASE_CONFIG.initialStampDensity.fill * scale
+        },
+        subsequentStampDensity: {
+            edge: BASE_CONFIG.subsequentStampDensity.edge * scale,
+            fill: BASE_CONFIG.subsequentStampDensity.fill * scale
+        }
+    };
+}
 
-		// Initialize pattern tables
-		initializePatterns();
+onMount(() => {
+    if (!canvas) return;
+
+    // Initialize pattern tables
+    initializePatterns();
+    
+    // Initial config update
+    updateConfig();
 
 		// Set canvas dimensions
 		canvas.width = window.innerWidth;
@@ -2425,6 +2474,10 @@
 <svelte:window
 	on:mousemove={handleMousemove}
 	on:mousedown={handleMousedown}
+	on:resize={() => {
+		updateConfig();
+		scheduleRender();
+	}}
 	on:mouseup={handleMouseup}
 	on:wheel={handleWheel}
 />
