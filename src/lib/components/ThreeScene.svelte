@@ -145,16 +145,16 @@
 
 	// Function to convert world position to normalized position (0-1)
 	function worldToNormalizedPosition(worldX) {
-		const effectiveMin = sliderMinX + (knobWidth / 2);
-		const effectiveMax = sliderMaxX - (knobWidth / 2);
+		const effectiveMin = sliderMinX + knobWidth / 2;
+		const effectiveMax = sliderMaxX - knobWidth / 2;
 		return (worldX - effectiveMin) / (effectiveMax - effectiveMin);
 	}
 
 	// Function to convert normalized position (0-1) to world position
 	function normalizedToWorldPosition(normalized) {
-		const effectiveMin = sliderMinX + (knobWidth / 2);
-		const effectiveMax = sliderMaxX - (knobWidth / 2);
-		return effectiveMin + (normalized * (effectiveMax - effectiveMin));
+		const effectiveMin = sliderMinX + knobWidth / 2;
+		const effectiveMax = sliderMaxX - knobWidth / 2;
+		return effectiveMin + normalized * (effectiveMax - effectiveMin);
 	}
 
 	// Reactive statement to update slider position whenever currentSliderPosition changes
@@ -165,10 +165,10 @@
 
 	function updateSliderPosition(x, immediate = false) {
 		if (!sliderMesh) return;
-		
+
 		// Clamp to bounds
 		const newX = Math.max(sliderMinX, Math.min(sliderMaxX, x));
-		
+
 		if (immediate) {
 			// Direct update for dragging
 			sliderMesh.position.x = newX;
@@ -178,16 +178,16 @@
 		} else {
 			// Animated update for scrolling
 			if (scrollAnimation) scrollAnimation.kill();
-			
+
 			scrollAnimation = gsap.to(sliderMesh.position, {
 				x: newX,
 				duration: 0.5, // Longer duration
-				ease: "power3.out", // Smoother easing
+				ease: 'power3.out', // Smoother easing
 				onUpdate: () => {
 					// Calculate and dispatch progress during animation
 					const progress = calculateWipeProgress(sliderMesh.position.x);
 					dispatch('wipe', { progress });
-				}
+				},
 			});
 		}
 
@@ -198,8 +198,16 @@
 		// Check if we've reached the end
 		if (currentSliderPosition >= 1) {
 			console.log('end of animations');
+			emitEndAnimationEvent();
 			window.removeEventListener('wheel', handlePostTransitionScroll);
 		}
+	}
+
+	function emitEndAnimationEvent() {
+		const event = new CustomEvent('iframeScrolled', {
+			detail: { message: 'Iframe Scrolled!' },
+		});
+		window.dispatchEvent(event);
 	}
 
 	function calculateWipeProgress(x) {
@@ -209,7 +217,7 @@
 
 	function handleMouseDown(event) {
 		if (!isFirstTransitionComplete || !sliderMesh) return;
-		
+
 		// Convert mouse coordinates to normalized device coordinates (-1 to +1)
 		mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
 		mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -225,12 +233,16 @@
 
 			// Get screen coordinates
 			const rect = container.getBoundingClientRect();
-			
+
 			// Project current slider position to screen space
-			const sliderPos = new THREE.Vector3(sliderMesh.position.x, sliderMesh.position.y, sliderMesh.position.z);
+			const sliderPos = new THREE.Vector3(
+				sliderMesh.position.x,
+				sliderMesh.position.y,
+				sliderMesh.position.z
+			);
 			sliderPos.project(camera);
-			const sliderScreenX = (sliderPos.x + 1) * rect.width / 2;
-			
+			const sliderScreenX = ((sliderPos.x + 1) * rect.width) / 2;
+
 			// Calculate and store the offset from the cursor to the knob center
 			dragOffset = event.clientX - sliderScreenX;
 		}
@@ -241,23 +253,31 @@
 
 		// Get screen coordinates
 		const rect = container.getBoundingClientRect();
-		
+
 		// Adjust mouse position by the initial drag offset
 		const adjustedX = event.clientX - dragOffset;
 		const x = adjustedX - rect.left;
 
 		// Project slider bounds to screen space
-		const minPoint = new THREE.Vector3(sliderMinX, sliderMesh.position.y, sliderMesh.position.z);
-		const maxPoint = new THREE.Vector3(sliderMaxX, sliderMesh.position.y, sliderMesh.position.z);
-		
+		const minPoint = new THREE.Vector3(
+			sliderMinX,
+			sliderMesh.position.y,
+			sliderMesh.position.z
+		);
+		const maxPoint = new THREE.Vector3(
+			sliderMaxX,
+			sliderMesh.position.y,
+			sliderMesh.position.z
+		);
+
 		// Convert to screen space
 		minPoint.project(camera);
 		maxPoint.project(camera);
-		
+
 		// Convert to pixel coordinates
-		const minScreenX = (minPoint.x + 1) * rect.width / 2;
-		const maxScreenX = (maxPoint.x + 1) * rect.width / 2;
-		
+		const minScreenX = ((minPoint.x + 1) * rect.width) / 2;
+		const maxScreenX = ((maxPoint.x + 1) * rect.width) / 2;
+
 		// Calculate position within track bounds
 		const trackScreenWidth = maxScreenX - minScreenX;
 		const mouseOffset = x - minScreenX;
@@ -282,11 +302,15 @@
 		// Debounce the scroll updates
 		scrollTimeout = setTimeout(() => {
 			// Accumulate scroll amount and clamp it between 0 and 1
-			currentSliderPosition = Math.max(0, Math.min(1, currentSliderPosition + event.deltaY * SCROLL_SENSITIVITY));
+			currentSliderPosition = Math.max(
+				0,
+				Math.min(1, currentSliderPosition + event.deltaY * SCROLL_SENSITIVITY)
+			);
 			totalScrollAmount = currentSliderPosition;
 
 			// Convert to world position and update with animation
-			const worldX = sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
+			const worldX =
+				sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
 			updateSliderPosition(worldX, false); // Use animated update for scrolling
 		}, 16); // ~60fps timing
 	}
@@ -675,18 +699,15 @@
 		if (!sliderMesh) return;
 
 		const timeline = gsap.timeline();
-		timeline.to(
-			sliderMesh.position,
-			{
-				x: sliderMaxX,
-				duration: CONFIG.animation.duration * 0.8,
-				ease: 'power2.inOut',
-				onUpdate: () => {
-					const progress = calculateWipeProgress(sliderMesh.position.x);
-					dispatch('wipe', { progress });
-				},
-			}
-		);
+		timeline.to(sliderMesh.position, {
+			x: sliderMaxX,
+			duration: CONFIG.animation.duration * 0.8,
+			ease: 'power2.inOut',
+			onUpdate: () => {
+				const progress = calculateWipeProgress(sliderMesh.position.x);
+				dispatch('wipe', { progress });
+			},
+		});
 	}
 
 	// Handle mousewheel event
