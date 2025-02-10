@@ -199,13 +199,18 @@
 		if (currentSliderPosition >= 1) {
 			emitEndAnimationEvent();
 			window.removeEventListener('wheel', handlePostTransitionScroll);
-			console.log('end of animations');
+			console.log('first log here');
 		}
 	}
 
 	function emitEndAnimationEvent() {
 		const event = new Event('iframeScrolled');
+		console.log(event, 'event should follow me');
 		window.dispatchEvent(event);
+		const message = {
+			type: 'animationComplete',
+		};
+		window.parent.postMessage(message, 'https://my.readymag.com/');
 	}
 
 	function calculateWipeProgress(x) {
