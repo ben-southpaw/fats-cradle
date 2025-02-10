@@ -197,7 +197,9 @@
 
 		// Check if we've reached the end
 		if (currentSliderPosition >= 1) {
-			console.log('end of animations');
+			let iframeElement = document.getElementById('iframe');
+            let test = document.querySelectorAll('[data-id="67a9639504763da79d6610b4"]');
+			console.log(test, '<-- test', iframeElement, 'end of animations');
 			emitEndAnimationEvent();
 			window.removeEventListener('wheel', handlePostTransitionScroll);
 		}
