@@ -199,7 +199,7 @@
 		if (currentSliderPosition >= 1) {
 			emitEndAnimationEvent();
 			window.removeEventListener('wheel', handlePostTransitionScroll);
-			console.log('first log here');
+			console.log('first log here 2');
 		}
 	}
 
