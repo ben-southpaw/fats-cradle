@@ -81,23 +81,23 @@
 		lighting: {
 			ambient: {
 				color: 0xffffff,
-				intensity: 1.0, // Doubled ambient light
+				intensity: 1.2, // Slightly reduced to allow for directional emphasis
 			},
 			directional: {
 				color: 0xffffff,
-				intensity: 2.0, // Much stronger main light
-				position: { x: 4, y: 5, z: 2 }, // Higher and more to the right
+				intensity: 0.8, // Increased for top-right emphasis
+				position: { x: 2, y: 4, z: 3 }, // Moved to top-right
 			},
 			pointLights: [
 				{
 					color: 0xffffff,
-					intensity: 1.5, // Doubled
-					position: { x: -2, y: 4, z: 3 }, // Left front top
+					intensity: 0.4, // Slightly stronger fill light
+					position: { x: 4, y: 3, z: 2 }, // Top-right emphasis
 				},
 				{
 					color: 0xffffff,
-					intensity: 2.0, // Stronger right light
-					position: { x: 5, y: 5, z: 1 }, // Higher right front top
+					intensity: 0.2, // Softer fill for opposite side
+					position: { x: -3, y: 2, z: 3 }, // Fill light from left
 				},
 				{
 					color: 0xffffff,
@@ -355,6 +355,8 @@
 			opacity: 1,
 			side: THREE.DoubleSide,
 			toneMapped: false,
+			color: new THREE.Color('#e8e8e8'), // Match canvas background color
+			encoding: THREE.sRGBEncoding, // Match canvas color space
 			clippingPlanes: [
 				new THREE.Plane(new THREE.Vector3(1, 0, 0), clipOffset), // Right clip
 				new THREE.Plane(new THREE.Vector3(-1, 0, 0), clipOffset), // Left clip
@@ -434,8 +436,9 @@
 		renderer.setSize(containerWidth, containerHeight, false); // false prevents setting canvas style
 		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		renderer.outputEncoding = THREE.sRGBEncoding;
-		renderer.shadowMap.enabled = true;
-		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+		renderer.toneMapping = THREE.ACESFilmicToneMapping; // More natural color reproduction
+		renderer.toneMappingExposure = 1.0; // Balanced exposure
+		renderer.shadowMap.enabled = false; // Disable shadows for flatter appearance
 
 		// Update camera aspect ratio to match container
 		camera.aspect = containerWidth / containerHeight;
@@ -455,6 +458,41 @@
 		try {
 			const gltf = await loader.loadAsync(CONFIG.model.path);
 			model = gltf.scene;
+
+			// Debug: Log the model hierarchy and check for overlapping meshes
+			console.log('Model hierarchy:');
+			const meshPositions = new Map();
+
+			model.traverse((child) => {
+				if (child.isMesh) {
+					console.log(`Mesh: ${child.name}`, {
+						position: child.position,
+						parent: child.parent?.name,
+						material: {
+							transparent: child.material.transparent,
+							opacity: child.material.opacity,
+							color: child.material.color,
+							type: child.material.type,
+							depthTest: child.material.depthTest
+						}
+					});
+
+					// Store position for overlap checking
+					const key = `${child.position.x},${child.position.y},${child.position.z}`;
+					if (!meshPositions.has(key)) {
+						meshPositions.set(key, []);
+					}
+					meshPositions.get(key).push(child.name);
+				}
+			});
+
+			// Check for overlapping meshes
+			console.log('Checking for overlapping meshes:');
+			meshPositions.forEach((meshes, position) => {
+				if (meshes.length > 1) {
+					console.log(`Found overlapping meshes at ${position}:`, meshes);
+				}
+			});
 
 			// Handle materials to prevent texture loading errors and enhance lighting
 			model.traverse((child) => {
@@ -477,12 +515,41 @@
 							child.material.metalnessMap = null;
 						}
 
-						// Special handling for the white text
-						if (child.name === 'Curve003_1') {
-							child.material.roughness = 0.2; // Very smooth for more reflection
-							child.material.metalness = 0.1; // Minimal metalness for cleaner white
-							child.material.emissive = new THREE.Color(0xffffff); // Add white glow
-							child.material.emissiveIntensity = 0.2; // Subtle glow
+						// Check if this is a magnet by looking at material color and name
+						const color = child.material.color;
+						const isMagnet = (color.r !== 1 || color.g !== 1 || color.b !== 1) && 
+							(child.name.startsWith('Curve') && !child.name.includes('003')); // Exclude logo (Curve003)
+
+						if (isMagnet) {
+							// Create a new material for each magnet to prevent sharing
+							child.material = new THREE.MeshStandardMaterial({
+								color: child.material.color,
+								roughness: 0.2,
+								metalness: 0.0,
+								emissive: child.material.color,
+								emissiveIntensity: 0.2,
+								transparent: false,
+								depthTest: true,
+								depthWrite: true,
+								side: THREE.FrontSide
+							});
+
+							// Ensure proper positioning
+							if (child.position.x === 0 && child.position.y === 0 && child.position.z === 0) {
+								// Move slightly forward to prevent z-fighting
+								child.position.z += 0.01 * Math.random(); // Random small offset
+							}
+
+							// Boost the color saturation and brightness
+							const hsl = {};
+							color.getHSL(hsl);
+							color.setHSL(hsl.h, Math.min(1, hsl.s * 1.4), Math.min(0.7, hsl.l * 1.3));
+						} else if (child.name === 'Curve003_1') {
+							// Special handling for the white text
+							child.material.roughness = 0.2;
+							child.material.metalness = 0.1;
+							child.material.emissive = new THREE.Color(0xffffff);
+							child.material.emissiveIntensity = 0.2;
 						} else {
 							// Default material properties for other meshes
 							child.material.roughness = 0.4;

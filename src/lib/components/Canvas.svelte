@@ -19,16 +19,17 @@
 	export let onScreenCanvasReady = () => {};
 	export let showScrollToExplore = true;
 
-	// Base design dimensions (you can adjust these based on your target design size)
-	const DESIGN_WIDTH = 1440;
-	const DESIGN_HEIGHT = 700;
-
-	// Function to calculate viewport scale
-	function calculateViewportScale() {
-		return Math.min(
-			window.innerWidth / DESIGN_WIDTH,
-			window.innerHeight / DESIGN_HEIGHT
-		);
+	// Function to get container dimensions
+	function getContainerDimensions() {
+		if (!canvas)
+			return { width: window.innerWidth, height: window.innerHeight };
+		const container = canvas.parentElement;
+		if (!container)
+			return { width: window.innerWidth, height: window.innerHeight };
+		return {
+			width: container.clientWidth,
+			height: container.clientHeight,
+		};
 	}
 
 	// Base config values
@@ -36,12 +37,12 @@
 		particleSize: 0.2,
 		particleDensity: 10,
 		lineWidth: 8,
-		backgroundColor: '#e8e8e8',
-		gridColor: '#DADADA',
-		hexagonSize: 3,
+		backgroundColor: '#f2f2f2',
+		gridColor: '#C8C8C8',
+		hexagonSize: 4.5,
 		particleLength: 6,
-		particleWidth: 0.3,
-		particleColor: '#333333',
+		particleWidth: 0.6,
+		particleColor: '#666666',
 		particleOpacity: 1,
 		preDrawnParticleSize: 1,
 		preDrawnDensity: 0.9,
@@ -275,9 +276,12 @@
 	}
 
 	// Initialize the canvas and set up event listeners
-	// Function to update CONFIG based on viewport scale
+	// Function to update CONFIG based on container size
 	function updateConfig() {
-		const scale = calculateViewportScale();
+		const { width, height } = getContainerDimensions();
+		// Use the smaller dimension to calculate scale
+		const baseSize = Math.min(width, height);
+		const scale = baseSize / 1000; // normalize to a base size of 1000px
 		CONFIG = {
 			...BASE_CONFIG,
 			particleSize: BASE_CONFIG.particleSize * scale,
@@ -924,6 +928,13 @@
 			return;
 		}
 
+		// Get container dimensions
+		const { width, height } = getContainerDimensions();
+
+		// Set canvas size to match container
+		canvas.width = width;
+		canvas.height = height;
+
 		// Try WebGL2 first
 		try {
 			gl = canvas.getContext('webgl2', {
@@ -935,6 +946,7 @@
 			});
 
 			if (gl) {
+				gl.viewport(0, 0, width, height);
 			}
 		} catch (e) {}
 
@@ -948,6 +960,9 @@
 					depth: false,
 					powerPreference: 'high-performance',
 				});
+				if (gl) {
+					gl.viewport(0, 0, width, height);
+				}
 
 				if (gl) {
 				}
@@ -1703,11 +1718,12 @@
 	function positionMagnets() {
 		if (!magnets.length) return;
 
-		const totalWidth = window.innerWidth * 0.4;
+		const { width, height } = getContainerDimensions();
+		const totalWidth = width * 0.4;
 		const spacing = totalWidth / (magnets.length - 1);
-		const startX = (window.innerWidth - totalWidth) / 2;
-		const targetWidth = window.innerHeight * 0.18;
-		const groupOffset = window.innerWidth * -0.02; // Same offset as in initializeMagnets
+		const startX = (width - totalWidth) / 2;
+		const targetWidth = height * 0.18;
+		const groupOffset = width * -0.02; // Same offset as in initializeMagnets
 
 		magnets.forEach((magnet, index) => {
 			const aspectRatio = magnet.img.width / magnet.img.height;
