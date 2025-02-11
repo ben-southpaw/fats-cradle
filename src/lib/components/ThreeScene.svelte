@@ -199,7 +199,6 @@
 		if (currentSliderPosition >= 1) {
 			emitEndAnimationEvent();
 			window.removeEventListener('wheel', handlePostTransitionScroll);
-			console.log('Yis?');
 		}
 	}
 
@@ -207,6 +206,7 @@
 		const message = {
 			type: 'animationComplete',
 		};
+        //update to live link later
 		window.parent.postMessage(
 			message,
 			'https://my.readymag.com/edit/5177230/preview/'
