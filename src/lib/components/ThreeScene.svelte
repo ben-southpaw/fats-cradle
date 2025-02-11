@@ -1,5 +1,5 @@
 <script>
-	import { onMount, createEventDispatcher, onDestroy } from 'svelte';
+	import { onMount, createEventDispatcher, onDestroy, tick } from 'svelte';
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 	import gsap from 'gsap';
@@ -331,12 +331,12 @@
 		const meshWidth = box.max.x - box.min.x;
 		const meshHeight = box.max.y - box.min.y;
 
-		// Get canvas aspect ratio
-		const canvasAspect = canvas.width / canvas.height;
+		// Use original mesh aspect ratio
+		const meshAspect = meshWidth / meshHeight;
 
-		// Calculate scale to fit height
-		const heightScale = 1.0; // Keep original height
-		const widthScale = (canvasAspect / (meshWidth / meshHeight)) * 1.2; // Add 20% to width
+		// Keep original proportions
+		const heightScale = 1.0;
+		const widthScale = 1.0; // Maintain original width-to-height ratio
 
 		// Update mesh scale
 		screenMesh.scale.y = heightScale;
@@ -425,11 +425,22 @@
 			antialias: true,
 			alpha: true,
 		});
-		renderer.setSize(window.innerWidth, window.innerHeight);
+
+		// Use container dimensions instead of window
+		const containerWidth = container.clientWidth;
+		const containerHeight = container.clientHeight;
+
+		// Set size based on container
+		renderer.setSize(containerWidth, containerHeight, false); // false prevents setting canvas style
 		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		renderer.outputEncoding = THREE.sRGBEncoding;
 		renderer.shadowMap.enabled = true;
 		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+		// Update camera aspect ratio to match container
+		camera.aspect = containerWidth / containerHeight;
+		camera.updateProjectionMatrix();
+
 		container.appendChild(renderer.domElement);
 
 		await loadModel();
@@ -735,7 +746,33 @@
 	}
 
 	onMount(async () => {
+		// Wait for next tick to ensure container is mounted and sized
+		await tick();
+		
+		// Initialize Three.js scene and setup
 		await initThreeJS();
+
+		// Set up ResizeObserver for container
+		const resizeObserver = new ResizeObserver(entries => {
+			for (const entry of entries) {
+				// Get current dimensions, accounting for any style changes
+				const width = container.clientWidth;
+				const height = container.clientHeight;
+				
+				// Update only if dimensions actually changed
+				if (width !== entry.contentRect.width || height !== entry.contentRect.height) {
+					handleResize(width, height);
+				}
+			}
+		});
+
+		if (container) {
+			resizeObserver.observe(container);
+			// Initial size update using container dimensions
+			handleResize(container.clientWidth, container.clientHeight);
+		}
+
+		// Add event listeners
 		window.addEventListener('resize', handleResize);
 		window.addEventListener('mousedown', handleMouseDown);
 		window.addEventListener('mousemove', handleMouseMove);
@@ -774,5 +811,11 @@
 
 	.three-container.visible {
 		opacity: 1;
+	}
+	/* Force canvas to match container size */
+	:global(.three-container canvas) {
+		width: 100% !important;
+		height: 100% !important;
+		display: block;
 	}
 </style>
