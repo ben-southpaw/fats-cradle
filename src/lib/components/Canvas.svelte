@@ -1565,7 +1565,7 @@
 				window.innerWidth * 0.15 +
 				window.innerWidth * 0.08
 			: 0; // Half screen minus 15% plus 8vw
-		const multiTextOffsetY = isMultiText ? 300 - window.innerHeight * 0.15 : 0; // 300px minus 15% of height
+		const multiTextOffsetY = isMultiText ? 290 - window.innerHeight * 0.15 : 0; // 230px (reduced from 300) minus 15% of height
 
 		// Function to check if a point already has a stamp nearby using spatial grid
 		const proximityThreshold = 1.5;
@@ -2024,8 +2024,8 @@
 					window.innerWidth * 0.08
 				: 0; // Half screen minus 15% plus 8vw
 			const multiTextOffsetY = isMultiText
-				? 300 - window.innerHeight * 0.15
-				: 0; // 300px minus 15% of height
+				? 230 - window.innerHeight * 0.025
+				: 0; // 230px (reduced from 300) minus 15% of height
 
 			// Function to check if a point already has a stamp nearby using spatial grid
 			const proximityThreshold = 1.5;
