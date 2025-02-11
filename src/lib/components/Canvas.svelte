@@ -302,7 +302,20 @@
 		};
 	}
 
+	// Function to calculate particle sizes based on canvas dimensions
+	function calculateParticleSizes() {
+		const { width, height } = getContainerDimensions();
+		const baseSize = Math.min(width, height) * 0.01; // Adjust the multiplier as needed
+
+		BASE_CONFIG.particleSize = baseSize;
+		BASE_CONFIG.particleWidth = baseSize * 2; // Make it wider
+		BASE_CONFIG.preDrawnParticleSize = baseSize * 1.5; // Adjust as needed
+	}
+
 	onMount(() => {
+		calculateParticleSizes();
+		window.addEventListener('resize', calculateParticleSizes);
+
 		if (!canvas) return;
 
 		// Initialize pattern tables
@@ -399,6 +412,7 @@
 		// Clean up
 		return () => {
 			window.removeEventListener('resize', resize);
+			window.removeEventListener('resize', calculateParticleSizes);
 			if (animationFrameId) {
 				cancelAnimationFrame(animationFrameId);
 			}
@@ -1951,7 +1965,7 @@
 			const tempCtx = tempCanvas.getContext('2d');
 
 			// Calculate scaled dimensions while maintaining aspect ratio
-			const scale = 0.385; // Increased from 0.35
+			const scale = 0.385; // Default scale for all images
 			const aspectRatio = img.width / img.height;
 			const maxWidth = canvas.width * 0.8; // Max 80% of canvas width
 			const maxHeight = canvas.height * 0.8; // Max 80% of canvas height

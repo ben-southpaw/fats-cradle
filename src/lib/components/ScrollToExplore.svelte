@@ -61,7 +61,7 @@
 	}
 
 	:global(.lottie-player) {
-		width: min(600px, 80vw) !important;
-		height: min(300px, 40vh) !important;
+		width: min(700px, 90vw) !important;
+		height: min(350px, 45vh) !important;
 	}
 </style>
