@@ -199,7 +199,7 @@
 		if (currentSliderPosition >= 1) {
 			emitEndAnimationEvent();
 			window.removeEventListener('wheel', handlePostTransitionScroll);
-			console.log('maybe...');
+			console.log('Yis?');
 		}
 	}
 
@@ -209,7 +209,7 @@
 		};
 		window.parent.postMessage(
 			message,
-			'https://my.readymag.com/edit/5081906/preview/'
+			'https://my.readymag.com/edit/5177230/preview/'
 		);
 	}
 
