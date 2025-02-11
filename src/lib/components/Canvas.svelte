@@ -33,15 +33,15 @@
 	}
 
 	// Base config values
-	const BASE_CONFIG = {
-		particleSize: 0.2,
+	let BASE_CONFIG = {
+		particleSize: 10,
 		particleDensity: 10,
-		lineWidth: 8,
+		lineWidth: 12,
 		backgroundColor: '#f2f2f2',
 		gridColor: '#C8C8C8',
 		hexagonSize: 4.5,
-		particleLength: 6,
-		particleWidth: 0.6,
+		particleLength: 12,
+		particleWidth: 12,
 		particleColor: '#666666',
 		particleOpacity: 1,
 		preDrawnParticleSize: 1,

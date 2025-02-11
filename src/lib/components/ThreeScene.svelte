@@ -206,7 +206,7 @@
 		const message = {
 			type: 'animationComplete',
 		};
-        //update to live link later
+		//update to live link later
 		window.parent.postMessage(
 			message,
 			'https://my.readymag.com/edit/5177230/preview/'
@@ -356,7 +356,7 @@
 			side: THREE.DoubleSide,
 			toneMapped: false,
 			color: new THREE.Color('#e8e8e8'), // Match canvas background color
-			encoding: THREE.sRGBEncoding, // Match canvas color space
+			// Color space is handled by the renderer's outputEncoding
 			clippingPlanes: [
 				new THREE.Plane(new THREE.Vector3(1, 0, 0), clipOffset), // Right clip
 				new THREE.Plane(new THREE.Vector3(-1, 0, 0), clipOffset), // Left clip
@@ -459,41 +459,6 @@
 			const gltf = await loader.loadAsync(CONFIG.model.path);
 			model = gltf.scene;
 
-			// Debug: Log the model hierarchy and check for overlapping meshes
-			console.log('Model hierarchy:');
-			const meshPositions = new Map();
-
-			model.traverse((child) => {
-				if (child.isMesh) {
-					console.log(`Mesh: ${child.name}`, {
-						position: child.position,
-						parent: child.parent?.name,
-						material: {
-							transparent: child.material.transparent,
-							opacity: child.material.opacity,
-							color: child.material.color,
-							type: child.material.type,
-							depthTest: child.material.depthTest
-						}
-					});
-
-					// Store position for overlap checking
-					const key = `${child.position.x},${child.position.y},${child.position.z}`;
-					if (!meshPositions.has(key)) {
-						meshPositions.set(key, []);
-					}
-					meshPositions.get(key).push(child.name);
-				}
-			});
-
-			// Check for overlapping meshes
-			console.log('Checking for overlapping meshes:');
-			meshPositions.forEach((meshes, position) => {
-				if (meshes.length > 1) {
-					console.log(`Found overlapping meshes at ${position}:`, meshes);
-				}
-			});
-
 			// Handle materials to prevent texture loading errors and enhance lighting
 			model.traverse((child) => {
 				if (child.isMesh) {
@@ -517,8 +482,10 @@
 
 						// Check if this is a magnet by looking at material color and name
 						const color = child.material.color;
-						const isMagnet = (color.r !== 1 || color.g !== 1 || color.b !== 1) && 
-							(child.name.startsWith('Curve') && !child.name.includes('003')); // Exclude logo (Curve003)
+						const isMagnet =
+							(color.r !== 1 || color.g !== 1 || color.b !== 1) &&
+							child.name.startsWith('Curve') &&
+							!child.name.includes('003'); // Exclude logo (Curve003)
 
 						if (isMagnet) {
 							// Create a new material for each magnet to prevent sharing
@@ -531,11 +498,15 @@
 								transparent: false,
 								depthTest: true,
 								depthWrite: true,
-								side: THREE.FrontSide
+								side: THREE.FrontSide,
 							});
 
 							// Ensure proper positioning
-							if (child.position.x === 0 && child.position.y === 0 && child.position.z === 0) {
+							if (
+								child.position.x === 0 &&
+								child.position.y === 0 &&
+								child.position.z === 0
+							) {
 								// Move slightly forward to prevent z-fighting
 								child.position.z += 0.01 * Math.random(); // Random small offset
 							}
@@ -543,7 +514,11 @@
 							// Boost the color saturation and brightness
 							const hsl = {};
 							color.getHSL(hsl);
-							color.setHSL(hsl.h, Math.min(1, hsl.s * 1.4), Math.min(0.7, hsl.l * 1.3));
+							color.setHSL(
+								hsl.h,
+								Math.min(1, hsl.s * 1.4),
+								Math.min(0.7, hsl.l * 1.3)
+							);
 						} else if (child.name === 'Curve003_1') {
 							// Special handling for the white text
 							child.material.roughness = 0.2;
@@ -815,19 +790,22 @@
 	onMount(async () => {
 		// Wait for next tick to ensure container is mounted and sized
 		await tick();
-		
+
 		// Initialize Three.js scene and setup
 		await initThreeJS();
 
 		// Set up ResizeObserver for container
-		const resizeObserver = new ResizeObserver(entries => {
+		const resizeObserver = new ResizeObserver((entries) => {
 			for (const entry of entries) {
 				// Get current dimensions, accounting for any style changes
 				const width = container.clientWidth;
 				const height = container.clientHeight;
-				
+
 				// Update only if dimensions actually changed
-				if (width !== entry.contentRect.width || height !== entry.contentRect.height) {
+				if (
+					width !== entry.contentRect.width ||
+					height !== entry.contentRect.height
+				) {
 					handleResize(width, height);
 				}
 			}
