@@ -2,7 +2,6 @@
 	import Canvas from '$lib/components/Canvas.svelte';
 	import ThreeScene from '$lib/components/ThreeScene.svelte';
 
-	let showScrollToExplore = true;
 	let isTransitioning = false;
 	let canvasComponent;
 
@@ -21,7 +20,6 @@
 <section>
 	<Canvas bind:this={canvasComponent} />
 	<ThreeScene
-		{showScrollToExplore}
 		on:transitionstart={handleTransitionStart}
 		on:wipe={handleWipe}
 	/>

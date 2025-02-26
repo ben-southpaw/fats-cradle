@@ -8,17 +8,15 @@
 	let mounted = false;
 	let isPlaying = false;
 
+	function handleComplete() {
+		isPlaying = false;
+		lottieInstance?.stop();
+	}
+
 	function handleWheel() {
 		if (!lottieInstance || isPlaying) return;
-
 		isPlaying = true;
 		lottieInstance.play();
-
-		// // Stop after one play
-		// lottieInstance.addEventListener('complete', () => {
-		// 	isPlaying = false;
-		// 	lottieInstance.stop();
-		// });
 	}
 
 	onMount(async () => {
@@ -47,6 +45,7 @@
 			background="transparent"
 			controlsLayout={[]}
 			class="lottie-player"
+			on:complete={handleComplete}
 		/>
 	{/if}
 </div>
