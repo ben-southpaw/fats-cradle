@@ -13,8 +13,6 @@
 	let model;
 	let screenMesh;
 	let sliderMesh;
-	let isSliderDragging = false;
-	let sliderStartX = 0;
 	let sliderInitialPosition;
 	let sliderMinX, sliderMaxX;
 	let isVisible = false;
