@@ -19,16 +19,14 @@
 
 <section>
 	<Canvas bind:this={canvasComponent} />
-	<ThreeScene
-		on:transitionstart={handleTransitionStart}
-		on:wipe={handleWipe}
-	/>
+	<ThreeScene on:transitionstart={handleTransitionStart} on:wipe={handleWipe} />
 </section>
 
 <style>
 	section {
 		position: relative;
-		width: 100%;
+		width: 100vw;
+		max-width: 100vw;
 		height: 100vh;
 		overflow: hidden;
 	}
