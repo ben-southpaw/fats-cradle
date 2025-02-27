@@ -13,7 +13,6 @@
 	import multiText from '$lib/images/multi-text.png';
 	import ThreeScene from './ThreeScene.svelte';
 	import ScrollToExplore from './ScrollToExplore.svelte';
-	import { environmentContext, scaledConfig, initializeEnvironment, updateEnvironment } from '$lib/context/CanvasContext.js';
 
 	const dispatch = createEventDispatcher();
 
@@ -90,27 +89,6 @@
 	let lastParticleUpdate = 0;
 	let lastInteractionTime = performance.now();
 	let isIdle = false;
-
-	// Update CONFIG from the shared context when it changes
-	$: {
-		// Get current values from the context
-		const sc = $scaledConfig;
-		if (sc) {
-			CONFIG.particleDensity = sc.particleDensity;
-			CONFIG.preDrawnDensity = sc.preDrawnDensity;
-			CONFIG.multitextDensity = sc.multitextDensity;
-			
-			// Deep copy of nested objects
-			if (sc.initialStampDensity) {
-				CONFIG.initialStampDensity = { ...sc.initialStampDensity };
-			}
-			if (sc.subsequentStampDensity) {
-				CONFIG.subsequentStampDensity = { ...sc.subsequentStampDensity };
-			}
-			
-			CONFIG.maxParticles = sc.maxParticles;
-		}
-	}
 
 	// Pre-computed pattern tables for particle optimization
 	const OFFSET_PATTERNS = new Float32Array(16); // Pre-computed offsets
@@ -332,15 +310,6 @@
 		BASE_CONFIG.particleSize = baseSize;
 		BASE_CONFIG.particleWidth = baseSize * 2; // Make it wider
 		BASE_CONFIG.preDrawnParticleSize = baseSize * 1.5; // Adjust as needed
-		
-		// Update canvas dimensions if available
-		if (canvas) {
-			canvas.width = width;
-			canvas.height = height;
-			
-			// Update the environment context
-			updateEnvironment(canvas);
-		}
 	}
 
 	onMount(() => {

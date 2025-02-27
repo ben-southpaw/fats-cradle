@@ -1,0 +1,25 @@
+
+# Canvas.svelte changes
+
+1. At the top of the file, we've already imported:
+import { environmentContext, scaledConfig, initializeEnvironment, updateEnvironment } from '$lib/context/CanvasContext.js';
+
+2. We've added a reactive statement to update CONFIG when scaledConfig changes:
+$: {
+  const sc = $scaledConfig;
+  if (sc) {
+    CONFIG = {
+      ...CONFIG,
+      particleDensity: sc.particleDensity,
+      preDrawnDensity: sc.preDrawnDensity,
+      multitextDensity: sc.multitextDensity,
+      initialStampDensity: sc.initialStampDensity,
+      subsequentStampDensity: sc.subsequentStampDensity,
+      maxParticles: sc.maxParticles
+    };
+  }
+}
+
+3. We need to modify the calculateParticleSizes function to update the environment context
+4. We need to modify onMount to initialize the environment context
+5. We should update the cleanup to handle the ResizeObserver

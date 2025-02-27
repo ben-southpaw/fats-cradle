@@ -1,0 +1,18 @@
+// Function to calculate particle sizes based on canvas dimensions
+	function calculateParticleSizes() {
+		if (!canvas) return;
+		
+		const { width, height } = getContainerDimensions();
+		const baseSize = Math.min(width, height) * 0.01; // Adjust the multiplier as needed
+
+		BASE_CONFIG.particleSize = baseSize;
+		BASE_CONFIG.particleWidth = baseSize * 2; // Make it wider
+		BASE_CONFIG.preDrawnParticleSize = baseSize * 1.5; // Adjust as needed
+		
+		// Update canvas dimensions
+		canvas.width = width;
+		canvas.height = height;
+		
+		// Update the environment context
+		updateEnvironment(canvas);
+	}
