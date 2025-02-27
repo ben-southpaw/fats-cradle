@@ -70,7 +70,7 @@
 		lineWidth: 12,
 		backgroundColor: '#f2f2f2',
 		gridColor: '#C8C8C8',
-		hexagonSize: 4.5,
+		hexagonSize: 8,
 		particleLength: 12,
 		particleWidth: 12,
 		particleColor: '#666666',
@@ -91,11 +91,11 @@
 		subsequentStampOpacity: 0.75,
 		initialStampDensity: {
 			edge: 1.4,
-			fill: 1.6,
+			fill: 1.9,
 		},
 		subsequentStampDensity: {
 			edge: 1.2,
-			fill: 0.9,
+			fill: 1.3,
 		},
 		maxParticles: 40000,
 	};
@@ -310,9 +310,21 @@
 	// Function to update CONFIG based on container size
 	function updateConfig() {
 		const { width, height } = getContainerDimensions();
+		const dpr = window.devicePixelRatio;
 		// Use the smaller dimension to calculate scale
 		const baseSize = Math.min(width, height);
-		const scale = baseSize / 1000; // normalize to a base size of 1000px
+		// Adjust scale by DPR
+		const scale = baseSize / 1000 / dpr; // normalize to a base size of 1000px
+
+		console.log('=== CONFIG UPDATE ===', {
+			width,
+			height,
+			dpr,
+			baseSize,
+			rawScale: baseSize / 1000,
+			dprAdjustedScale: scale,
+		});
+
 		CONFIG = {
 			...BASE_CONFIG,
 			particleSize: BASE_CONFIG.particleSize * scale,
@@ -336,7 +348,17 @@
 	// Function to calculate particle sizes based on canvas dimensions
 	function calculateParticleSizes() {
 		const { width, height } = getContainerDimensions();
-		const baseSize = Math.min(width, height) * 0.01; // Adjust the multiplier as needed
+		const dpr = window.devicePixelRatio;
+		// Adjust the base size by dividing by DPR to maintain consistent visual size
+		const baseSize = (Math.min(width, height) * 0.01) / dpr;
+
+		console.log('=== PARTICLE SIZE CALCULATION ===', {
+			width,
+			height,
+			dpr,
+			rawBaseSize: Math.min(width, height) * 0.01,
+			dprAdjustedBaseSize: baseSize,
+		});
 
 		BASE_CONFIG.particleSize = baseSize;
 		BASE_CONFIG.particleWidth = baseSize * 2; // Make it wider
