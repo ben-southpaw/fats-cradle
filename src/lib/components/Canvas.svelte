@@ -37,8 +37,8 @@
 		// If we're in an iframe, use outer dimensions
 		if (isInIframe) {
 			return {
-				width: window.innerWidth,
-				height: window.innerHeight,
+				width: window.outerWidth,
+				height: window.outerHeight,
 			};
 		}
 
