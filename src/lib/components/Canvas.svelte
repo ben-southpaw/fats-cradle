@@ -23,43 +23,43 @@
 	function getContainerDimensions() {
 		// Detect if we're in an iframe
 		const isInIframe = window !== window.top;
-		
+
 		console.log('=== IFRAME DETECTION ===');
 		console.log('Is in iframe:', isInIframe);
 		console.log('Window dimensions:', {
 			innerWidth: window.innerWidth,
 			innerHeight: window.innerHeight,
 			outerWidth: window.outerWidth,
-			outerHeight: window.outerHeight
+			outerHeight: window.outerHeight,
 		});
 		console.log('Device pixel ratio:', window.devicePixelRatio);
-		
+
 		// If we're in an iframe, use outer dimensions
 		if (isInIframe) {
 			return {
-				width: window.outerWidth,
-				height: window.outerHeight
+				width: window.innerWidth,
+				height: window.innerHeight,
 			};
 		}
-		
+
 		// For non-iframe scenarios, use container or inner dimensions
 		if (!canvas)
 			return { width: window.innerWidth, height: window.innerHeight };
 		const container = canvas.parentElement;
 		if (!container)
 			return { width: window.innerWidth, height: window.innerHeight };
-			
+
 		// Log container dimensions
 		const dimensions = {
 			width: container.clientWidth,
-			height: container.clientHeight
+			height: container.clientHeight,
 		};
 		console.log('Container dimensions:', dimensions);
 		console.log('Container computed style:', {
 			width: window.getComputedStyle(container).width,
-			height: window.getComputedStyle(container).height
+			height: window.getComputedStyle(container).height,
 		});
-		
+
 		return dimensions;
 	}
 
