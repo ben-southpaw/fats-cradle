@@ -2640,8 +2640,10 @@
 		top: 0;
 		left: 0;
 		width: 100%;
+		max-width: 100vw;
 		height: 100%;
 		z-index: 1;
+		overflow: hidden;
 	}
 
 	canvas {
