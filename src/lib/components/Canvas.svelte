@@ -21,9 +21,11 @@
 
 	// Function to get container dimensions
 	function getContainerDimensions() {
-		// Log iframe detection
+		// Detect if we're in an iframe
+		const isInIframe = window !== window.top;
+		
 		console.log('=== IFRAME DETECTION ===');
-		console.log('Is in iframe:', window !== window.top);
+		console.log('Is in iframe:', isInIframe);
 		console.log('Window dimensions:', {
 			innerWidth: window.innerWidth,
 			innerHeight: window.innerHeight,
@@ -32,6 +34,15 @@
 		});
 		console.log('Device pixel ratio:', window.devicePixelRatio);
 		
+		// If we're in an iframe, use outer dimensions
+		if (isInIframe) {
+			return {
+				width: window.outerWidth,
+				height: window.outerHeight
+			};
+		}
+		
+		// For non-iframe scenarios, use container or inner dimensions
 		if (!canvas)
 			return { width: window.innerWidth, height: window.innerHeight };
 		const container = canvas.parentElement;
