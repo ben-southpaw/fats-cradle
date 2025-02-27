@@ -21,15 +21,35 @@
 
 	// Function to get container dimensions
 	function getContainerDimensions() {
+		// Log iframe detection
+		console.log('=== IFRAME DETECTION ===');
+		console.log('Is in iframe:', window !== window.top);
+		console.log('Window dimensions:', {
+			innerWidth: window.innerWidth,
+			innerHeight: window.innerHeight,
+			outerWidth: window.outerWidth,
+			outerHeight: window.outerHeight
+		});
+		console.log('Device pixel ratio:', window.devicePixelRatio);
+		
 		if (!canvas)
 			return { width: window.innerWidth, height: window.innerHeight };
 		const container = canvas.parentElement;
 		if (!container)
 			return { width: window.innerWidth, height: window.innerHeight };
-		return {
+			
+		// Log container dimensions
+		const dimensions = {
 			width: container.clientWidth,
-			height: container.clientHeight,
+			height: container.clientHeight
 		};
+		console.log('Container dimensions:', dimensions);
+		console.log('Container computed style:', {
+			width: window.getComputedStyle(container).width,
+			height: window.getComputedStyle(container).height
+		});
+		
+		return dimensions;
 	}
 
 	// Base config values
