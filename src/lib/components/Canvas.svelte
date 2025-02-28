@@ -36,7 +36,7 @@
 	// Reference dimensions for scaling
 	const REFERENCE_VIEWPORT = {
 		width: 1440,
-		height: 700
+		height: 700,
 	};
 
 	// Function to get scale factor based on current dimensions
@@ -313,7 +313,7 @@
 			preDrawnParticleSize: BASE_CONFIG.preDrawnParticleSize * scale,
 			hexagonLineWidth: BASE_CONFIG.hexagonLineWidth * scale,
 			gridSpacing: BASE_CONFIG.gridSpacing * scale,
-			
+
 			// Scale densities down as viewport gets larger
 			particleDensity: BASE_CONFIG.particleDensity * densityScale,
 			preDrawnDensity: BASE_CONFIG.preDrawnDensity * densityScale,
@@ -335,7 +335,8 @@
 		// Calculate viewport scale factor
 		const viewportScale = getScaleFactor(width, height);
 		// Base size for 1440x700 viewport
-		const referenceBaseSize = Math.min(REFERENCE_VIEWPORT.width, REFERENCE_VIEWPORT.height) * 0.01;
+		const referenceBaseSize =
+			Math.min(REFERENCE_VIEWPORT.width, REFERENCE_VIEWPORT.height) * 0.01;
 		// Scale base size and adjust for DPR
 		const baseSize = (referenceBaseSize * viewportScale) / dpr;
 
@@ -1591,7 +1592,7 @@
 		}
 
 		// Add specific offsets for multi-text image
-		const isMultiText = magnet.img.src.includes('multi-text');
+		let isMultiText = magnet.img.src.includes('multi-text');
 		const multiTextOffsetX = isMultiText
 			? window.innerWidth / 2 -
 				window.innerWidth * 0.15 +
@@ -1761,33 +1762,33 @@
 		renderAll();
 	}
 
-	function positionMagnets() {
-		if (!magnets.length) return;
+	// function positionMagnets() {
+	// 	if (!magnets.length) return;
 
-		const { width, height } = getContainerDimensions();
-		const totalWidth = width * 0.4;
-		const spacing = totalWidth / (magnets.length - 1);
-		const startX = (width - totalWidth) / 2;
-		const targetWidth = height * 0.18;
-		const groupOffset = width * -0.02; // Same offset as in initializeMagnets
+	// 	const { width, height } = getContainerDimensions();
+	// 	const totalWidth = width * 0.4;
+	// 	const spacing = totalWidth / (magnets.length - 1);
+	// 	const startX = (width - totalWidth) / 2;
+	// 	const targetWidth = height * 0.18;
+	// 	const groupOffset = width * -0.02; // Same offset as in initializeMagnets
 
-		magnets.forEach((magnet, index) => {
-			const aspectRatio = magnet.img.width / magnet.img.height;
-			// Limit width to original image width
-			const width = Math.min(targetWidth, magnet.img.width);
-			// Calculate height maintaining aspect ratio, but limit to original image height
-			const height = Math.min(width / aspectRatio, magnet.img.height);
-			const offset = getLetterOffset(magnet.id, index);
+	// 	magnets.forEach((magnet, index) => {
+	// 		const aspectRatio = magnet.img.width / magnet.img.height;
+	// 		// Limit width to original image width
+	// 		const width = Math.min(targetWidth, magnet.img.width);
+	// 		// Calculate height maintaining aspect ratio, but limit to original image height
+	// 		const height = Math.min(width / aspectRatio, magnet.img.height);
+	// 		const offset = getLetterOffset(magnet.id, index);
 
-			magnet.width = width;
-			magnet.height = height;
-			magnet.x = startX + spacing * index + offset + groupOffset;
-			magnet.y = window.innerHeight * getLetterHeight(magnet.id);
-			magnet.rotation = 0;
-		});
+	// 		magnet.width = width;
+	// 		magnet.height = height;
+	// 		magnet.x = startX + spacing * index + offset + groupOffset;
+	// 		magnet.y = window.innerHeight * getLetterHeight(magnet.id);
+	// 		magnet.rotation = 0;
+	// 	});
 
-		renderAll();
-	}
+	// 	renderAll();
+	// }
 
 	// Add batch rendering utilities
 	class ParticleBatch {
@@ -1996,8 +1997,12 @@
 			const tempCanvas = document.createElement('canvas');
 			const tempCtx = tempCanvas.getContext('2d');
 
+			// Check if this is the multi-text image
+			const isMultiText = img.src.includes('multi-text');
+
 			// Calculate scaled dimensions while maintaining aspect ratio
-			const scale = 0.385; // Default scale for all images
+			const scale = isMultiText ? 0.8 : 0.385; // Higher scale for multi-text
+
 			const aspectRatio = img.width / img.height;
 			const maxWidth = canvas.width * 0.8; // Max 80% of canvas width
 			const maxHeight = canvas.height * 0.8; // Max 80% of canvas height
@@ -2015,13 +2020,24 @@
 				scaledWidth = scaledHeight * aspectRatio;
 			}
 
-			// Draw image at original size first
-			tempCanvas.width = img.width;
-			tempCanvas.height = img.height;
-			tempCtx.drawImage(img, 0, 0);
+			// Use scaled dimensions for the canvas
+			tempCanvas.width = isMultiText ? scaledWidth : img.width;
+			tempCanvas.height = isMultiText ? scaledHeight : img.height;
 
-			// Get image data
-			const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+			// Draw image with scaling for multi-text
+			if (isMultiText) {
+				tempCtx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
+			} else {
+				tempCtx.drawImage(img, 0, 0);
+			}
+
+			// Get image data using the appropriate dimensions
+			const imageData = tempCtx.getImageData(
+				0,
+				0,
+				tempCanvas.width,
+				tempCanvas.height
+			);
 			const data = imageData.data;
 
 			const points = [];
@@ -2049,7 +2065,6 @@
 			}
 
 			// Add specific offsets for multi-text image
-			const isMultiText = img.src.includes('multi-text');
 			const multiTextOffsetX = isMultiText
 				? window.innerWidth / 2 -
 					window.innerWidth * 0.15 +
