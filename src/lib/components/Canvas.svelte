@@ -54,7 +54,7 @@
 		lineWidth: 12,
 		backgroundColor: '#f2f2f2',
 		gridColor: '#C8C8C8',
-		hexagonSize: 8,
+		hexagonSize: 6,
 		particleLength: 12,
 		particleWidth: 12,
 		particleColor: '#666666',
