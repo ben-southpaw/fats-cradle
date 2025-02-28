@@ -33,7 +33,21 @@
 		};
 	}
 
-	// Base config values
+	// Reference dimensions for scaling
+	const REFERENCE_VIEWPORT = {
+		width: 1440,
+		height: 700
+	};
+
+	// Function to get scale factor based on current dimensions
+	function getScaleFactor(currentWidth, currentHeight) {
+		return Math.min(
+			currentWidth / REFERENCE_VIEWPORT.width,
+			currentHeight / REFERENCE_VIEWPORT.height
+		);
+	}
+
+	// Base config values - these are the values for the reference viewport size
 	let BASE_CONFIG = {
 		particleSize: 10,
 		particleDensity: 10,
@@ -281,14 +295,16 @@
 	function updateConfig() {
 		const { width, height } = getContainerDimensions();
 		const dpr = window.devicePixelRatio;
-		// Use the smaller dimension to calculate scale
-		const baseSize = Math.min(width, height);
-		// Adjust scale by DPR
-		const scale = baseSize / 1000 / dpr; // normalize to a base size of 1000px
-
+		// Calculate viewport scale factor
+		const viewportScale = getScaleFactor(width, height);
+		// Combine viewport scale with DPR adjustment
+		const scale = viewportScale / dpr;
+		// For density values, we want to scale inversely to maintain visual density
+		const densityScale = 1 / viewportScale;
 
 		CONFIG = {
 			...BASE_CONFIG,
+			// Scale sizes up with viewport
 			particleSize: BASE_CONFIG.particleSize * scale,
 			lineWidth: BASE_CONFIG.lineWidth * scale,
 			hexagonSize: BASE_CONFIG.hexagonSize * scale,
@@ -296,13 +312,18 @@
 			particleWidth: BASE_CONFIG.particleWidth * scale,
 			preDrawnParticleSize: BASE_CONFIG.preDrawnParticleSize * scale,
 			hexagonLineWidth: BASE_CONFIG.hexagonLineWidth * scale,
+			gridSpacing: BASE_CONFIG.gridSpacing * scale,
+			
+			// Scale densities down as viewport gets larger
+			particleDensity: BASE_CONFIG.particleDensity * densityScale,
+			preDrawnDensity: BASE_CONFIG.preDrawnDensity * densityScale,
 			initialStampDensity: {
-				edge: BASE_CONFIG.initialStampDensity.edge * scale,
-				fill: BASE_CONFIG.initialStampDensity.fill * scale,
+				edge: BASE_CONFIG.initialStampDensity.edge * densityScale,
+				fill: BASE_CONFIG.initialStampDensity.fill * densityScale,
 			},
 			subsequentStampDensity: {
-				edge: BASE_CONFIG.subsequentStampDensity.edge * scale,
-				fill: BASE_CONFIG.subsequentStampDensity.fill * scale,
+				edge: BASE_CONFIG.subsequentStampDensity.edge * densityScale,
+				fill: BASE_CONFIG.subsequentStampDensity.fill * densityScale,
 			},
 		};
 	}
@@ -311,9 +332,12 @@
 	function calculateParticleSizes() {
 		const { width, height } = getContainerDimensions();
 		const dpr = window.devicePixelRatio;
-		// Adjust the base size by dividing by DPR to maintain consistent visual size
-		const baseSize = (Math.min(width, height) * 0.01) / dpr;
-
+		// Calculate viewport scale factor
+		const viewportScale = getScaleFactor(width, height);
+		// Base size for 1440x700 viewport
+		const referenceBaseSize = Math.min(REFERENCE_VIEWPORT.width, REFERENCE_VIEWPORT.height) * 0.01;
+		// Scale base size and adjust for DPR
+		const baseSize = (referenceBaseSize * viewportScale) / dpr;
 
 		BASE_CONFIG.particleSize = baseSize;
 		BASE_CONFIG.particleWidth = baseSize * 2; // Make it wider
