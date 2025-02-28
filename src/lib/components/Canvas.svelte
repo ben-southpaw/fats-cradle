@@ -21,46 +21,16 @@
 
 	// Function to get container dimensions
 	function getContainerDimensions() {
-		// Detect if we're in an iframe
-		const isInIframe = window !== window.top;
-
-		console.log('=== IFRAME DETECTION ===');
-		console.log('Is in iframe:', isInIframe);
-		console.log('Window dimensions:', {
-			innerWidth: window.innerWidth,
-			innerHeight: window.innerHeight,
-			outerWidth: window.outerWidth,
-			outerHeight: window.outerHeight,
-		});
-		console.log('Device pixel ratio:', window.devicePixelRatio);
-
-		// If we're in an iframe, use outer dimensions
-		if (isInIframe) {
-			return {
-				width: window.innerWidth,
-				height: window.innerHeight,
-			};
-		}
-
-		// For non-iframe scenarios, use container or inner dimensions
 		if (!canvas)
 			return { width: window.innerWidth, height: window.innerHeight };
 		const container = canvas.parentElement;
 		if (!container)
 			return { width: window.innerWidth, height: window.innerHeight };
 
-		// Log container dimensions
-		const dimensions = {
+		return {
 			width: container.clientWidth,
 			height: container.clientHeight,
 		};
-		console.log('Container dimensions:', dimensions);
-		console.log('Container computed style:', {
-			width: window.getComputedStyle(container).width,
-			height: window.getComputedStyle(container).height,
-		});
-
-		return dimensions;
 	}
 
 	// Base config values
@@ -316,14 +286,6 @@
 		// Adjust scale by DPR
 		const scale = baseSize / 1000 / dpr; // normalize to a base size of 1000px
 
-		console.log('=== CONFIG UPDATE ===', {
-			width,
-			height,
-			dpr,
-			baseSize,
-			rawScale: baseSize / 1000,
-			dprAdjustedScale: scale,
-		});
 
 		CONFIG = {
 			...BASE_CONFIG,
@@ -352,13 +314,6 @@
 		// Adjust the base size by dividing by DPR to maintain consistent visual size
 		const baseSize = (Math.min(width, height) * 0.01) / dpr;
 
-		console.log('=== PARTICLE SIZE CALCULATION ===', {
-			width,
-			height,
-			dpr,
-			rawBaseSize: Math.min(width, height) * 0.01,
-			dprAdjustedBaseSize: baseSize,
-		});
 
 		BASE_CONFIG.particleSize = baseSize;
 		BASE_CONFIG.particleWidth = baseSize * 2; // Make it wider
