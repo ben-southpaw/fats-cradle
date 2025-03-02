@@ -76,14 +76,14 @@
 		multitextDensity: 9.0,
 		multitextOpacity: 1,
 		multitextWhiteProb: 0,
-		cursorWhiteParticleProbability: 0,
+		cursorWhiteParticleProbability: 0.1,
 		stampWhiteParticleProbability: 0.2,
 		targetFPS: 60,
 		idleFPS: 30,
 		idleTimeout: 1000,
 		hexagonLineWidth: 0.3,
-		initialStampOpacity: 0.99,
-		subsequentStampOpacity: 0.75,
+		initialStampOpacity: 0.9,
+		subsequentStampOpacity: 0.65,
 		initialStampDensity: {
 			edge: 1.4,
 			fill: 1.9,
@@ -320,8 +320,6 @@
 		const actualParticleWidth =
 			BASE_CONFIG.lineWidth * BASE_CONFIG.particleWidth;
 
-
-
 		CONFIG = {
 			...BASE_CONFIG,
 			// Set sizes relative to lineWidth
@@ -379,8 +377,6 @@
 
 		// Try WebGL first
 		setupWebGL();
-
-
 
 		// Fallback to 2D context if WebGL setup failed
 		if (!gl) {
@@ -754,8 +750,6 @@
 
 	// WebGL particle rendering function
 	function renderParticlesWebGL(particles) {
-
-
 		if (!gl || !particleProgram || particles.length === 0) {
 			return;
 		}
@@ -1323,11 +1317,15 @@
 		let finalX = x;
 		let finalY = y;
 
+		// Add more random offset to break up line patterns
+		const offsetScale = CONFIG.lineWidth * 0.25; // 25% of lineWidth
+		finalX += (Math.random() - 0.5) * offsetScale;
+		finalY += (Math.random() - 0.5) * offsetScale;
 
-
-		if (Math.random() < 0.8) {
-			finalX += (Math.random() - 0.5) * 1.5;
-			finalY += (Math.random() - 0.5) * 1.5;
+		// Occasionally add larger jumps to create gaps
+		if (Math.random() < 0.2) {
+			finalX += (Math.random() - 0.5) * offsetScale * 2;
+			finalY += (Math.random() - 0.5) * offsetScale * 2;
 		}
 
 		return {
@@ -1343,7 +1341,10 @@
 					? CONFIG.multitextOpacity
 					: CONFIG.subsequentStampOpacity
 				: CONFIG.particleOpacity,
-			color: CONFIG.particleColor,
+			color:
+				!isStamp && Math.random() < CONFIG.cursorWhiteParticleProbability
+					? '#ffffff'
+					: CONFIG.particleColor,
 		};
 	}
 
@@ -1362,8 +1363,6 @@
 			),
 			MAX_PARTICLES - particles.length
 		);
-
-
 
 		// If we're at max particles, remove oldest ones
 		if (particles.length + count > MAX_PARTICLES) {
