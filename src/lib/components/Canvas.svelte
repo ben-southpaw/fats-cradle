@@ -41,22 +41,26 @@
 
 	// Function to get scale factor based on current dimensions
 	function getScaleFactor(currentWidth, currentHeight) {
-		return Math.min(
-			currentWidth / REFERENCE_VIEWPORT.width,
-			currentHeight / REFERENCE_VIEWPORT.height
+		// Never scale below 1 to maintain minimum size
+		return Math.max(
+			1,
+			Math.min(
+				currentWidth / REFERENCE_VIEWPORT.width,
+				currentHeight / REFERENCE_VIEWPORT.height
+			)
 		);
 	}
 
 	// Base config values - these are the values for the reference viewport size
 	let BASE_CONFIG = {
-		particleSize: 12,
-		particleDensity: 6,
+		particleSize: 20,
+		particleDensity: 8,
 		lineWidth: 12,
 		backgroundColor: '#f2f2f2',
 		gridColor: '#C8C8C8',
-		hexagonSize: 8,
-		particleLength: 2,
-		particleWidth: 2,
+		hexagonSize: 3,
+		particleLength: 10,
+		particleWidth: 12,
 		particleColor: '#666666',
 		particleOpacity: 1,
 		preDrawnParticleSize: 1,
@@ -65,8 +69,8 @@
 		multitextDensity: 9.0,
 		multitextOpacity: 1,
 		multitextWhiteProb: 0,
-		cursorWhiteParticleProbability: 2,
-		stampWhiteParticleProbability: 0.8,
+		cursorWhiteParticleProbability: 0,
+		stampWhiteParticleProbability: 0.2,
 		targetFPS: 60,
 		idleFPS: 30,
 		idleTimeout: 1000,
@@ -297,22 +301,22 @@
 		const dpr = window.devicePixelRatio;
 		// Calculate viewport scale factor
 		const viewportScale = getScaleFactor(width, height);
-		// Combine viewport scale with DPR adjustment
-		const scale = viewportScale / dpr;
+		// Use viewport scale directly, don't adjust for DPR since canvas handles that
+		const scale = viewportScale;
 		// For density values, we want to scale inversely to maintain visual density
 		const densityScale = 1 / viewportScale;
 
 		CONFIG = {
 			...BASE_CONFIG,
-			// Scale sizes up with viewport
-			particleSize: BASE_CONFIG.particleSize * scale,
-			lineWidth: BASE_CONFIG.lineWidth * scale,
-			hexagonSize: BASE_CONFIG.hexagonSize * scale,
-			particleLength: BASE_CONFIG.particleLength * scale,
-			particleWidth: BASE_CONFIG.particleWidth * scale,
-			preDrawnParticleSize: BASE_CONFIG.preDrawnParticleSize * scale,
-			hexagonLineWidth: BASE_CONFIG.hexagonLineWidth * scale,
-			gridSpacing: BASE_CONFIG.gridSpacing * scale,
+			// Keep particle sizes consistent
+			particleSize: BASE_CONFIG.particleSize,
+			lineWidth: BASE_CONFIG.lineWidth,
+			hexagonSize: BASE_CONFIG.hexagonSize,
+			particleLength: BASE_CONFIG.particleLength,
+			particleWidth: BASE_CONFIG.particleWidth,
+			preDrawnParticleSize: BASE_CONFIG.preDrawnParticleSize,
+			hexagonLineWidth: BASE_CONFIG.hexagonLineWidth,
+			gridSpacing: BASE_CONFIG.gridSpacing,
 
 			// Scale densities down as viewport gets larger
 			particleDensity: BASE_CONFIG.particleDensity * densityScale,
@@ -328,21 +332,15 @@
 		};
 	}
 
-	// Function to calculate particle sizes based on canvas dimensions
+	// Function to calculate base particle sizes
 	function calculateParticleSizes() {
 		const { width, height } = getContainerDimensions();
 		const dpr = window.devicePixelRatio;
 		// Calculate viewport scale factor
 		const viewportScale = getScaleFactor(width, height);
-		// Base size for 1920x934 viewport - adjusted scale factor for larger dimensions
-		const referenceBaseSize =
-			Math.min(REFERENCE_VIEWPORT.width, REFERENCE_VIEWPORT.height) * 0.0065;
-		// Scale base size and adjust for DPR
-		const baseSize = (referenceBaseSize * viewportScale) / dpr;
 
-		BASE_CONFIG.particleSize = baseSize;
-		BASE_CONFIG.particleWidth = baseSize * 2; // Make it wider
-		BASE_CONFIG.preDrawnParticleSize = baseSize * 1.5; // Adjust as needed
+		// Update CONFIG with proper scaling
+		updateConfig();
 	}
 
 	onMount(() => {
@@ -1281,10 +1279,19 @@
 
 	// Update resize handler to clear cache
 	const resize = () => {
+		console.log('Resize event triggered');
 		if (!canvas) return;
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
 		gridCache = null; // Clear cache on resize
+
+		// Force recalculation of particle sizes
+		calculateParticleSizes();
+		console.log('After resize - CONFIG:', {
+			particleSize: CONFIG.particleSize,
+			particleWidth: CONFIG.particleWidth,
+			particleLength: CONFIG.particleLength,
+		});
 	};
 
 	// Shared particle creation function
@@ -1318,8 +1325,15 @@
 	const MAX_PARTICLES = 800000; // Adjust based on needs
 	function generateParticles(x1, y1, x2, y2) {
 		const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+		// Get current scale to adjust distance
+		const { width, height } = getContainerDimensions();
+		const viewportScale = getScaleFactor(width, height);
+
+		// Scale down the distance on larger screens to maintain consistent density
+		const scaledDistance = distance / viewportScale;
+
 		const count = Math.min(
-			Math.floor(distance * CONFIG.particleDensity),
+			Math.floor(scaledDistance * CONFIG.particleDensity),
 			MAX_PARTICLES - particles.length
 		);
 
@@ -1577,8 +1591,8 @@
 			: CONFIG.subsequentStampDensity;
 
 		const particleSize = {
-			length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
-			width: CONFIG.particleWidth,
+			length: CONFIG.particleLength * (0.8 + Math.random() * 0.4), // Maintain 80-120% of length
+			width: CONFIG.particleWidth * (0.9 + Math.random() * 0.2), // Maintain 90-110% of width
 			randomness: 0.15,
 		};
 
@@ -2050,8 +2064,8 @@
 			};
 
 			const particleSize = {
-				length: CONFIG.particleLength * (0.2 + Math.random() * 0.3),
-				width: CONFIG.particleWidth,
+				length: CONFIG.particleLength * (0.8 + Math.random() * 0.4), // Maintain 80-120% of length
+				width: CONFIG.particleWidth * (0.9 + Math.random() * 0.2), // Maintain 90-110% of width
 				randomness: 0.15,
 			};
 
