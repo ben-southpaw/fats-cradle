@@ -459,79 +459,89 @@
 
 			// Handle materials to prevent texture loading errors and enhance lighting
 			model.traverse((child) => {
-				if (child.isMesh) {
-					if (child.material) {
-						// Remove texture references if they don't exist
-						if (child.material.normalMap && !child.material.normalMap.image) {
-							child.material.normalMap = null;
-						}
-						if (
-							child.material.roughnessMap &&
-							!child.material.roughnessMap.image
-						) {
-							child.material.roughnessMap = null;
-						}
-						if (
-							child.material.metalnessMap &&
-							!child.material.metalnessMap.image
-						) {
-							child.material.metalnessMap = null;
-						}
-
-						// Check if this is a magnet by looking at material color and name
-						const color = child.material.color;
-						const isMagnet =
-							(color.r !== 1 || color.g !== 1 || color.b !== 1) &&
-							child.name.startsWith('Curve') &&
-							!child.name.includes('003'); // Exclude logo (Curve003)
-
-						if (isMagnet) {
-							// Create a new material for each magnet to prevent sharing
-							child.material = new THREE.MeshStandardMaterial({
-								color: child.material.color,
-								roughness: 0.2,
-								metalness: 0.0,
-								emissive: child.material.color,
-								emissiveIntensity: 0.2,
-								transparent: false,
-								depthTest: true,
-								depthWrite: true,
-								side: THREE.FrontSide,
-							});
-
-							// Ensure proper positioning
-							if (
-								child.position.x === 0 &&
-								child.position.y === 0 &&
-								child.position.z === 0
-							) {
-								// Move slightly forward to prevent z-fighting
-								child.position.z += 0.01 * Math.random(); // Random small offset
-							}
-
-							// Boost the color saturation and brightness
-							const hsl = {};
-							color.getHSL(hsl);
-							color.setHSL(
-								hsl.h,
-								Math.min(1, hsl.s * 1.4),
-								Math.min(0.7, hsl.l * 1.3)
-							);
-						} else if (child.name === 'Curve003_1') {
-							// Special handling for the white text
-							child.material.roughness = 0.2;
-							child.material.metalness = 0.1;
-							child.material.emissive = new THREE.Color(0xffffff);
-							child.material.emissiveIntensity = 0.2;
-						} else {
-							// Default material properties for other meshes
-							child.material.roughness = 0.4;
-							child.material.metalness = 0.2;
-						}
-
-						child.castShadow = true;
-						child.receiveShadow = true;
+				if (child.isMesh && child.material) {
+					// Remove texture references if they don't exist
+					if (child.material.normalMap && !child.material.normalMap.image) {
+						child.material.normalMap = null;
 					}
+					if (
+						child.material.roughnessMap &&
+						!child.material.roughnessMap.image
+					) {
+						child.material.roughnessMap = null;
+					}
+					if (
+						child.material.metalnessMap &&
+						!child.material.metalnessMap.image
+					) {
+						child.material.metalnessMap = null;
+					}
+
+					// Check if this is a magnet by looking at material color and name
+					const color = child.material.color;
+					const isMagnet =
+						(color.r !== 1 || color.g !== 1 || color.b !== 1) &&
+						child.name.startsWith('Curve') &&
+						!child.name.includes('003'); // Exclude logo (Curve003)
+
+					if (isMagnet) {
+						// Create a new material for each magnet to prevent sharing
+						child.material = new THREE.MeshStandardMaterial({
+							color: child.material.color,
+							roughness: 0.2,
+							metalness: 0.0,
+							emissive: child.material.color,
+							emissiveIntensity: 0.2,
+							transparent: false,
+							depthTest: true,
+							depthWrite: true,
+							side: THREE.FrontSide,
+						});
+
+						// Ensure proper positioning
+						if (
+							child.position.x === 0 &&
+							child.position.y === 0 &&
+							child.position.z === 0
+						) {
+							// Move slightly forward to prevent z-fighting
+							child.position.z += 0.01 * Math.random(); // Random small offset
+						}
+
+						// Boost the color saturation and brightness
+						const hsl = {};
+						color.getHSL(hsl);
+						color.setHSL(
+							hsl.h,
+							Math.min(1, hsl.s * 1.4),
+							Math.min(0.7, hsl.l * 1.3)
+						);
+					} else if (child.name === 'Screen_Border') {
+						// Special handling for the screen border
+						child.material.roughness = 0.5; // Duller surface
+						child.material.metalness = 0.1; // Less metallic/shiny
+						child.material.emissive = child.material.color; // Add glow
+						child.material.emissiveIntensity = 0.1; // Moderate glow
+					} else if (child.name === 'Slider') {
+						// Special handling for the slider knob
+						child.material.roughness = 0.8; // Slightly glossy
+						child.material.metalness = 0.3; // More metallic
+						child.material.emissive = child.material.color; // Add glow
+						child.material.emissiveIntensity = 0.4; // Subtle glow
+					} else if (child.name === 'Curve003_1') {
+						// Special handling for the white text
+						child.material.roughness = 0.2;
+						child.material.metalness = 0.1;
+						child.material.emissive = new THREE.Color(0xffffff);
+						child.material.emissiveIntensity = 0.2;
+					} else {
+						// Default material properties for other meshes
+						child.material.roughness = 0.4;
+						child.material.metalness = 0.2;
+					}
+
+					child.castShadow = true;
+					child.receiveShadow = true;
 				}
 			});
 
