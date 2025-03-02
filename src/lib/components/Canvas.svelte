@@ -36,7 +36,7 @@
 	// Reference dimensions for scaling (matched to iframe dimensions)
 	const REFERENCE_VIEWPORT = {
 		width: 1920,
-		height: 701,
+		height: 934,
 	};
 
 	// Function to get scale factor based on current dimensions
@@ -49,14 +49,14 @@
 
 	// Base config values - these are the values for the reference viewport size
 	let BASE_CONFIG = {
-		particleSize: 10,
-		particleDensity: 10,
+		particleSize: 12,
+		particleDensity: 6,
 		lineWidth: 12,
 		backgroundColor: '#f2f2f2',
 		gridColor: '#C8C8C8',
-		hexagonSize: 6,
-		particleLength: 12,
-		particleWidth: 12,
+		hexagonSize: 8,
+		particleLength: 2,
+		particleWidth: 2,
 		particleColor: '#666666',
 		particleOpacity: 1,
 		preDrawnParticleSize: 1,
@@ -65,8 +65,8 @@
 		multitextDensity: 9.0,
 		multitextOpacity: 1,
 		multitextWhiteProb: 0,
-		cursorWhiteParticleProbability: 0,
-		stampWhiteParticleProbability: 0.2,
+		cursorWhiteParticleProbability: 2,
+		stampWhiteParticleProbability: 0.8,
 		targetFPS: 60,
 		idleFPS: 30,
 		idleTimeout: 1000,
@@ -334,9 +334,9 @@
 		const dpr = window.devicePixelRatio;
 		// Calculate viewport scale factor
 		const viewportScale = getScaleFactor(width, height);
-		// Base size for 1920x701 viewport - adjusted scale factor for larger width
+		// Base size for 1920x934 viewport - adjusted scale factor for larger dimensions
 		const referenceBaseSize =
-			Math.min(REFERENCE_VIEWPORT.width, REFERENCE_VIEWPORT.height) * 0.0075;
+			Math.min(REFERENCE_VIEWPORT.width, REFERENCE_VIEWPORT.height) * 0.0065;
 		// Scale base size and adjust for DPR
 		const baseSize = (referenceBaseSize * viewportScale) / dpr;
 
