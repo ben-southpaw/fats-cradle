@@ -53,14 +53,21 @@
 
 	// Base config values - these are the values for the reference viewport size
 	let BASE_CONFIG = {
-		particleSize: 20,
-		particleDensity: 8,
+		// Non-relative properties first so we can reference them
 		lineWidth: 12,
+
+		// Sizes relative to lineWidth
+		particleSize: 0.75, // 75% of lineWidth
+		particleLength: 0.5, // 50% of lineWidth
+		particleWidth: 0.6, // 60% of lineWidth
+
+		// Density as particles per lineWidth
+		particleDensity: 0.7, // 1 particle per 2 lineWidths
+
+		// Non-relative properties
 		backgroundColor: '#f2f2f2',
 		gridColor: '#C8C8C8',
 		hexagonSize: 3,
-		particleLength: 10,
-		particleWidth: 12,
 		particleColor: '#666666',
 		particleOpacity: 1,
 		preDrawnParticleSize: 1,
@@ -306,20 +313,31 @@
 		// For density values, we want to scale inversely to maintain visual density
 		const densityScale = 1 / viewportScale;
 
+		// Calculate sizes relative to lineWidth
+		const actualParticleSize = BASE_CONFIG.lineWidth * BASE_CONFIG.particleSize;
+		const actualParticleLength =
+			BASE_CONFIG.lineWidth * BASE_CONFIG.particleLength;
+		const actualParticleWidth =
+			BASE_CONFIG.lineWidth * BASE_CONFIG.particleWidth;
+
+
+
 		CONFIG = {
 			...BASE_CONFIG,
-			// Keep particle sizes consistent
-			particleSize: BASE_CONFIG.particleSize,
+			// Set sizes relative to lineWidth
+			particleSize: actualParticleSize,
+			particleLength: actualParticleLength,
+			particleWidth: actualParticleWidth,
+
+			// Keep non-relative properties as is
 			lineWidth: BASE_CONFIG.lineWidth,
 			hexagonSize: BASE_CONFIG.hexagonSize,
-			particleLength: BASE_CONFIG.particleLength,
-			particleWidth: BASE_CONFIG.particleWidth,
 			preDrawnParticleSize: BASE_CONFIG.preDrawnParticleSize,
 			hexagonLineWidth: BASE_CONFIG.hexagonLineWidth,
 			gridSpacing: BASE_CONFIG.gridSpacing,
 
-			// Scale densities down as viewport gets larger
-			particleDensity: BASE_CONFIG.particleDensity * densityScale,
+			// Use base density directly for testing
+			particleDensity: BASE_CONFIG.particleDensity,
 			preDrawnDensity: BASE_CONFIG.preDrawnDensity * densityScale,
 			initialStampDensity: {
 				edge: BASE_CONFIG.initialStampDensity.edge * densityScale,
@@ -361,6 +379,8 @@
 
 		// Try WebGL first
 		setupWebGL();
+
+
 
 		// Fallback to 2D context if WebGL setup failed
 		if (!gl) {
@@ -734,7 +754,11 @@
 
 	// WebGL particle rendering function
 	function renderParticlesWebGL(particles) {
-		if (!gl || !particleProgram || particles.length === 0) return;
+
+
+		if (!gl || !particleProgram || particles.length === 0) {
+			return;
+		}
 
 		// Use shader program
 		gl.useProgram(particleProgram);
@@ -1299,6 +1323,8 @@
 		let finalX = x;
 		let finalY = y;
 
+
+
 		if (Math.random() < 0.8) {
 			finalX += (Math.random() - 0.5) * 1.5;
 			finalY += (Math.random() - 0.5) * 1.5;
@@ -1325,17 +1351,19 @@
 	const MAX_PARTICLES = 800000; // Adjust based on needs
 	function generateParticles(x1, y1, x2, y2) {
 		const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-		// Get current scale to adjust distance
 		const { width, height } = getContainerDimensions();
-		const viewportScale = getScaleFactor(width, height);
 
-		// Scale down the distance on larger screens to maintain consistent density
-		const scaledDistance = distance / viewportScale;
-
+		// Scale up density for short distances
+		const DENSITY_SCALE = 10; // Ensure at least 1 particle per 10 pixels
 		const count = Math.min(
-			Math.floor(scaledDistance * CONFIG.particleDensity),
+			Math.max(
+				1,
+				Math.floor(distance * CONFIG.particleDensity * DENSITY_SCALE)
+			),
 			MAX_PARTICLES - particles.length
 		);
+
+
 
 		// If we're at max particles, remove oldest ones
 		if (particles.length + count > MAX_PARTICLES) {
