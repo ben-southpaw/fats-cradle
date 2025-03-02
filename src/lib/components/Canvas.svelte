@@ -33,10 +33,10 @@
 		};
 	}
 
-	// Reference dimensions for scaling
+	// Reference dimensions for scaling (matched to iframe dimensions)
 	const REFERENCE_VIEWPORT = {
-		width: 1440,
-		height: 700,
+		width: 1920,
+		height: 701,
 	};
 
 	// Function to get scale factor based on current dimensions
@@ -334,9 +334,9 @@
 		const dpr = window.devicePixelRatio;
 		// Calculate viewport scale factor
 		const viewportScale = getScaleFactor(width, height);
-		// Base size for 1440x700 viewport
+		// Base size for 1920x701 viewport - adjusted scale factor for larger width
 		const referenceBaseSize =
-			Math.min(REFERENCE_VIEWPORT.width, REFERENCE_VIEWPORT.height) * 0.01;
+			Math.min(REFERENCE_VIEWPORT.width, REFERENCE_VIEWPORT.height) * 0.0075;
 		// Scale base size and adjust for DPR
 		const baseSize = (referenceBaseSize * viewportScale) / dpr;
 
