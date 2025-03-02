@@ -538,7 +538,34 @@
 			// Add a specific light for the logo text
 			const logoLight = new THREE.PointLight(0xffffff, 0.8);
 			logoLight.position.set(3, 4, 1); // Moved further top-right (x: right, y: up, z: forward)
-			model.add(logoLight);
+			scene.add(logoLight);
+
+			// Add bottom-right light mirroring the top-right light
+			const bottomLight = new THREE.PointLight(0xffffff, 2.0); // Further increased intensity
+			bottomLight.position.set(2, -4, 1.5); // Moved slightly left and forward
+			scene.add(bottomLight);
+
+			// Add right spotlight for focused bottom border illumination
+			const rightSpotLight = new THREE.SpotLight(0xffffff, 3.0); // Much higher intensity
+			rightSpotLight.position.set(2, -2.7, 1.5); // Raised position by ~10%
+			rightSpotLight.angle = Math.PI / 3.5; // Even wider angle (~51 degrees)
+			rightSpotLight.penumbra = 0.7; // Even softer edges
+			rightSpotLight.decay = 0.8; // Less decay for more reach
+			rightSpotLight.distance = 12; // Increased range
+			rightSpotLight.target.position.set(0, -0.9, 0); // Target also raised slightly
+			scene.add(rightSpotLight);
+			scene.add(rightSpotLight.target);
+
+			// Add left spotlight mirroring the right one
+			const leftSpotLight = new THREE.SpotLight(0xffffff, 3.0);
+			leftSpotLight.position.set(-2, -2.7, 1.5); // Mirror of right spotlight
+			leftSpotLight.angle = Math.PI / 3.5;
+			leftSpotLight.penumbra = 0.7;
+			leftSpotLight.decay = 0.8;
+			leftSpotLight.distance = 12;
+			leftSpotLight.target.position.set(0, -0.9, 0); // Same target as right spotlight
+			scene.add(leftSpotLight);
+			scene.add(leftSpotLight.target);
 
 			// Find screen and slider meshes
 			let foundScreen = false;
