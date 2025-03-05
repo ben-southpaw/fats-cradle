@@ -134,6 +134,7 @@
 	let dragOffset = 0;
 	let scrollAnimation;
 	let scrollTimeout;
+	let hasReceivedSecondWheelEvent = false; // Track if we've received a second wheel event
 	const dispatch = createEventDispatcher();
 
 	// Function to calculate effective track length accounting for knob width
@@ -179,8 +180,8 @@
 
 			scrollAnimation = gsap.to(sliderMesh.position, {
 				x: newX,
-				duration: 0.5, // Longer duration
-				ease: 'power3.out', // Smoother easing
+				duration: 0.5,
+				ease: 'power3.out',
 				onUpdate: () => {
 					// Calculate and dispatch progress during animation
 					const progress = calculateWipeProgress(sliderMesh.position.x);
@@ -297,6 +298,21 @@
 	function handlePostTransitionScroll(event) {
 		if (!isFirstTransitionComplete || !sliderMesh || isDragging) return;
 
+		// If this is the first wheel event after the initial animation,
+		// trigger the full spin and wipe to the end
+		if (!hasReceivedSecondWheelEvent) {
+			hasReceivedSecondWheelEvent = true;
+
+			// Remove the wheel event listener since we only need it once
+			window.removeEventListener('wheel', handlePostTransitionScroll);
+
+			// Perform the full spin and complete wipe to the end
+			performFullSpinAndWipe();
+			return;
+		}
+
+		// This code should not be reached since we remove the listener after the first event,
+		// but keeping it for safety
 		// Clear any existing timeout
 		if (scrollTimeout) clearTimeout(scrollTimeout);
 
@@ -309,11 +325,57 @@
 			);
 			totalScrollAmount = currentSliderPosition;
 
-			// Convert to world position and update with animation
+			// Convert to world position
 			const worldX =
 				sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
-			updateSliderPosition(worldX, false); // Use animated update for scrolling
+
+			// Update slider position
+			updateSliderPosition(worldX, false);
 		}, 16); // ~60fps timing
+	}
+
+	// Function to perform a complete spin and wipe to the end
+	function performFullSpinAndWipe() {
+		if (!sliderMesh || !model) return;
+
+		// Kill any existing animations
+		if (scrollAnimation) scrollAnimation.kill();
+
+		// Create a timeline for the sequence
+		const timeline = gsap.timeline({
+			onComplete: () => {
+				// After animation completes, update the state
+				currentSliderPosition = 1;
+				totalScrollAmount = 1;
+				emitEndAnimationEvent();
+			},
+		});
+
+		// First, perform a quick spin animation on the model
+		timeline.to(model.rotation, {
+			y: model.rotation.y + Math.PI * 2, // Full 360-degree spin
+			duration: 0.8, // Fast spin
+			ease: 'power2.inOut',
+		});
+
+		// Then, perform the complete wipe animation to the end, but only after the spin is complete
+		timeline.to(
+			sliderMesh.position,
+			{
+				x: sliderMaxX, // Go all the way to the end
+				duration: 1.2,
+				ease: 'power3.out',
+				onUpdate: () => {
+					// Calculate and dispatch progress during animation
+					const progress = calculateWipeProgress(sliderMesh.position.x);
+					dispatch('wipe', { progress });
+				},
+			},
+			'>'
+		);
+
+		// Store the animation for potential cancellation
+		scrollAnimation = timeline;
 	}
 
 	// Create a raycaster for slider interaction
@@ -726,6 +788,8 @@
 
 		isTransitioning = true;
 		dispatch('transitionstart');
+		// Reset the second wheel event flag
+		hasReceivedSecondWheelEvent = false;
 
 		// Ensure clipping planes are set up before animation
 		setupClippingPlanes();
@@ -789,16 +853,32 @@
 	export function startWipeAnimation() {
 		if (!sliderMesh) return;
 
+		// First do a spin animation, then the wipe
 		const timeline = gsap.timeline();
-		timeline.to(sliderMesh.position, {
-			x: sliderMaxX,
-			duration: CONFIG.animation.duration * 0.8,
-			ease: 'power2.inOut',
-			onUpdate: () => {
-				const progress = calculateWipeProgress(sliderMesh.position.x);
-				dispatch('wipe', { progress });
+
+		// Add a spin animation if the model exists
+		if (model) {
+			timeline.to(model.rotation, {
+				y: model.rotation.y + Math.PI * 2, // Full 360-degree spin
+				duration: CONFIG.animation.duration * 0.4, // Fast spin
+				ease: 'power2.inOut',
+			});
+		}
+
+		// Then do the wipe animation
+		timeline.to(
+			sliderMesh.position,
+			{
+				x: sliderMaxX,
+				duration: CONFIG.animation.duration * 0.6,
+				ease: 'power2.inOut',
+				onUpdate: () => {
+					const progress = calculateWipeProgress(sliderMesh.position.x);
+					dispatch('wipe', { progress });
+				},
 			},
-		});
+			model ? 0.2 : 0
+		); // Slight overlap with spin if model exists
 	}
 
 	// Handle mousewheel event
