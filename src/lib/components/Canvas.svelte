@@ -2340,6 +2340,44 @@
 
 			// Check canvas bounds and get corrected position
 			const boundedPosition = checkCanvasBounds(droppedMagnet);
+			
+			// Update magnet position with bounded position
+			droppedMagnet.x = boundedPosition.x;
+			droppedMagnet.y = boundedPosition.y;
+			
+			// Check for collisions with other magnets
+			const otherMagnets = magnets.filter(m => m !== droppedMagnet);
+			let collidingMagnet = null;
+			
+			// Find the magnet that's being collided with
+			for (const other of otherMagnets) {
+				if (checkCollision(droppedMagnet, other)) {
+					collidingMagnet = other;
+					break;
+				}
+			}
+			
+			// If collision detected, move the magnet that's already on the canvas
+			if (collidingMagnet) {
+				// Find free space for the colliding magnet (the one already on the canvas)
+				const magnetsExceptColliding = magnets.filter(m => m !== collidingMagnet);
+				const freePosition = findFreeSpace(collidingMagnet, magnetsExceptColliding);
+				
+				if (freePosition) {
+					// Animate the colliding magnet to the new position
+					gsap.to(collidingMagnet, {
+						x: freePosition.x,
+						y: freePosition.y,
+						duration: 0.3,
+						ease: 'power2.out',
+						onUpdate: () => scheduleRender(),
+						onComplete: () => {
+							// Create stamp for the moved magnet at its new position
+							createMagnetStamp(collidingMagnet);
+						}
+					});
+				}
+			}
 
 			gsap.killTweensOf(droppedMagnet);
 			gsap.to(droppedMagnet, {
