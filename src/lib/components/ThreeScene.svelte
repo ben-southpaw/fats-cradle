@@ -79,40 +79,39 @@
 		lighting: {
 			ambient: {
 				color: 0xffffff,
-				intensity: 1.2, // Slightly reduced to allow for directional emphasis
+				intensity: 0.3, // Reduced for stronger shadows
+			},
+			hemisphere: {
+				skyColor: 0xffffff,
+				groundColor: 0x444444,
+				intensity: 0.5,
 			},
 			directional: {
 				color: 0xffffff,
-				intensity: 0.8, // Increased for top-right emphasis
-				position: { x: 2, y: 4, z: 3 }, // Moved to top-right
+				intensity: 1.4,
+				position: { x: 1, y: 2, z: 3 },
+				shadow: {
+					mapSize: { width: 2048, height: 2048 },
+					camera: {
+						near: 0.5,
+						far: 20,
+						left: -5,
+						right: 5,
+						top: 5,
+						bottom: -5,
+					},
+				},
 			},
-			pointLights: [
-				{
-					color: 0xffffff,
-					intensity: 0.4, // Slightly stronger fill light
-					position: { x: 4, y: 3, z: 2 }, // Top-right emphasis
-				},
-				{
-					color: 0xffffff,
-					intensity: 0.2, // Softer fill for opposite side
-					position: { x: -3, y: 2, z: 3 }, // Fill light from left
-				},
-				{
-					color: 0xffffff,
-					intensity: 1.5, // Stronger front light
-					position: { x: 0, y: 3, z: 4 }, // Higher center front
-				},
-				{
-					color: 0xffffff,
-					intensity: 1.0, // Additional fill light
-					position: { x: 3, y: 2, z: 3 }, // Right front middle
-				},
-				{
-					color: 0xffffff,
-					intensity: 1.0, // Additional fill light
-					position: { x: -3, y: 2, z: 3 }, // Left front middle
-				},
-			],
+			rimLight: {
+				color: 0xffffff,
+				intensity: 0.4,
+				position: { x: -2, y: 0.5, z: -1 },
+			},
+			ground: {
+				color: 0x444444,
+				size: 200,
+				position: { y: 0 },
+			},
 		},
 		animation: {
 			duration: 2.0, // Slightly faster main animation
@@ -439,6 +438,36 @@
 	async function initThreeJS() {
 		scene = new THREE.Scene();
 
+		// Configure renderer for shadows
+		renderer = new THREE.WebGLRenderer({
+			antialias: true,
+			alpha: true,
+		});
+		renderer.shadowMap.enabled = true;
+		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+		// Add ground plane for shadows
+		const groundGeometry = new THREE.PlaneGeometry(
+			CONFIG.lighting.ground.size,
+			CONFIG.lighting.ground.size
+		);
+		const groundMaterial = new THREE.ShadowMaterial({
+			opacity: 0.9,
+		});
+		const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+		ground.rotation.x = -Math.PI / 2;
+		ground.position.y = CONFIG.lighting.ground.position.y;
+		ground.receiveShadow = true;
+		scene.add(ground);
+
+		// Add hemisphere light
+		const hemiLight = new THREE.HemisphereLight(
+			CONFIG.lighting.hemisphere.skyColor,
+			CONFIG.lighting.hemisphere.groundColor,
+			CONFIG.lighting.hemisphere.intensity
+		);
+		scene.add(hemiLight);
+
 		// Add ambient light
 		const ambientLight = new THREE.AmbientLight(
 			CONFIG.lighting.ambient.color,
@@ -446,7 +475,7 @@
 		);
 		scene.add(ambientLight);
 
-		// Add main directional light
+		// Add main directional light with shadows
 		const directionalLight = new THREE.DirectionalLight(
 			CONFIG.lighting.directional.color,
 			CONFIG.lighting.directional.intensity
@@ -457,18 +486,38 @@
 			CONFIG.lighting.directional.position.z
 		);
 		directionalLight.castShadow = true;
+
+		// Configure shadow properties
+		directionalLight.shadow.mapSize.width =
+			CONFIG.lighting.directional.shadow.mapSize.width;
+		directionalLight.shadow.mapSize.height =
+			CONFIG.lighting.directional.shadow.mapSize.height;
+		directionalLight.shadow.camera.near =
+			CONFIG.lighting.directional.shadow.camera.near;
+		directionalLight.shadow.camera.far =
+			CONFIG.lighting.directional.shadow.camera.far;
+		directionalLight.shadow.camera.left =
+			CONFIG.lighting.directional.shadow.camera.left;
+		directionalLight.shadow.camera.right =
+			CONFIG.lighting.directional.shadow.camera.right;
+		directionalLight.shadow.camera.top =
+			CONFIG.lighting.directional.shadow.camera.top;
+		directionalLight.shadow.camera.bottom =
+			CONFIG.lighting.directional.shadow.camera.bottom;
+		directionalLight.shadow.bias = -0.0001;
 		scene.add(directionalLight);
 
-		// Add point lights for better coverage
-		CONFIG.lighting.pointLights.forEach((light) => {
-			const pointLight = new THREE.PointLight(light.color, light.intensity);
-			pointLight.position.set(
-				light.position.x,
-				light.position.y,
-				light.position.z
-			);
-			scene.add(pointLight);
-		});
+		// Add rim light
+		const rimLight = new THREE.DirectionalLight(
+			CONFIG.lighting.rimLight.color,
+			CONFIG.lighting.rimLight.intensity
+		);
+		rimLight.position.set(
+			CONFIG.lighting.rimLight.position.x,
+			CONFIG.lighting.rimLight.position.y,
+			CONFIG.lighting.rimLight.position.z
+		);
+		scene.add(rimLight);
 
 		camera = new THREE.PerspectiveCamera(
 			CONFIG.camera.fov,
@@ -483,11 +532,6 @@
 		);
 		camera.lookAt(0, 0, 0);
 
-		renderer = new THREE.WebGLRenderer({
-			antialias: true,
-			alpha: true,
-		});
-
 		// Use container dimensions instead of window
 		const containerWidth = container.clientWidth;
 		const containerHeight = container.clientHeight;
@@ -498,7 +542,6 @@
 		renderer.outputEncoding = THREE.sRGBEncoding;
 		renderer.toneMapping = THREE.ACESFilmicToneMapping; // More natural color reproduction
 		renderer.toneMappingExposure = 1.0; // Balanced exposure
-		renderer.shadowMap.enabled = false; // Disable shadows for flatter appearance
 
 		// Update camera aspect ratio to match container
 		camera.aspect = containerWidth / containerHeight;
@@ -521,89 +564,94 @@
 
 			// Handle materials to prevent texture loading errors and enhance lighting
 			model.traverse((child) => {
-				if (child.isMesh && child.material) {
-					// Remove texture references if they don't exist
-					if (child.material.normalMap && !child.material.normalMap.image) {
-						child.material.normalMap = null;
-					}
-					if (
-						child.material.roughnessMap &&
-						!child.material.roughnessMap.image
-					) {
-						child.material.roughnessMap = null;
-					}
-					if (
-						child.material.metalnessMap &&
-						!child.material.metalnessMap.image
-					) {
-						child.material.metalnessMap = null;
-					}
-
-					// Check if this is a magnet by looking at material color and name
-					const color = child.material.color;
-					const isMagnet =
-						(color.r !== 1 || color.g !== 1 || color.b !== 1) &&
-						child.name.startsWith('Curve') &&
-						!child.name.includes('003'); // Exclude logo (Curve003)
-
-					if (isMagnet) {
-						// Create a new material for each magnet to prevent sharing
-						child.material = new THREE.MeshStandardMaterial({
-							color: child.material.color,
-							roughness: 0.2,
-							metalness: 0.0,
-							emissive: child.material.color,
-							emissiveIntensity: 0.2,
-							transparent: false,
-							depthTest: true,
-							depthWrite: true,
-							side: THREE.FrontSide,
-						});
-
-						// Ensure proper positioning
-						if (
-							child.position.x === 0 &&
-							child.position.y === 0 &&
-							child.position.z === 0
-						) {
-							// Move slightly forward to prevent z-fighting
-							child.position.z += 0.01 * Math.random(); // Random small offset
-						}
-
-						// Boost the color saturation and brightness
-						const hsl = {};
-						color.getHSL(hsl);
-						color.setHSL(
-							hsl.h,
-							Math.min(1, hsl.s * 1.4),
-							Math.min(0.7, hsl.l * 1.3)
-						);
-					} else if (child.name === 'Screen_Border') {
-						// Special handling for the screen border
-						child.material.roughness = 0.5; // Duller surface
-						child.material.metalness = 0.1; // Less metallic/shiny
-						child.material.emissive = child.material.color; // Add glow
-						child.material.emissiveIntensity = 0.1; // Moderate glow
-					} else if (child.name === 'Slider') {
-						// Special handling for the slider knob
-						child.material.roughness = 0.8; // Slightly glossy
-						child.material.metalness = 0.3; // More metallic
-						child.material.emissive = child.material.color; // Add glow
-						child.material.emissiveIntensity = 0.4; // Subtle glow
-					} else if (child.name === 'Curve003_1') {
-						// Special handling for the white text
-						child.material.roughness = 0.2;
-						child.material.metalness = 0.1;
-						child.material.emissive = new THREE.Color(0xffffff);
-						child.material.emissiveIntensity = 0.2;
-					} else {
-						// Default material properties for other meshes
-						child.material.roughness = 0.4;
-						child.material.metalness = 0.2;
-					}
-
+				if (child.isMesh) {
 					child.castShadow = true;
 					child.receiveShadow = true;
+
+					if (child.material) {
+						// Remove texture references if they don't exist
+						if (child.material.normalMap && !child.material.normalMap.image) {
+							child.material.normalMap = null;
+						}
+						if (
+							child.material.roughnessMap &&
+							!child.material.roughnessMap.image
+						) {
+							child.material.roughnessMap = null;
+						}
+						if (
+							child.material.metalnessMap &&
+							!child.material.metalnessMap.image
+						) {
+							child.material.metalnessMap = null;
+						}
+
+						// Check if this is a magnet by looking at material color and name
+						const color = child.material.color;
+						const isMagnet =
+							(color.r !== 1 || color.g !== 1 || color.b !== 1) &&
+							child.name.startsWith('Curve') &&
+							!child.name.includes('003'); // Exclude logo (Curve003)
+
+						if (isMagnet) {
+							// Create a new material for each magnet to prevent sharing
+							child.material = new THREE.MeshStandardMaterial({
+								color: child.material.color,
+								roughness: 0.2,
+								metalness: 0.0,
+								emissive: child.material.color,
+								emissiveIntensity: 0.2,
+								transparent: false,
+								depthTest: true,
+								depthWrite: true,
+								side: THREE.FrontSide,
+							});
+
+							// Ensure proper positioning
+							if (
+								child.position.x === 0 &&
+								child.position.y === 0 &&
+								child.position.z === 0
+							) {
+								// Move slightly forward to prevent z-fighting
+								child.position.z += 0.01 * Math.random(); // Random small offset
+							}
+
+							// Boost the color saturation and brightness
+							const hsl = {};
+							color.getHSL(hsl);
+							color.setHSL(
+								hsl.h,
+								Math.min(1, hsl.s * 1.4),
+								Math.min(0.7, hsl.l * 1.3)
+							);
+						} else if (child.name === 'Screen_Border') {
+							// Special handling for the screen border
+							child.material.roughness = 0.5; // Duller surface
+							child.material.metalness = 0.1; // Less metallic/shiny
+							child.material.emissive = child.material.color; // Add glow
+							child.material.emissiveIntensity = 0.1; // Moderate glow
+						} else if (child.name === 'Slider') {
+							// Special handling for the slider knob
+							child.material.roughness = 0.8; // Slightly glossy
+							child.material.metalness = 0.3; // More metallic
+							child.material.emissive = child.material.color; // Add glow
+							child.material.emissiveIntensity = 0.4; // Subtle glow
+						} else if (child.name === 'Curve003_1') {
+							// Special handling for the white text
+							child.material.roughness = 0.2;
+							child.material.metalness = 0.1;
+							child.material.emissive = new THREE.Color(0xffffff);
+							child.material.emissiveIntensity = 0.2;
+						} else {
+							// Default material properties for other meshes
+							child.material.roughness = 0.4;
+							child.material.metalness = 0.2;
+						}
+
+						child.castShadow = true;
+						child.receiveShadow = true;
+					}
 				}
 			});
 
