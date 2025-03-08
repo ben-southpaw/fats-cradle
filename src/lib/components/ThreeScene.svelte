@@ -630,7 +630,7 @@
 							child.material.roughness = 0.5; // Duller surface
 							child.material.metalness = 0.1; // Less metallic/shiny
 							child.material.emissive = child.material.color; // Add glow
-							child.material.emissiveIntensity = 0.1; // Moderate glow
+							child.material.emissiveIntensity = 0.3; // Moderate glow
 						} else if (child.name === 'Slider') {
 							// Special handling for the slider knob
 							child.material.roughness = 0.8; // Slightly glossy
@@ -639,10 +639,13 @@
 							child.material.emissiveIntensity = 0.4; // Subtle glow
 						} else if (child.name === 'Curve003_1') {
 							// Special handling for the white text
-							child.material.roughness = 0.2;
-							child.material.metalness = 0.1;
+							child.material.roughness = 0.3; // Lower roughness for more specular highlights
+							child.material.metalness = 0.2; // Slightly more metallic for better light reflection
 							child.material.emissive = new THREE.Color(0xffffff);
-							child.material.emissiveIntensity = 0.2;
+							child.material.emissiveIntensity = 0.4;
+							child.material.shadowSide = THREE.FrontSide; // Ensure shadows are cast properly
+							child.castShadow = true; // Ensure it casts shadows
+							child.receiveShadow = true; // Ensure it receives shadows
 						} else {
 							// Default material properties for other meshes
 							child.material.roughness = 0.4;
@@ -664,6 +667,27 @@
 			const bottomLight = new THREE.PointLight(0xffffff, 2.0); // Further increased intensity
 			bottomLight.position.set(2, -4, 1.5); // Moved slightly left and forward
 			scene.add(bottomLight);
+			
+			// Add a direct light specifically for the Curve003_1 (white text) element
+			const textLight = new THREE.SpotLight(0xffffff, 1.5);
+			textLight.position.set(0, 0, 3); // Position in front of the model
+			textLight.angle = Math.PI / 8; // Narrow angle for focused light (~22.5 degrees)
+			textLight.penumbra = 0.5; // Soft edges
+			textLight.decay = 1.5; // Faster decay for more dramatic shadows
+			textLight.distance = 10; // Reasonable range
+			textLight.castShadow = true; // Enable shadow casting
+			
+			// Configure shadow quality for the text light
+			textLight.shadow.mapSize.width = 512;
+			textLight.shadow.mapSize.height = 512;
+			textLight.shadow.camera.near = 0.5;
+			textLight.shadow.camera.far = 15;
+			textLight.shadow.bias = -0.0005;
+			
+			// Target the light at the text area (slightly above center)
+			textLight.target.position.set(0, 0.5, 0);
+			scene.add(textLight);
+			scene.add(textLight.target);
 
 			// Add right spotlight for focused bottom border illumination
 			const rightSpotLight = new THREE.SpotLight(0xffffff, 3.0); // Much higher intensity
