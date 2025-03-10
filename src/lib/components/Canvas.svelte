@@ -33,23 +33,7 @@
 		};
 	}
 
-	// Reference dimensions for scaling (matched to iframe dimensions)
-	const REFERENCE_VIEWPORT = {
-		width: 1920,
-		height: 934,
-	};
 
-	// Function to get scale factor based on current dimensions
-	function getScaleFactor(currentWidth, currentHeight) {
-		// Never scale below 1 to maintain minimum size
-		return Math.max(
-			1,
-			Math.min(
-				currentWidth / REFERENCE_VIEWPORT.width,
-				currentHeight / REFERENCE_VIEWPORT.height
-			)
-		);
-	}
 
 	// Base config values - these are the values for the reference viewport size
 	let BASE_CONFIG = {
@@ -301,75 +285,13 @@
 		scheduleRender();
 	}
 
-	// Initialize the canvas and set up event listeners
-	// Function to update CONFIG based on container size
-	function updateConfig() {
-		const { width, height } = getContainerDimensions();
-		const dpr = window.devicePixelRatio;
-		// Calculate viewport scale factor
-		const viewportScale = getScaleFactor(width, height);
-		// Use viewport scale directly, don't adjust for DPR since canvas handles that
-		const scale = viewportScale;
-		// For density values, we want to scale inversely to maintain visual density
-		const densityScale = 1 / viewportScale;
 
-		// Calculate sizes relative to lineWidth
-		const actualParticleSize = BASE_CONFIG.lineWidth * BASE_CONFIG.particleSize;
-		const actualParticleLength =
-			BASE_CONFIG.lineWidth * BASE_CONFIG.particleLength;
-		const actualParticleWidth =
-			BASE_CONFIG.lineWidth * BASE_CONFIG.particleWidth;
-
-		CONFIG = {
-			...BASE_CONFIG,
-			// Set sizes relative to lineWidth
-			particleSize: actualParticleSize,
-			particleLength: actualParticleLength,
-			particleWidth: actualParticleWidth,
-
-			// Keep non-relative properties as is
-			lineWidth: BASE_CONFIG.lineWidth,
-			hexagonSize: BASE_CONFIG.hexagonSize,
-			preDrawnParticleSize: BASE_CONFIG.preDrawnParticleSize,
-			hexagonLineWidth: BASE_CONFIG.hexagonLineWidth,
-			gridSpacing: BASE_CONFIG.gridSpacing,
-
-			// Use base density directly for testing
-			particleDensity: BASE_CONFIG.particleDensity,
-			preDrawnDensity: BASE_CONFIG.preDrawnDensity * densityScale,
-			initialStampDensity: {
-				edge: BASE_CONFIG.initialStampDensity.edge * densityScale,
-				fill: BASE_CONFIG.initialStampDensity.fill * densityScale,
-			},
-			subsequentStampDensity: {
-				edge: BASE_CONFIG.subsequentStampDensity.edge * densityScale,
-				fill: BASE_CONFIG.subsequentStampDensity.fill * densityScale,
-			},
-		};
-	}
-
-	// Function to calculate base particle sizes
-	function calculateParticleSizes() {
-		const { width, height } = getContainerDimensions();
-		const dpr = window.devicePixelRatio;
-		// Calculate viewport scale factor
-		const viewportScale = getScaleFactor(width, height);
-
-		// Update CONFIG with proper scaling
-		updateConfig();
-	}
 
 	onMount(() => {
-		calculateParticleSizes();
-		window.addEventListener('resize', calculateParticleSizes);
-
 		if (!canvas) return;
 
 		// Initialize pattern tables
 		initializePatterns();
-
-		// Initial config update
-		updateConfig();
 
 		// Set canvas dimensions
 		canvas.width = window.innerWidth;
@@ -459,7 +381,6 @@
 		// Clean up
 		return () => {
 			window.removeEventListener('resize', resize);
-			window.removeEventListener('resize', calculateParticleSizes);
 			if (animationFrameId) {
 				cancelAnimationFrame(animationFrameId);
 			}
