@@ -151,6 +151,7 @@
 
 	// Canvas setup
 	let canvas;
+	let canvasOffset = { x: 0, y: 0 }
 	let ctx;
 	let shouldDraw = true;
 	let particles = [];
@@ -292,10 +293,6 @@
 
 		// Initialize pattern tables
 		initializePatterns();
-
-		// Set canvas dimensions
-		canvas.width = window.innerWidth;
-		canvas.height = window.innerHeight;
 
 		// Try WebGL first
 		setupWebGL();
@@ -918,6 +915,14 @@
 		// Set canvas size to match container
 		canvas.width = width;
 		canvas.height = height;
+		let bounds = canvas.getBoundingClientRect()
+		canvasOffset.x = window.innerWidth - bounds.width;
+		canvasOffset.y = window.innerHeight - bounds.height;
+		canvasOffset.width = bounds.width;
+		canvasOffset.height = bounds.height;
+		canvasOffset.originalWidth = parseFloat(canvas.getAttribute('width'));
+		canvasOffset.originalHeight = parseFloat(canvas.getAttribute('height'));
+		canvasOffset.zoom = canvasOffset.width / parseFloat(canvas.getAttribute('width'));
 
 		// Try WebGL2 first
 		try {
@@ -1314,21 +1319,19 @@
 	const CURSOR_OFFSET_Y = 0.42; // Keep Y offset the same
 
 	function getPointerPos(e) {
-		const rect = canvas.getBoundingClientRect();
-		// Convert rem to pixels using current root font size
-		const remToPx = parseFloat(
-			getComputedStyle(document.documentElement).fontSize
-		);
-		const offsetXPx = CURSOR_OFFSET_X * remToPx;
-		const offsetYPx = CURSOR_OFFSET_Y * remToPx;
 
-		const y = e.clientY - rect.top + offsetYPx;
-		// Clamp Y to 0 if we're within 5 pixels of the top
-		const clampedY = y < 5 ? 0 : y;
+		let mousePos = { x:0, y: 0 }
 
+		mousePos.y = e.clientY / window.innerHeight;
+		mousePos.x = e.clientX / window.innerWidth;
+
+		let zoom = 2 - canvasOffset.zoom;
+		let offsetX = canvasOffset.x / 2;
+		let offsetY = Math.abs(canvasOffset.y / 2) * zoom;
+ 
 		return {
-			x: e.clientX - rect.left + offsetXPx,
-			y: clampedY,
+			x: (mousePos.x * canvasOffset.originalWidth),
+			y: (mousePos.y * canvasOffset.originalHeight),
 		};
 	}
 
@@ -1373,8 +1376,8 @@
 				onUpdate: () => scheduleRender(),
 			});
 
-			lastMouseX = e.clientX;
-			lastMouseY = e.clientY;
+			lastMouseX = x;
+			lastMouseY = y;
 			mouseVelocityX = 0;
 			mouseVelocityY = 0;
 		} else {
@@ -1387,9 +1390,10 @@
 
 		if (isDraggingMagnet && selectedMagnet) {
 			const magnet = selectedMagnet;
+			let pos = getPointerPos(e);
 			// Set initial position from pointer
-			magnet.x = e.clientX + magnet.grabOffsetX;
-			magnet.y = e.clientY + magnet.grabOffsetY;
+			magnet.x = pos.x + magnet.grabOffsetX;
+			magnet.y = pos.y + magnet.grabOffsetY;
 
 			// Check and adjust for canvas bounds
 			const boundedPosition = checkCanvasBounds(magnet);
@@ -1428,8 +1432,8 @@
 
 		if (isDraggingMagnet && selectedMagnet) {
 			updateMouseVelocity(e);
-			selectedMagnet.x = e.clientX + selectedMagnet.grabOffsetX;
-			selectedMagnet.y = e.clientY + selectedMagnet.grabOffsetY;
+			selectedMagnet.x = pos.x + selectedMagnet.grabOffsetX;
+			selectedMagnet.y = pos.y + selectedMagnet.grabOffsetY;
 
 			// Calculate rotation based on movement velocity
 			const velocityRotation = mouseVelocityX * 0.5; // Adjust multiplier for sensitivity
@@ -1448,6 +1452,8 @@
 				lastY = pos.y;
 				return;
 			}
+
+
 			generateParticles(lastX, lastY, pos.x, pos.y);
 			scheduleRender();
 			lastX = pos.x;
@@ -2115,49 +2121,6 @@
 		img.src = multiText;
 	}
 
-	// Render magnets
-	function renderMagnets() {
-		magnets.forEach((magnet) => {
-			if (magnet.img) {
-				ctx.save();
-
-				// Calculate center point for scaling and rotation
-				const centerX = magnet.x + magnet.width / 2;
-				const centerY = magnet.y + magnet.height / 2;
-
-				// Apply transformations
-				if (isDraggingMagnet && magnet === selectedMagnet) {
-					// For dragging magnet, rotate around cursor point
-					const cursorX = m.x;
-					const cursorY = m.y;
-
-					ctx.translate(cursorX, cursorY);
-					ctx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
-					ctx.scale(magnet.scale || 1, magnet.scale || 1);
-					ctx.translate(-cursorX, -cursorY);
-
-					ctx.drawImage(
-						magnet.img,
-						magnet.x,
-						magnet.y,
-						magnet.width,
-						magnet.height
-					);
-				} else {
-					// For static magnets, rotate around center as before
-					ctx.translate(centerX, centerY);
-					ctx.rotate(((magnet.rotation || 0) * Math.PI) / 180);
-					ctx.scale(magnet.scale || 1, magnet.scale || 1);
-					ctx.translate(-magnet.width / 2, -magnet.height / 2);
-
-					ctx.drawImage(magnet.img, 0, 0, magnet.width, magnet.height);
-				}
-
-				ctx.restore();
-			}
-		});
-	}
-
 	// Handle mouse events
 	function handleMousemove(event) {
 		lastInteractionTime = performance.now();
@@ -2165,8 +2128,11 @@
 			isIdle = false;
 			FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
 		}
-		m.x = event.clientX;
-		m.y = event.clientY;
+
+		let pos = getPointerPos(event)
+
+		m.x = pos.x;
+		m.y = pos.y;
 
 		// Stop magnet interactions if transitioning
 		if (isTransitioning) {
@@ -2178,8 +2144,8 @@
 		// Check if hovering over any magnet
 		if (canvas) {
 			const rect = canvas.getBoundingClientRect();
-			const x = event.clientX - rect.left;
-			const y = event.clientY - rect.top;
+			const x = pos.x - rect.left;
+			const y = pos.y - rect.top;
 
 			isHoveringMagnet = magnets.some((magnet) => {
 				const scale = magnet.scale || 1;
@@ -2217,6 +2183,7 @@
 	}
 
 	function handleMousedown(e) {
+		let pos = getPointerPos(e)
 		lastInteractionTime = performance.now();
 		if (isIdle) {
 			isIdle = false;
@@ -2230,10 +2197,10 @@
 			// Start magnet drag
 			isDraggingMagnet = true;
 			selectedMagnet = hoveredMagnet;
-			selectedMagnet.grabOffsetX = hoveredMagnet.x - e.clientX;
-			selectedMagnet.grabOffsetY = hoveredMagnet.y - e.clientY;
-			lastMouseX = e.clientX;
-			lastMouseY = e.clientY;
+			selectedMagnet.grabOffsetX = hoveredMagnet.x - pos.x;
+			selectedMagnet.grabOffsetY = hoveredMagnet.y - pos.y;
+			lastMouseX = pos.x;
+			lastMouseY = pos.y;
 			mouseVelocityX = 0;
 			mouseVelocityY = 0;
 			// Create initial stamp before scaling up
@@ -2255,8 +2222,6 @@
 		if (isDraggingMagnet && selectedMagnet) {
 			const droppedMagnet = selectedMagnet;
 			isDraggingMagnet = false;
-			const finalX = e.clientX + droppedMagnet.grabOffsetX;
-			const finalY = e.clientY + droppedMagnet.grabOffsetY;
 			const finalRotation = Math.round(droppedMagnet.rotation / 5) * 5;
 
 			// Check canvas bounds and get corrected position
@@ -2323,16 +2288,17 @@
 	}
 
 	function updateMouseVelocity(e) {
+		let pos = getPointerPos(e)
 		if (!lastMouseX || !lastMouseY) {
-			lastMouseX = e.clientX;
-			lastMouseY = e.clientY;
+			lastMouseX = pos.x;
+			lastMouseY = pos.y;
 			return;
 		}
 
-		mouseVelocityX = e.clientX - lastMouseX;
-		mouseVelocityY = e.clientY - lastMouseY;
-		lastMouseX = e.clientX;
-		lastMouseY = e.clientY;
+		mouseVelocityX = pos.x - lastMouseX;
+		mouseVelocityY = pos.y - lastMouseY;
+		lastMouseX = pos.x;
+		lastMouseY = pos.y;
 	}
 
 	function checkCollision(magnet1, magnet2) {
@@ -2558,7 +2524,16 @@
 	on:mousemove={handleMousemove}
 	on:mousedown={handleMousedown}
 	on:resize={() => {
-		updateConfig();
+		let bounds = canvas.getBoundingClientRect()
+		canvasOffset.x = window.innerWidth - bounds.width;
+		canvasOffset.y = window.innerHeight - bounds.height;
+		canvasOffset.width = bounds.width;
+		canvasOffset.originalWidth = parseFloat(canvas.getAttribute('width'));
+		canvasOffset.originalHeight = parseFloat(canvas.getAttribute('height'));
+		canvasOffset.height = bounds.height;
+		canvasOffset.zoom = canvasOffset.width / parseFloat(canvas.getAttribute('width'));
+		// canvas.setAttribute('width', bounds.width)
+		// canvas.setAttribute('height', bounds.height)
 		scheduleRender();
 	}}
 	on:mouseup={handleMouseup}
@@ -2641,10 +2616,23 @@
 	}
 
 	canvas {
-		width: 100%;
-		height: 100%;
+		/* width: 100%; */
+		/* height: 100%; */
+		aspect-ratio: 6/4;
 		opacity: 1;
 		transition: opacity 0.15s ease;
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translateY(-50%) translateX(-50%);
+
+		@media (max-aspect-ratio: 1.49) {
+			height: 100%;
+		}
+		@media (min-aspect-ratio: 1.5) {
+			width: 100%;
+		}
+
 	}
 
 	canvas.hidden {
