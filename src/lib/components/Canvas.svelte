@@ -910,10 +910,10 @@
 		}
 
 		// Get container dimensions
-		// const { width, height } = getContainerDimensions();
+		const { width, height } = getContainerDimensions();
 
-		let width = 1920;
-		let height = 934;
+		// let width = 1920;
+		// let height = 934;
 
 		// Set canvas size to match container
 		canvas.width = width;
@@ -1419,11 +1419,11 @@
 		if (isTransitioning) return;
 
 		const pos = getPointerPos(e);
-		pos.x = pos.px * (canvasOffset.originalWidth + canvasOffset.x)
-		pos.x += Math.abs(canvasOffset.x / 2)
+		// pos.x = pos.px * (canvasOffset.originalWidth + canvasOffset.x)
+		// pos.x += Math.abs(canvasOffset.x / 2)
 
-		pos.y = pos.py * (canvasOffset.originalHeight + canvasOffset.y)
-		pos.y += Math.abs(canvasOffset.y / 2)
+		// pos.y = pos.py * (canvasOffset.originalHeight + canvasOffset.y)
+		// pos.y += Math.abs(canvasOffset.y / 2)
 
 		if (isDraggingMagnet && selectedMagnet) {
 			updateMouseVelocity(e);
@@ -2526,8 +2526,8 @@
 		canvasOffset.originalHeight = parseFloat(canvas.getAttribute('height'));
 		canvasOffset.height = bounds.height;
 		canvasOffset.zoom = canvasOffset.width / parseFloat(canvas.getAttribute('width'));
-		// canvas.setAttribute('width', width);
-		// canvas.setAttribute('height', height);
+		canvas.setAttribute('width', width);
+		canvas.setAttribute('height', height);
 		// canvas.setAttribute('width', bounds.width)
 		// canvas.setAttribute('height', bounds.height)
 		scheduleRender();

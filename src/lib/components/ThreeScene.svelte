@@ -27,6 +27,7 @@
 
 		if (!canvasTexture) {
 			canvasTexture = new THREE.CanvasTexture(canvas);
+			canvasTexture.colorSpace = THREE.SRGBColorSpace
 		}
 
 		// Update all texture properties
