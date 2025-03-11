@@ -1,6 +1,14 @@
 <script>
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { gsap } from 'gsap';
+	
+	// Import our modular components
+	import { CONFIG } from './canvas/config.js';
+	import { getContainerDimensions } from './canvas/utils/dimensions.js';
+	import { hexToRGBA } from './canvas/utils/colors.js';
+	import { ParticleBatch, createParticle, createParticlesAlongPath } from './canvas/rendering/particle.js';
+	
+	// Original imports
 	import letterF from '$lib/images/f.png?url';
 	import letterA from '$lib/images/a.png?url';
 	import letterT from '$lib/images/t.png?url';
@@ -19,78 +27,11 @@
 	export let onScreenCanvasReady = () => {};
 	export let showScrollToExplore = true;
 
-	// Function to get container dimensions
-	function getContainerDimensions() {
-		if (!canvas)
-			return { width: window.innerWidth, height: window.innerHeight };
-		const container = canvas.parentElement;
-		if (!container)
-			return { width: window.innerWidth, height: window.innerHeight };
-
-		return {
-			width: container.clientWidth,
-			height: container.clientHeight,
-		};
-	}
+	// We now use the imported getContainerDimensions function
 
 
 
-	// Base config values - these are the values for the reference viewport size
-	let BASE_CONFIG = {
-		// Non-relative properties first so we can reference them
-		lineWidth: 12,
-
-		// Sizes relative to lineWidth
-		particleSize: 0.75, // 75% of lineWidth
-		particleLength: 0.5, // 50% of lineWidth
-		particleWidth: 0.6, // 60% of lineWidth
-
-		// Density as particles per lineWidth
-		particleDensity: 0.7, // 1 particle per 2 lineWidths
-
-		// Non-relative properties
-		backgroundColor: '#f2f2f2',
-		gridColor: '#C8C8C8',
-		hexagonSize: 3,
-		particleColor: '#666666',
-		particleOpacity: 1,
-		preDrawnParticleSize: 1,
-		preDrawnDensity: 0.9,
-		preDrawnColor: '#333333',
-		multitextDensity: 9.0,
-		multitextOpacity: 1,
-		multitextWhiteProb: 0,
-		cursorWhiteParticleProbability: 0.1,
-		stampWhiteParticleProbability: 0.2,
-		targetFPS: 60,
-		idleFPS: 30,
-		idleTimeout: 1000,
-		hexagonLineWidth: 0.3,
-		initialStampOpacity: 0.9,
-		subsequentStampOpacity: 0.65,
-		initialStampDensity: {
-			edge: 1.4,
-			fill: 1.9,
-		},
-		subsequentStampDensity: {
-			edge: 1.2,
-			fill: 1.3,
-		},
-		maxParticles: 40000,
-	};
-
-	// Initialize CONFIG with BASE_CONFIG
-	let CONFIG = {
-		...BASE_CONFIG,
-		initialStampDensity: {
-			edge: BASE_CONFIG.initialStampDensity.edge,
-			fill: BASE_CONFIG.initialStampDensity.fill,
-		},
-		subsequentStampDensity: {
-			edge: BASE_CONFIG.subsequentStampDensity.edge,
-			fill: BASE_CONFIG.subsequentStampDensity.fill,
-		},
-	};
+	// We now import CONFIG from './canvas/config.js'
 
 	let animationFrameId = null;
 	let pendingRender = false;
@@ -168,6 +109,41 @@
 	let cursorElement;
 	let m = { x: 0, y: 0 };
 	let cursorOpacity = 0; // Start invisible
+	
+	// Initialize mouse handlers
+	const mouseHandlers = {};
+	
+	// We'll initialize this in onMount once we have the canvas reference
+	function initMouseHandlers() {
+		// Create mouse handlers with appropriate callbacks
+		Object.assign(mouseHandlers, createMouseHandlers({
+			canvas,
+			onParticlesCreated: (points) => {
+				// Handle particle creation when drawing
+				drawingPoints = points;
+				for (let i = 1; i < points.length; i++) {
+					generateParticles(points[i-1].x, points[i-1].y, points[i].x, points[i].y);
+				}
+				scheduleRender();
+			},
+			onMagnetInteraction: (data) => {
+				// Handle magnet interactions
+				if (data.type === 'down') {
+					checkMagnetClick(data.x, data.y);
+				} else if (data.type === 'up') {
+					releaseMagnet();
+				}
+			},
+			onCursorUpdate: (cursor) => {
+				// Update cursor position and state
+				m.x = cursor.x;
+				m.y = cursor.y;
+				isClicking = cursor.isClicking;
+				lastInteractionTime = performance.now();
+				updateCursor();
+			}
+		}));
+	}
 	let cursorImage;
 	let cursorHoverImage;
 	let cursorClickImage;
@@ -309,6 +285,9 @@
 		if (ctx) {
 			ctx.fillStyle = CONFIG.backgroundColor;
 			ctx.fillRect(0, 0, canvas.width, canvas.height);
+			
+			// Initialize mouse handlers now that canvas is ready
+			initMouseHandlers();
 		} else if (gl) {
 			gl.clearColor(
 				parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
@@ -634,13 +613,7 @@
 		return shader;
 	}
 
-	// Helper function to convert hex color to rgba
-	function hexToRGBA(hex, alpha = 1) {
-		const r = parseInt(hex.slice(1, 3), 16) / 255;
-		const g = parseInt(hex.slice(3, 5), 16) / 255;
-		const b = parseInt(hex.slice(5, 7), 16) / 255;
-		return [r, g, b, alpha];
-	}
+	// We now use the imported hexToRGBA function from colors.js
 
 	// Helper function to prepare particle data for WebGL
 	function prepareParticleData(particles) {
@@ -1233,41 +1206,7 @@
 		});
 	};
 
-	// Shared particle creation function
-	function createParticle(x, y, isStamp = false, isPredrawn = false) {
-		let finalX = x;
-		let finalY = y;
-
-		// Add more random offset to break up line patterns
-		const offsetScale = CONFIG.lineWidth * 0.25; // 25% of lineWidth
-		finalX += (Math.random() - 0.5) * offsetScale;
-		finalY += (Math.random() - 0.5) * offsetScale;
-
-		// Occasionally add larger jumps to create gaps
-		if (Math.random() < 0.2) {
-			finalX += (Math.random() - 0.5) * offsetScale * 2;
-			finalY += (Math.random() - 0.5) * offsetScale * 2;
-		}
-
-		return {
-			x: finalX,
-			y: finalY,
-			angle: Math.random() * Math.PI * 2,
-			length: CONFIG.particleLength,
-			width: CONFIG.particleWidth,
-			isStampParticle: isStamp,
-			isPredrawn,
-			opacity: isStamp
-				? isPredrawn
-					? CONFIG.multitextOpacity
-					: CONFIG.subsequentStampOpacity
-				: CONFIG.particleOpacity,
-			color:
-				!isStamp && Math.random() < CONFIG.cursorWhiteParticleProbability
-					? '#ffffff'
-					: CONFIG.particleColor,
-		};
-	}
+	// We now use the imported createParticle function from particle.js
 
 	// Generate magnetic particles along the line
 	const MAX_PARTICLES = 800000; // Adjust based on needs
@@ -1752,197 +1691,14 @@
 	// 	renderAll();
 	// }
 
-	// Add batch rendering utilities
-	class ParticleBatch {
-		constructor() {
-			this.particles = new Map(); // Map of opacity -> particles array
-			this.offscreenCanvas = null;
-			this.offscreenCtx = null;
-		}
-
-		_initOffscreenCanvas(width, height) {
-			if (!this.offscreenCanvas) {
-				this.offscreenCanvas = document.createElement('canvas');
-			}
-			// Only resize if needed
-			if (
-				this.offscreenCanvas.width !== width ||
-				this.offscreenCanvas.height !== height
-			) {
-				this.offscreenCanvas.width = width;
-				this.offscreenCanvas.height = height;
-				this.offscreenCtx = this.offscreenCanvas.getContext('2d');
-				// Match main canvas settings
-				this.offscreenCtx.imageSmoothingEnabled = true;
-				this.offscreenCtx.imageSmoothingQuality = 'high';
-			}
-		}
-
-		add(particle) {
-			const key = particle.opacity || 1;
-			if (!this.particles.has(key)) {
-				this.particles.set(key, []);
-			}
-			this.particles.get(key).push(particle);
-		}
-
-		clear() {
-			this.particles.clear();
-		}
-
-		clearToX(x) {
-			// Remove particles to the right of x
-			for (const [opacity, particles] of this.particles.entries()) {
-				this.particles.set(
-					opacity,
-					particles.filter((p) => p.x <= x)
-				);
-			}
-		}
-
-		render(ctx) {
-			if (!ctx) return;
-
-			// Initialize or resize offscreen canvas if needed
-			this._initOffscreenCanvas(ctx.canvas.width, ctx.canvas.height);
-
-			// Clear the offscreen canvas with transparent background
-			this.offscreenCtx.clearRect(
-				0,
-				0,
-				this.offscreenCanvas.width,
-				this.offscreenCanvas.height
-			);
-
-			// Group particles by their properties for efficient rendering
-			const renderGroups = new Map();
-
-			// Process all particles and group them
-			for (const [opacity, particleList] of this.particles.entries()) {
-				for (const particle of particleList) {
-					// Skip if particle is outside viewport
-					if (!isInViewport(particle)) continue;
-
-					// Create group key based on visual properties
-					const color = particle.color;
-					const finalOpacity =
-						particle.opacity !== undefined ? particle.opacity : opacity;
-					const key = `${color}-${finalOpacity}-${particle.isPredrawn}-${particle.isStampParticle}`;
-
-					if (!renderGroups.has(key)) {
-						renderGroups.set(key, {
-							color,
-							opacity: finalOpacity,
-							particles: [],
-						});
-					}
-					renderGroups.get(key).particles.push(particle);
-				}
-			}
-
-			// Render each group to offscreen canvas
-			for (const group of renderGroups.values()) {
-				const { color, opacity, particles } = group;
-				if (particles.length === 0) continue;
-
-				this.offscreenCtx.save();
-
-				// Set style once for the batch
-				const r = parseInt(color.slice(1, 3), 16);
-				const g = parseInt(color.slice(3, 5), 16);
-				const b = parseInt(color.slice(5, 7), 16);
-				this.offscreenCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-
-				// Draw all particles in the batch
-				for (const particle of particles) {
-					this.offscreenCtx.save();
-					this.offscreenCtx.translate(particle.x, particle.y);
-					this.offscreenCtx.rotate(particle.angle);
-					this.offscreenCtx.fillRect(
-						-particle.length / 2,
-						-particle.width / 2,
-						particle.length,
-						particle.width
-					);
-					this.offscreenCtx.restore();
-				}
-
-				this.offscreenCtx.restore();
-			}
-
-			// Draw the final result to the main canvas
-			ctx.drawImage(this.offscreenCanvas, 0, 0);
-		}
-	}
-
-	// Viewport check utility
-	function isInViewport(particle) {
-		// Add padding to account for particle size and rotation
-		const padding = Math.max(particle.length, particle.width) * 2;
-		return (
-			particle.x + padding >= 0 &&
-			particle.x - padding <= canvas.width &&
-			particle.y + padding >= 0 &&
-			particle.y - padding <= canvas.height
-		);
-	}
+	// We now use ParticleBatch and isInViewport from './canvas/rendering/particle.js'
 
 	// Create batch renderers for different particle types
 	const stampBatch = new ParticleBatch();
 	const drawingBatch = new ParticleBatch();
 	const predrawnBatch = new ParticleBatch();
 
-	// Function to create particles along a path
-	function createParticlesAlongPath(points, options = {}) {
-		const defaultOptions = {
-			particleSize: CONFIG.particleSize,
-			density: CONFIG.particleDensity,
-			randomOffset: CONFIG.lineWidth * 0.3,
-		};
-		const opts = { ...defaultOptions, ...options };
-		let particleIndex = particles.length; // Track index for pattern lookup
 
-		for (let i = 1; i < points.length; i++) {
-			const start = points[i - 1];
-			const end = points[i];
-			const distance = Math.sqrt(
-				Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
-			);
-			const particleCount = Math.min(
-				Math.floor(distance * opts.density),
-				MAX_PARTICLES - particles.length
-			);
-
-			// If we're at max particles, remove oldest ones
-			if (particles.length + particleCount > MAX_PARTICLES) {
-				particles = particles.slice(-(MAX_PARTICLES - particleCount));
-				particleIndex = particles.length;
-			}
-
-			for (let j = 0; j < particleCount; j++) {
-				const ratio = j / particleCount;
-				const x = start.x + (end.x - start.x) * ratio;
-				const y = start.y + (end.y - start.y) * ratio;
-
-				// Get deterministic properties based on current index
-				const props = getParticleProperties(particleIndex++);
-
-				// Calculate angle based on line direction
-				const dx = end.x - start.x;
-				const dy = end.y - start.y;
-				const angle = Math.atan2(dy, dx);
-
-				// Use pattern table instead of random
-				const patternIndex = (j + Math.floor(x + y)) % OFFSET_PATTERNS.length;
-				const offset = OFFSET_PATTERNS[patternIndex];
-
-				const perpX = Math.cos(angle) * offset;
-				const perpY = Math.sin(angle) * offset;
-
-				particles.push(createParticle(x + perpX, y + perpY));
-			}
-		}
-	}
 
 	function createPreDrawnElements(magnet) {
 		if (!magnet) return;
