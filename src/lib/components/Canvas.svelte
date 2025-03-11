@@ -910,11 +910,16 @@
 		}
 
 		// Get container dimensions
-		const { width, height } = getContainerDimensions();
+		// const { width, height } = getContainerDimensions();
+
+		let width = 1920;
+		let height = 934;
 
 		// Set canvas size to match container
 		canvas.width = width;
 		canvas.height = height;
+		canvas.setAttribute('width', width);
+		canvas.setAttribute('height', height);
 		let bounds = canvas.getBoundingClientRect()
 		canvasOffset.x = window.innerWidth - bounds.width;
 		canvasOffset.y = window.innerHeight - bounds.height;
@@ -1221,23 +1226,6 @@
 		return [rotatedX, rotatedY];
 	}
 
-	// Update resize handler to clear cache
-	const resize = () => {
-		console.log('Resize event triggered');
-		if (!canvas) return;
-		canvas.width = window.innerWidth;
-		canvas.height = window.innerHeight;
-		gridCache = null; // Clear cache on resize
-
-		// Force recalculation of particle sizes
-		calculateParticleSizes();
-		console.log('After resize - CONFIG:', {
-			particleSize: CONFIG.particleSize,
-			particleWidth: CONFIG.particleWidth,
-			particleLength: CONFIG.particleLength,
-		});
-	};
-
 	// Shared particle creation function
 	function createParticle(x, y, isStamp = false, isPredrawn = false) {
 		let finalX = x;
@@ -1332,6 +1320,8 @@
 		return {
 			x: (mousePos.x * canvasOffset.originalWidth),
 			y: (mousePos.y * canvasOffset.originalHeight),
+			px: mousePos.x,
+			py: mousePos.y,
 		};
 	}
 
@@ -1429,6 +1419,11 @@
 		if (isTransitioning) return;
 
 		const pos = getPointerPos(e);
+		pos.x = pos.px * (canvasOffset.originalWidth + canvasOffset.x)
+		pos.x += Math.abs(canvasOffset.x / 2)
+
+		pos.y = pos.py * (canvasOffset.originalHeight + canvasOffset.y)
+		pos.y += Math.abs(canvasOffset.y / 2)
 
 		if (isDraggingMagnet && selectedMagnet) {
 			updateMouseVelocity(e);
@@ -1679,11 +1674,11 @@
 		// Add specific offsets for F and A
 		switch (letter) {
 			case 'F':
-				return window.innerWidth * 0.03; // Move F right by 3vw
+				return canvasOffset.originalWidth * 0.03; // Move F right by 3vw
 			case 'A':
 				if (index === 1) {
 					// Only the first A
-					return window.innerWidth * 0.01; // Move A right by 1vw
+					return canvasOffset.originalWidth * 0.01; // Move A right by 1vw
 				}
 				return 0;
 			default:
@@ -1695,21 +1690,20 @@
 		if (!magnetImages) return;
 
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-		const totalWidth = window.innerWidth * 0.4; // Original 40% width
+		const totalWidth =canvasOffset.width * 0.4; // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (window.innerWidth - totalWidth) / 2;
 
 		// Original group offset
-		const groupOffset = window.innerWidth * -0.02;
+		const groupOffset =canvasOffset.width * -0.02;
 
 		// Original height
 		const targetWidth = window.innerHeight * 0.18;
 
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
-			const aspectRatio = img.width / img.height;
-			const height = targetWidth * (1 + Math.random() * 0.1); // Original variance
-			const width = height * aspectRatio;
+			const height = img.height;
+			const width = img.width;
 			const offset = getLetterOffset(letter, index);
 
 			return {
