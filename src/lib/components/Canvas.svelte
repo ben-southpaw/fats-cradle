@@ -1674,11 +1674,11 @@
 		// Add specific offsets for F and A
 		switch (letter) {
 			case 'F':
-				return canvasOffset.originalWidth * 0.03; // Move F right by 3vw
+				return window.innerWidth * 0.03; // Move F right by 3vw
 			case 'A':
 				if (index === 1) {
 					// Only the first A
-					return canvasOffset.originalWidth * 0.01; // Move A right by 1vw
+					return window.innerWidth * 0.01; // Move A right by 1vw
 				}
 				return 0;
 			default:
@@ -2526,6 +2526,8 @@
 		canvasOffset.originalHeight = parseFloat(canvas.getAttribute('height'));
 		canvasOffset.height = bounds.height;
 		canvasOffset.zoom = canvasOffset.width / parseFloat(canvas.getAttribute('width'));
+		// canvas.setAttribute('width', width);
+		// canvas.setAttribute('height', height);
 		// canvas.setAttribute('width', bounds.width)
 		// canvas.setAttribute('height', bounds.height)
 		scheduleRender();
