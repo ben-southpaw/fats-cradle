@@ -27,6 +27,7 @@
 
 		if (!canvasTexture) {
 			canvasTexture = new THREE.CanvasTexture(canvas);
+			canvasTexture.colorSpace = THREE.SRGBColorSpace;
 		}
 
 		// Update all texture properties
@@ -414,7 +415,7 @@
 			opacity: 1,
 			side: THREE.DoubleSide,
 			toneMapped: false,
-			color: new THREE.Color('#e8e8e8'), // Match canvas background color
+			color: new THREE.Color('#F2F2F2'), // Match canvas background color
 			// Color space is handled by the renderer's outputEncoding
 			clippingPlanes: [
 				new THREE.Plane(new THREE.Vector3(1, 0, 0), clipOffset), // Right clip
@@ -667,7 +668,7 @@
 			const bottomLight = new THREE.PointLight(0xffffff, 2.0); // Further increased intensity
 			bottomLight.position.set(2, -4, 1.5); // Moved slightly left and forward
 			scene.add(bottomLight);
-			
+
 			// Add a direct light specifically for the Curve003_1 (white text) element
 			const textLight = new THREE.SpotLight(0xffffff, 1.5);
 			textLight.position.set(0, 0, 3); // Position in front of the model
@@ -676,14 +677,14 @@
 			textLight.decay = 1.5; // Faster decay for more dramatic shadows
 			textLight.distance = 10; // Reasonable range
 			textLight.castShadow = true; // Enable shadow casting
-			
+
 			// Configure shadow quality for the text light
 			textLight.shadow.mapSize.width = 512;
 			textLight.shadow.mapSize.height = 512;
 			textLight.shadow.camera.near = 0.5;
 			textLight.shadow.camera.far = 15;
 			textLight.shadow.bias = -0.0005;
-			
+
 			// Target the light at the text area (slightly above center)
 			textLight.target.position.set(0, 0.5, 0);
 			scene.add(textLight);
