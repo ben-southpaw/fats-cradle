@@ -291,6 +291,17 @@
 	}
 
 	function cleanup() {
+
+		// Clear all particle arrays
+		particles = [];
+			stampParticles = [];
+			preDrawnParticles = [];
+
+			// Clear all batches
+			drawingBatch.clear();
+			predrawnBatch.clear();
+			stampBatch.clear();
+			
 		if (animationFrameId) {
 			cancelAnimationFrame(animationFrameId);
 		}
@@ -301,6 +312,13 @@
 			ctx = null;
 		}
 		if (gl) {
+			gl.clearColor(
+				parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
+				parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
+				parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
+				1.0,
+			);
+			gl.clear(gl.COLOR_BUFFER_BIT);
 			gl.deleteProgram(particleProgram);
 			gl.deleteBuffer(particleBuffer);
 			gl.deleteBuffer(particleColorBuffer);
@@ -1853,8 +1871,9 @@
 	function initializeMagnets() {
 		if (!magnetImages) return;
 
+		let scale = window.innerWidth / 1920;
 		const letters = ["F", "A", "T", "E", "M", "A2"];
-		const totalWidth = window.innerWidth * 0.4; // Original 40% width
+		const totalWidth = (window.innerWidth * .4); // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (window.innerWidth - totalWidth) / 2;
 
@@ -1864,10 +1883,11 @@
 		// Original height
 		const targetWidth = window.innerHeight * 0.18;
 
+
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
-			const height = img.height;
-			const width = img.width;
+			const height = img.height * scale;
+			const width = img.width * scale;
 			const offset = getLetterOffset(letter, index);
 
 			return {
@@ -1936,6 +1956,8 @@
 				this.offscreenCanvas.width = width;
 				this.offscreenCanvas.height = height;
 				this.offscreenCtx = this.offscreenCanvas.getContext("2d");
+				this.offscreenCtx.clear()
+				this.offscreenCtx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 				// Match main canvas settings
 				this.offscreenCtx.imageSmoothingEnabled = true;
 				this.offscreenCtx.imageSmoothingQuality = "high";
@@ -2113,6 +2135,8 @@
 
 	function createPreDrawnElements(magnet) {
 		if (!magnet) return;
+
+		magnet.isStamping = true;
 
 		const img = new Image();
 		img.onload = () => {
