@@ -402,7 +402,7 @@
 						if (loadedCount === totalImages) {
 							initializeMagnets();
 							// Create pre-drawn elements only after all images are loaded
-							// createPreDrawnElements(magnets[0]);
+							createPreDrawnElements(magnets[0]);
 						}
 					});
 				}
@@ -493,7 +493,7 @@
 						if (loadedCount === totalImages) {
 							initializeMagnets();
 							// Create pre-drawn elements only after all images are loaded
-							// createPreDrawnElements(magnets[0]);
+							createPreDrawnElements(magnets[0]);
 						}
 					});
 				}
