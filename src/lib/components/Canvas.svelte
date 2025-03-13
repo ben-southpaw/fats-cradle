@@ -264,7 +264,7 @@
 	}
 
 	// Initialize spatial hash grid with cell size slightly larger than proximity threshold
-	const spatialGrid = new SpatialHashGrid(2);
+	let spatialGrid = new SpatialHashGrid(2);
 
 	function bringMagnetToFront(magnet) {
 		// Remove the magnet from its current position
@@ -294,14 +294,16 @@
 
 		// Clear all particle arrays
 		particles = [];
-			stampParticles = [];
-			preDrawnParticles = [];
+		stampParticles = [];
+		preDrawnParticles = [];
+		spatialGrid.clear()
+		spatialGrid = undefined;
 
-			// Clear all batches
-			drawingBatch.clear();
-			predrawnBatch.clear();
-			stampBatch.clear();
-			
+		// Clear all batches
+		drawingBatch.clear();
+		predrawnBatch.clear();
+		stampBatch.clear();
+
 		if (animationFrameId) {
 			cancelAnimationFrame(animationFrameId);
 		}
@@ -327,6 +329,7 @@
 	}
 
 	function init() {
+		spatialGrid = new SpatialHashGrid(2)
 		if (!canvas) return;
 		// Initialize pattern tables
 		initializePatterns();
@@ -399,7 +402,7 @@
 						if (loadedCount === totalImages) {
 							initializeMagnets();
 							// Create pre-drawn elements only after all images are loaded
-							createPreDrawnElements(magnets[0]);
+							// createPreDrawnElements(magnets[0]);
 						}
 					});
 				}
@@ -490,7 +493,7 @@
 						if (loadedCount === totalImages) {
 							initializeMagnets();
 							// Create pre-drawn elements only after all images are loaded
-							createPreDrawnElements(magnets[0]);
+							// createPreDrawnElements(magnets[0]);
 						}
 					});
 				}
@@ -528,8 +531,8 @@
 		// Watch for CONFIG changes that affect predrawn elements
 		const { preDrawnDensity, preDrawnParticleSize } = CONFIG;
 		if (canvas && magnets && magnets.length > 0 && magnets[0]?.img) {
-			preDrawnParticles = []; // Clear existing particles
-			createPreDrawnElements(magnets[0]); // Recreate with new settings
+			// preDrawnParticles = []; // Clear existing particles
+			// createPreDrawnElements(magnets[0]); // Recreate with new settings
 		}
 	}
 
@@ -1805,7 +1808,7 @@
 				}
 			}
 		}
-
+		stampParticles = []
 		points.forEach((point) => {
 			const particle = createParticle(point.x, point.y, true);
 			particle.magnetId = magnet.id;
@@ -2134,17 +2137,13 @@
 	}
 
 	function createPreDrawnElements(magnet) {
-		if (!magnet) return;
 
 		magnet.isStamping = true;
 
+		preDrawnParticles = []
+
 		const img = new Image();
 		img.onload = () => {
-			// Ensure magnet dimensions are set
-			if (!magnet.width || !magnet.height) {
-				magnet.width = img.width;
-				magnet.height = img.height;
-			}
 
 			// Create temporary canvas for image
 			const tempCanvas = document.createElement("canvas");
