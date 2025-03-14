@@ -1239,7 +1239,6 @@
 			"resolution",
 		);
 
-		console.log(canvas.width);
 
 		gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
 
