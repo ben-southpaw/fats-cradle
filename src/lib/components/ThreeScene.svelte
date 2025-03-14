@@ -2,6 +2,7 @@
 	import { onMount, createEventDispatcher, onDestroy, tick } from 'svelte';
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+// import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader'; // Uncomment if needed
 	import gsap from 'gsap';
 
 	export let canvas; // Accept canvas from parent
@@ -558,10 +559,40 @@
 
 	async function loadModel() {
 		const loader = new GLTFLoader();
-		loader.resourcePath = '/models/'; // Set resource path for textures and other assets
+		
+		// Set absolute resource paths
+		loader.resourcePath = '/models/';
+		
+		// Intercept the texture loader before loading the model
+		// This prevents the CSP violations with blob URLs
+		const originalLoadTexture = THREE.TextureLoader.prototype.load;
+		THREE.TextureLoader.prototype.load = function(url, onLoad, onProgress, onError) {
+			// Check if the URL is a blob URL (which would cause CSP issues)
+			if (url && url.startsWith('blob:')) {
+				console.log('Skipping blob texture URL to avoid CSP issues:', url);
+				// Create an empty texture instead
+				const texture = new THREE.Texture();
+				texture.needsUpdate = true;
+				texture.name = 'fallback-texture';
+				
+				// Call onLoad with the empty texture
+				if (onLoad) setTimeout(() => onLoad(texture), 0);
+				return texture;
+			}
+			
+			// Otherwise proceed with normal loading
+			return originalLoadTexture.call(this, url, onLoad, onProgress, onError);
+		};
+		
 		try {
 			const gltf = await loader.loadAsync(CONFIG.model.path);
 			model = gltf.scene;
+			
+			// Log successful model loading
+			console.log('Model loaded successfully');
+			
+			// Restore the original texture loader after loading the model
+			THREE.TextureLoader.prototype.load = originalLoadTexture;
 
 			// Handle materials to prevent texture loading errors and enhance lighting
 			model.traverse((child) => {
@@ -570,21 +601,58 @@
 					child.receiveShadow = true;
 
 					if (child.material) {
-						// Remove texture references if they don't exist
-						if (child.material.normalMap && !child.material.normalMap.image) {
-							child.material.normalMap = null;
-						}
-						if (
-							child.material.roughnessMap &&
-							!child.material.roughnessMap.image
-						) {
-							child.material.roughnessMap = null;
-						}
-						if (
-							child.material.metalnessMap &&
-							!child.material.metalnessMap.image
-						) {
-							child.material.metalnessMap = null;
+									// Enhanced material handling with better defaults for materials with failed textures
+						const mapTypes = [
+							'map', 'normalMap', 'roughnessMap', 'metalnessMap', 
+							'emissiveMap', 'aoMap', 'bumpMap', 'displacementMap', 
+							'envMap', 'lightMap', 'alphaMap'
+						];
+						
+						// Flag to track if this material has texture issues
+						let hasBlobTextureIssue = false;
+						
+						// Check for blob URL textures in any map
+						mapTypes.forEach(mapType => {
+							const map = child.material[mapType];
+							if (map) {
+								// Check for blob URLs in texture sources
+								if (map.source && map.source.data && 
+									((map.source.data.src && map.source.data.src.startsWith('blob:')) ||
+									(map.source.data.currentSrc && map.source.data.currentSrc.startsWith('blob:')))) {
+									hasBlobTextureIssue = true;
+									child.material[mapType] = null;
+								} 
+								// Check for missing images or other issues
+								else if (!map.image || (map instanceof THREE.Texture && map.image && map.image.complete === false)) {
+									hasBlobTextureIssue = true;
+									child.material[mapType] = null;
+								} else {
+									// For working textures, ensure proper settings
+									map.needsUpdate = true;
+									map.flipY = false; // GLB textures should not be flipped
+									// Set appropriate encoding based on map type
+									if (mapType === 'map' || mapType === 'emissiveMap') {
+										map.encoding = THREE.sRGBEncoding;
+									} else {
+										map.encoding = THREE.LinearEncoding;
+									}
+								}
+							}
+						});
+						
+						// If we found texture issues, replace with an enhanced fallback material
+						if (hasBlobTextureIssue && !child.name.startsWith('Curve')) {
+							// Store original properties
+							const originalColor = child.material.color ? child.material.color.clone() : new THREE.Color(0xffffff);
+							const originalName = child.material.name;
+							
+							// Create basic fallback material with original appearance
+							child.material = new THREE.MeshStandardMaterial({
+								name: originalName,
+								color: originalColor,
+								roughness: 0.4,  // Original roughness
+								metalness: 0.2,  // Original metalness
+							});
 						}
 
 						// Check if this is a magnet by looking at material color and name
@@ -648,9 +716,15 @@
 							child.castShadow = true; // Ensure it casts shadows
 							child.receiveShadow = true; // Ensure it receives shadows
 						} else {
-							// Default material properties for other meshes
+											// Default material properties for other meshes
 							child.material.roughness = 0.4;
 							child.material.metalness = 0.2;
+							
+							// Add minimal emissive for subtle highlighting
+							if (!child.material.emissive) {
+								child.material.emissive = new THREE.Color(0xffffff);
+								child.material.emissiveIntensity = 0.1;
+							}
 						}
 
 						child.castShadow = true;
@@ -788,7 +862,16 @@
 			modelLoaded = true;
 		} catch (error) {
 			console.error('Error loading model:', error);
-			throw error;
+			
+			// Provide more detailed error handling
+			if (error.message && error.message.includes('texture')) {
+				console.warn('Texture loading issue detected. The model will display with fallback materials.');
+			}
+		} finally {
+			// Always restore the original texture loader even if there was an error
+			if (originalLoadTexture) {
+				THREE.TextureLoader.prototype.load = originalLoadTexture;
+			}
 		}
 	}
 
