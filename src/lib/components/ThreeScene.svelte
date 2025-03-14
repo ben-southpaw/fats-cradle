@@ -2,6 +2,7 @@
 	import { onMount, createEventDispatcher, onDestroy, tick } from 'svelte';
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 	import gsap from 'gsap';
 
 	export let canvas; // Accept canvas from parent
@@ -19,8 +20,10 @@
 	let modelLoaded = false;
 	let animationFrameId;
 	let canvasTexture;
-	let meshAspect; // Store mesh aspect ratio at module level
 	let knobWidth = 0;
+	let controls;
+	
+	let isDraggingModel = false;
 
 	function updateCanvasTexture() {
 		if (!canvas) return;
@@ -82,11 +85,7 @@
 				color: 0xffffff,
 				intensity: 0.3, // Reduced for stronger shadows
 			},
-			hemisphere: {
-				skyColor: 0xffffff,
-				groundColor: 0x444444,
-				intensity: 0.5,
-			},
+
 			directional: {
 				color: 0xffffff,
 				intensity: 1.4,
@@ -107,11 +106,6 @@
 				color: 0xffffff,
 				intensity: 0.4,
 				position: { x: -2, y: 0.5, z: -1 },
-			},
-			ground: {
-				color: 0x444444,
-				size: 200,
-				position: { y: 0 },
 			},
 		},
 		animation: {
@@ -197,11 +191,101 @@
 		// Check if we've reached the end
 		if (currentSliderPosition >= 1) {
 			emitEndAnimationEvent();
-			window.removeEventListener('wheel', handlePostTransitionScroll);
+			// No need to remove event listeners as we now use a single handler
 		}
 	}
 
+	// Track mouse position for custom rotation
+	let previousMousePosition = { x: 0, y: 0 };
+	let modelRotation = { x: 0, y: 0 };
+	const ROTATION_SPEED = 0.003; // Further reduced for smoother rotation
+	// For inertia/momentum
+	let rotationVelocity = { x: 0, y: 0 };
+	let targetVelocity = { x: 0, y: 0 }; // Target velocity for smooth acceleration
+	let lastFrameTime = 0;
+	const DAMPING = 0.97; // Increased damping factor for smoother deceleration
+	const SMOOTHING = 0.15; // Smoothing factor for velocity changes (lower = smoother)
+
+	function initOrbitControls() {
+		if (!camera || !renderer || !model || controls) return;
+
+		// We'll implement a custom rotation instead of using OrbitControls
+		// This gives us more precise control over the rotation behavior
+
+		// Add custom event listeners for model rotation
+		container.addEventListener('mousedown', handleModelDragStart);
+		window.addEventListener('mousemove', handleModelDragMove);
+		window.addEventListener('mouseup', handleModelDragEnd);
+	}
+
+	function handleModelDragStart(event) {
+		// Only enable dragging when animation is complete
+		if (!isFirstTransitionComplete || !model) return;
+
+		isDraggingModel = true;
+		previousMousePosition = {
+			x: event.clientX,
+			y: event.clientY,
+		};
+	}
+
+	function handleModelDragMove(event) {
+		if (!isDraggingModel || !model) return;
+
+		// Calculate mouse movement delta with a small threshold to filter out tiny movements
+		const deltaMove = {
+			x: event.clientX - previousMousePosition.x,
+			y: event.clientY - previousMousePosition.y,
+		};
+
+		// Apply a small threshold to filter out tiny movements (reduces jitter)
+		if (Math.abs(deltaMove.x) < 0.5) deltaMove.x = 0;
+		if (Math.abs(deltaMove.y) < 0.5) deltaMove.y = 0;
+
+		// Calculate time since last frame for consistent speed
+		const now = performance.now();
+		const deltaTime = now - lastFrameTime || 16.7; // Default to 60fps if first frame
+		lastFrameTime = now;
+
+		// Calculate target velocity based on mouse movement (smoother)
+		targetVelocity.y = deltaMove.x * ROTATION_SPEED * (16.7 / deltaTime);
+		targetVelocity.x = deltaMove.y * ROTATION_SPEED * (16.7 / deltaTime);
+
+		// Smoothly interpolate current velocity toward target velocity
+		rotationVelocity.y += (targetVelocity.y - rotationVelocity.y) * SMOOTHING;
+		rotationVelocity.x += (targetVelocity.x - rotationVelocity.x) * SMOOTHING;
+
+		// Update model rotation based on smoothed velocity
+		modelRotation.y += rotationVelocity.y;
+		modelRotation.x += rotationVelocity.x;
+
+		// Apply rotation to model without limits
+		model.rotation.y = modelRotation.y;
+		model.rotation.x = modelRotation.x;
+
+		// Update previous position
+		previousMousePosition = {
+			x: event.clientX,
+			y: event.clientY,
+		};
+	}
+
+	function handleModelDragEnd() {
+		isDraggingModel = false;
+		// Preserve momentum when releasing but scale it down slightly for better control
+		rotationVelocity.x *= 0.7;
+		rotationVelocity.y *= 0.7;
+		// Reset target velocity to prevent sudden jumps
+		targetVelocity.x = rotationVelocity.x;
+		targetVelocity.y = rotationVelocity.y;
+	}
+
 	function emitEndAnimationEvent() {
+		// Initialize model rotation controls if not already done
+		if (!controls) {
+			initOrbitControls();
+		}
+
 		const message = {
 			type: 'animationComplete',
 		};
@@ -295,45 +379,7 @@
 		dragOffset = 0;
 	}
 
-	function handlePostTransitionScroll(event) {
-		if (!isFirstTransitionComplete || !sliderMesh || isDragging) return;
-
-		// If this is the first wheel event after the initial animation,
-		// trigger the full spin and wipe to the end
-		if (!hasReceivedSecondWheelEvent) {
-			hasReceivedSecondWheelEvent = true;
-
-			// Remove the wheel event listener since we only need it once
-			window.removeEventListener('wheel', handlePostTransitionScroll);
-
-			// Perform the full spin and complete wipe to the end
-			performFullSpinAndWipe();
-			return;
-		}
-
-		// This code should not be reached since we remove the listener after the first event,
-		// but keeping it for safety
-		// Clear any existing timeout
-		if (scrollTimeout) clearTimeout(scrollTimeout);
-
-		// Debounce the scroll updates
-		scrollTimeout = setTimeout(() => {
-			// Accumulate scroll amount and clamp it between 0 and 1
-			currentSliderPosition = Math.max(
-				0,
-				Math.min(1, currentSliderPosition + event.deltaY * SCROLL_SENSITIVITY)
-			);
-			totalScrollAmount = currentSliderPosition;
-
-			// Convert to world position
-			const worldX =
-				sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
-
-			// Update slider position
-			updateSliderPosition(worldX, false);
-		}, 16); // ~60fps timing
-	}
-
+	// handlePostTransitionScroll has been replaced by handleScroll
 	// Function to perform a complete spin and wipe to the end
 	function performFullSpinAndWipe() {
 		if (!sliderMesh || !model) return;
@@ -389,14 +435,10 @@
 		// Get original mesh dimensions
 		const box = new THREE.Box3().setFromObject(screenMesh);
 		const meshWidth = box.max.x - box.min.x;
-		const meshHeight = box.max.y - box.min.y;
-
-		// Use original mesh aspect ratio
-		const meshAspect = meshWidth / meshHeight;
 
 		// Keep original proportions
-		const heightScale = 1.0;
-		const widthScale = 1.0; // Maintain original width-to-height ratio
+		const heightScale = 0.98;
+		const widthScale = 1.13; // Maintain original width-to-height ratio
 
 		// Update mesh scale
 		screenMesh.scale.y = heightScale;
@@ -415,7 +457,7 @@
 			opacity: 1,
 			side: THREE.DoubleSide,
 			toneMapped: false,
-			color: new THREE.Color('#F2F2F2'), // Match canvas background color
+			// color: new THREE.Color('#F2F2F2'), // Match canvas background color
 			// Color space is handled by the renderer's outputEncoding
 			clippingPlanes: [
 				new THREE.Plane(new THREE.Vector3(1, 0, 0), clipOffset), // Right clip
@@ -428,7 +470,7 @@
 			materialOptions.map = canvasTexture;
 		}
 
-		screenMesh.material = new THREE.MeshBasicMaterial(materialOptions);
+		// screenMesh.material = new THREE.MeshBasicMaterial(materialOptions);
 
 		// Ensure clipping is enabled in renderer
 		if (renderer) {
@@ -447,27 +489,13 @@
 		renderer.shadowMap.enabled = true;
 		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-		// Add ground plane for shadows
-		const groundGeometry = new THREE.PlaneGeometry(
-			CONFIG.lighting.ground.size,
-			CONFIG.lighting.ground.size
-		);
-		const groundMaterial = new THREE.ShadowMaterial({
-			opacity: 0.9,
-		});
-		const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-		ground.rotation.x = -Math.PI / 2;
-		ground.position.y = CONFIG.lighting.ground.position.y;
-		ground.receiveShadow = true;
-		scene.add(ground);
-
-		// Add hemisphere light
-		const hemiLight = new THREE.HemisphereLight(
-			CONFIG.lighting.hemisphere.skyColor,
-			CONFIG.lighting.hemisphere.groundColor,
-			CONFIG.lighting.hemisphere.intensity
-		);
-		scene.add(hemiLight);
+		// // Add hemisphere light
+		// const hemiLight = new THREE.HemisphereLight(
+		// 	CONFIG.lighting.hemisphere.skyColor,
+		// 	CONFIG.lighting.hemisphere.groundColor,
+		// 	CONFIG.lighting.hemisphere.intensity
+		// );
+		// scene.add(hemiLight);
 
 		// Add ambient light
 		const ambientLight = new THREE.AmbientLight(
@@ -823,6 +851,28 @@
 			canvasTexture.needsUpdate = true;
 		}
 
+		// Apply momentum and damping for smooth deceleration
+		if (!isDraggingModel && (Math.abs(rotationVelocity.x) > 0.00005 || Math.abs(rotationVelocity.y) > 0.00005)) {
+			// Apply damping to gradually slow down
+			rotationVelocity.x *= DAMPING;
+			rotationVelocity.y *= DAMPING;
+			
+			// Apply a small amount of additional smoothing
+			const smoothFactor = 0.92; // Additional smoothing factor
+			rotationVelocity.x *= smoothFactor;
+			rotationVelocity.y *= smoothFactor;
+			
+			// Update model rotation based on velocity
+			modelRotation.x += rotationVelocity.x;
+			modelRotation.y += rotationVelocity.y;
+			
+			if (model) {
+				// Apply rotation to model
+				model.rotation.x = modelRotation.x;
+				model.rotation.y = modelRotation.y;
+			}
+		}
+
 		renderer.render(scene, camera);
 	}
 
@@ -886,10 +936,7 @@
 			onComplete: () => {
 				isTransitioning = false;
 				isFirstTransitionComplete = true;
-				// Remove initial wheel listener
-				window.removeEventListener('wheel', handleWheel);
-				// Add new scroll listener for wipe animation
-				window.addEventListener('wheel', handlePostTransitionScroll);
+				// No need to remove/add listeners since handleWheel now handles all scroll events
 			},
 		});
 
@@ -956,26 +1003,54 @@
 
 	// Handle mousewheel event
 	function handleWheel(event) {
-		if (!model || !isVisible) return;
+		// Only handle wheel events after the first transition
+		if (!isFirstTransitionComplete) return;
 
+		// Prevent default scrolling behavior
 		event.preventDefault();
 
-		// Calculate target scale based on wheel direction
-		const wheelDelta = event.deltaY;
-		const scaleFactor = wheelDelta > 0 ? 1 : 1.6; // Scale between 1.25x and 2x (1.25 * 1.6)
-		const targetScale = CONFIG.model.final.scale.x * scaleFactor;
+		// Handle the scroll event for the animation trigger
+		handleScroll(event);
+	}
 
-		// Animate to target scale
-		gsap.to(model.scale, {
-			x: targetScale,
-			y: targetScale,
-			z: targetScale,
-			duration: 0.5,
-			ease: 'power2.out',
-		});
+	// Handle scroll events for animation triggers
+	function handleScroll(event) {
+		if (!isFirstTransitionComplete || !sliderMesh || isDragging) return;
+		
+		// If this is the first wheel event after the initial animation,
+		// trigger the full spin and wipe to the end
+		if (!hasReceivedSecondWheelEvent) {
+			hasReceivedSecondWheelEvent = true;
+			
+			// Perform the full spin and complete wipe to the end
+			performFullSpinAndWipe();
+			return;
+		}
+		
+		// Clear any existing timeout
+		if (scrollTimeout) clearTimeout(scrollTimeout);
+		
+		// Debounce the scroll updates
+		scrollTimeout = setTimeout(() => {
+			// Accumulate scroll amount and clamp it between 0 and 1
+			currentSliderPosition = Math.max(
+				0,
+				Math.min(1, currentSliderPosition + event.deltaY * SCROLL_SENSITIVITY)
+			);
+			totalScrollAmount = currentSliderPosition;
+			
+			// Convert to world position
+			const worldX = sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
+			
+			// Update slider position
+			updateSliderPosition(worldX, false);
+		}, 16); // ~60fps timing
 	}
 
 	onMount(async () => {
+		// Check if we're in a browser environment
+		if (typeof window === 'undefined') return;
+
 		// Wait for next tick to ensure container is mounted and sized
 		await tick();
 
@@ -983,26 +1058,35 @@
 		await initThreeJS();
 
 		// Set up ResizeObserver for container
-		const resizeObserver = new ResizeObserver((entries) => {
-			for (const entry of entries) {
-				// Get current dimensions, accounting for any style changes
-				const width = container.clientWidth;
-				const height = container.clientHeight;
+		if (typeof ResizeObserver !== 'undefined') {
+			const resizeObserver = new ResizeObserver((entries) => {
+				for (const entry of entries) {
+					// Get current dimensions, accounting for any style changes
+					const width = container.clientWidth;
+					const height = container.clientHeight;
 
-				// Update only if dimensions actually changed
-				if (
-					width !== entry.contentRect.width ||
-					height !== entry.contentRect.height
-				) {
-					handleResize(width, height);
+					// Update only if dimensions actually changed
+					if (
+						width !== entry.contentRect.width ||
+						height !== entry.contentRect.height
+					) {
+						handleResize(width, height);
+					}
 				}
-			}
-		});
+			});
 
-		if (container) {
-			resizeObserver.observe(container);
-			// Initial size update using container dimensions
-			handleResize(container.clientWidth, container.clientHeight);
+			if (container) {
+				resizeObserver.observe(container);
+				// Initial size update using container dimensions
+				handleResize(container.clientWidth, container.clientHeight);
+			}
+		} else {
+			// Fallback for browsers without ResizeObserver
+			window.addEventListener('resize', () => {
+				if (container) {
+					handleResize(container.clientWidth, container.clientHeight);
+				}
+			});
 		}
 
 		// Add event listeners
@@ -1016,13 +1100,42 @@
 			window.removeEventListener('mousedown', handleMouseDown);
 			window.removeEventListener('mousemove', handleMouseMove);
 			window.removeEventListener('mouseup', handleMouseUp);
-			window.removeEventListener('wheel', handlePostTransitionScroll);
+			window.removeEventListener('wheel', handleWheel);
 		};
 	});
 
 	onDestroy(() => {
+		// Only run cleanup in browser environment
+		if (typeof window !== 'undefined') {
+			// Clean up event listeners
+			window.removeEventListener('resize', handleResize);
+			window.removeEventListener('wheel', handleWheel);
+			window.removeEventListener('mousedown', handleMouseDown);
+			window.removeEventListener('mousemove', handleMouseMove);
+			window.removeEventListener('mouseup', handleMouseUp);
+			window.removeEventListener('mousemove', handleModelDragMove);
+			window.removeEventListener('mouseup', handleModelDragEnd);
+			// Clean up custom rotation handlers
+			if (container) {
+				container.removeEventListener('mousedown', handleModelDragStart);
+			}
+		}
+
+		// Cancel any ongoing animations
 		if (scrollAnimation) scrollAnimation.kill();
 		if (scrollTimeout) clearTimeout(scrollTimeout);
+
+		// Clean up Three.js resources
+		if (renderer) {
+			renderer.dispose();
+			renderer.forceContextLoss();
+			if (renderer.domElement) renderer.domElement.remove();
+		}
+
+		// Cancel animation frame
+		if (typeof window !== 'undefined' && animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+		}
 	});
 </script>
 
@@ -1044,6 +1157,7 @@
 
 	.three-container.visible {
 		opacity: 1;
+		pointer-events: auto;
 	}
 	/* Force canvas to match container size */
 	:global(.three-container canvas) {
