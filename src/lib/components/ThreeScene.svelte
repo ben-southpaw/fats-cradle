@@ -62,7 +62,7 @@
 
 	const CONFIG = {
 		model: {
-			path: '/models/MagnaSketch_3dModel.gltf',
+			path: '/models/MagnaSketch_3dModel.glb',
 			initial: {
 				position: { x: 0, y: 0, z: 0 }, // Centered at origin
 				rotation: { x: 0, y: 0, z: 0 },
