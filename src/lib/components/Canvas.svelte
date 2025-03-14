@@ -264,7 +264,7 @@
 	}
 
 	// Initialize spatial hash grid with cell size slightly larger than proximity threshold
-	let spatialGrid = new SpatialHashGrid(2);
+	const spatialGrid = new SpatialHashGrid(2);
 
 	function bringMagnetToFront(magnet) {
 		// Remove the magnet from its current position
@@ -297,7 +297,6 @@
 		stampParticles = [];
 		preDrawnParticles = [];
 		spatialGrid.clear()
-		spatialGrid = undefined;
 
 		// Clear all batches
 		drawingBatch.clear();
@@ -329,7 +328,6 @@
 	}
 
 	function init() {
-		spatialGrid = new SpatialHashGrid(2)
 		if (!canvas) return;
 		// Initialize pattern tables
 		initializePatterns();
@@ -1808,7 +1806,7 @@
 				}
 			}
 		}
-		stampParticles = []
+
 		points.forEach((point) => {
 			const particle = createParticle(point.x, point.y, true);
 			particle.magnetId = magnet.id;
@@ -2137,6 +2135,7 @@
 	}
 
 	function createPreDrawnElements(magnet) {
+		if (!magnet) return;
 
 		magnet.isStamping = true;
 
@@ -2144,6 +2143,11 @@
 
 		const img = new Image();
 		img.onload = () => {
+			// Ensure magnet dimensions are set
+			if (!magnet.width || !magnet.height) {
+				magnet.width = img.width;
+				magnet.height = img.height;
+			}
 
 			// Create temporary canvas for image
 			const tempCanvas = document.createElement("canvas");
@@ -2323,8 +2327,8 @@
 
 		let pos = getPointerPos(event);
 
-		m.x = pos.x;
-		m.y = pos.y;
+		m.x = pos.x - 5;
+		m.y = pos.y - 5;
 
 		// Stop magnet interactions if transitioning
 		if (isTransitioning) {
