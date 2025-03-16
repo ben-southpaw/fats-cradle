@@ -22,7 +22,7 @@
 	let canvasTexture;
 	let knobWidth = 0;
 	let controls;
-	
+
 	let isDraggingModel = false;
 
 	function updateCanvasTexture() {
@@ -586,38 +586,41 @@
 
 	async function loadModel() {
 		const loader = new GLTFLoader();
-		
+
 		// Set absolute resource paths
 		loader.resourcePath = '/models/';
-		
+
 		// Intercept the texture loader before loading the model
 		// This prevents the CSP violations with blob URLs
 		const originalLoadTexture = THREE.TextureLoader.prototype.load;
-		THREE.TextureLoader.prototype.load = function(url, onLoad, onProgress, onError) {
+		THREE.TextureLoader.prototype.load = function (
+			url,
+			onLoad,
+			onProgress,
+			onError
+		) {
 			// Check if the URL is a blob URL (which would cause CSP issues)
 			if (url && url.startsWith('blob:')) {
-				console.log('Skipping blob texture URL to avoid CSP issues:', url);
 				// Create an empty texture instead
 				const texture = new THREE.Texture();
 				texture.needsUpdate = true;
 				texture.name = 'fallback-texture';
-				
+
 				// Call onLoad with the empty texture
 				if (onLoad) setTimeout(() => onLoad(texture), 0);
 				return texture;
 			}
-			
+
 			// Otherwise proceed with normal loading
 			return originalLoadTexture.call(this, url, onLoad, onProgress, onError);
 		};
-		
+
 		try {
 			const gltf = await loader.loadAsync(CONFIG.model.path);
 			model = gltf.scene;
-			
+
 			// Log successful model loading
-			console.log('Model loaded successfully');
-			
+
 			// Restore the original texture loader after loading the model
 			THREE.TextureLoader.prototype.load = originalLoadTexture;
 
@@ -628,29 +631,47 @@
 					child.receiveShadow = true;
 
 					if (child.material) {
-									// Enhanced material handling with better defaults for materials with failed textures
+						// Enhanced material handling with better defaults for materials with failed textures
 						const mapTypes = [
-							'map', 'normalMap', 'roughnessMap', 'metalnessMap', 
-							'emissiveMap', 'aoMap', 'bumpMap', 'displacementMap', 
-							'envMap', 'lightMap', 'alphaMap'
+							'map',
+							'normalMap',
+							'roughnessMap',
+							'metalnessMap',
+							'emissiveMap',
+							'aoMap',
+							'bumpMap',
+							'displacementMap',
+							'envMap',
+							'lightMap',
+							'alphaMap',
 						];
-						
+
 						// Flag to track if this material has texture issues
 						let hasBlobTextureIssue = false;
-						
+
 						// Check for blob URL textures in any map
-						mapTypes.forEach(mapType => {
+						mapTypes.forEach((mapType) => {
 							const map = child.material[mapType];
 							if (map) {
 								// Check for blob URLs in texture sources
-								if (map.source && map.source.data && 
-									((map.source.data.src && map.source.data.src.startsWith('blob:')) ||
-									(map.source.data.currentSrc && map.source.data.currentSrc.startsWith('blob:')))) {
+								if (
+									map.source &&
+									map.source.data &&
+									((map.source.data.src &&
+										map.source.data.src.startsWith('blob:')) ||
+										(map.source.data.currentSrc &&
+											map.source.data.currentSrc.startsWith('blob:')))
+								) {
 									hasBlobTextureIssue = true;
 									child.material[mapType] = null;
-								} 
+								}
 								// Check for missing images or other issues
-								else if (!map.image || (map instanceof THREE.Texture && map.image && map.image.complete === false)) {
+								else if (
+									!map.image ||
+									(map instanceof THREE.Texture &&
+										map.image &&
+										map.image.complete === false)
+								) {
 									hasBlobTextureIssue = true;
 									child.material[mapType] = null;
 								} else {
@@ -666,19 +687,21 @@
 								}
 							}
 						});
-						
+
 						// If we found texture issues, replace with an enhanced fallback material
 						if (hasBlobTextureIssue && !child.name.startsWith('Curve')) {
 							// Store original properties
-							const originalColor = child.material.color ? child.material.color.clone() : new THREE.Color(0xffffff);
+							const originalColor = child.material.color
+								? child.material.color.clone()
+								: new THREE.Color(0xffffff);
 							const originalName = child.material.name;
-							
+
 							// Create basic fallback material with original appearance
 							child.material = new THREE.MeshStandardMaterial({
 								name: originalName,
 								color: originalColor,
-								roughness: 0.4,  // Original roughness
-								metalness: 0.2,  // Original metalness
+								roughness: 0.4, // Original roughness
+								metalness: 0.2, // Original metalness
 							});
 						}
 
@@ -743,15 +766,9 @@
 							child.castShadow = true; // Ensure it casts shadows
 							child.receiveShadow = true; // Ensure it receives shadows
 						} else {
-											// Default material properties for other meshes
+							// Default material properties for other meshes
 							child.material.roughness = 0.4;
 							child.material.metalness = 0.2;
-							
-							// Add minimal emissive for subtle highlighting
-							if (!child.material.emissive) {
-								child.material.emissive = new THREE.Color(0xffffff);
-								child.material.emissiveIntensity = 0.1;
-							}
 						}
 
 						child.castShadow = true;
@@ -889,10 +906,12 @@
 			modelLoaded = true;
 		} catch (error) {
 			console.error('Error loading model:', error);
-			
+
 			// Provide more detailed error handling
 			if (error.message && error.message.includes('texture')) {
-				console.warn('Texture loading issue detected. The model will display with fallback materials.');
+				console.warn(
+					'Texture loading issue detected. The model will display with fallback materials.'
+				);
 			}
 		} finally {
 			// Always restore the original texture loader even if there was an error
@@ -934,20 +953,24 @@
 		}
 
 		// Apply momentum and damping for smooth deceleration
-		if (!isDraggingModel && (Math.abs(rotationVelocity.x) > 0.00005 || Math.abs(rotationVelocity.y) > 0.00005)) {
+		if (
+			!isDraggingModel &&
+			(Math.abs(rotationVelocity.x) > 0.00005 ||
+				Math.abs(rotationVelocity.y) > 0.00005)
+		) {
 			// Apply damping to gradually slow down
 			rotationVelocity.x *= DAMPING;
 			rotationVelocity.y *= DAMPING;
-			
+
 			// Apply a small amount of additional smoothing
 			const smoothFactor = 0.92; // Additional smoothing factor
 			rotationVelocity.x *= smoothFactor;
 			rotationVelocity.y *= smoothFactor;
-			
+
 			// Update model rotation based on velocity
 			modelRotation.x += rotationVelocity.x;
 			modelRotation.y += rotationVelocity.y;
-			
+
 			if (model) {
 				// Apply rotation to model
 				model.rotation.x = modelRotation.x;
@@ -1098,20 +1121,20 @@
 	// Handle scroll events for animation triggers
 	function handleScroll(event) {
 		if (!isFirstTransitionComplete || !sliderMesh || isDragging) return;
-		
+
 		// If this is the first wheel event after the initial animation,
 		// trigger the full spin and wipe to the end
 		if (!hasReceivedSecondWheelEvent) {
 			hasReceivedSecondWheelEvent = true;
-			
+
 			// Perform the full spin and complete wipe to the end
 			performFullSpinAndWipe();
 			return;
 		}
-		
+
 		// Clear any existing timeout
 		if (scrollTimeout) clearTimeout(scrollTimeout);
-		
+
 		// Debounce the scroll updates
 		scrollTimeout = setTimeout(() => {
 			// Accumulate scroll amount and clamp it between 0 and 1
@@ -1120,10 +1143,11 @@
 				Math.min(1, currentSliderPosition + event.deltaY * SCROLL_SENSITIVITY)
 			);
 			totalScrollAmount = currentSliderPosition;
-			
+
 			// Convert to world position
-			const worldX = sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
-			
+			const worldX =
+				sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
+
 			// Update slider position
 			updateSliderPosition(worldX, false);
 		}, 16); // ~60fps timing
