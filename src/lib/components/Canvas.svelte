@@ -1,18 +1,18 @@
 <script>
-	import { onMount, onDestroy, createEventDispatcher } from "svelte";
-	import { gsap } from "gsap";
-	import letterF from "$lib/images/f.png?url";
-	import letterA from "$lib/images/a.png?url";
-	import letterT from "$lib/images/t.png?url";
-	import letterE from "$lib/images/e.png?url";
-	import letterM from "$lib/images/m.png?url";
-	import letterA2 from "$lib/images/a2.png?url";
-	import cursorDefault from "$lib/images/cursor.png?url";
-	import cursorHover from "$lib/images/glove-heavy.png?url";
-	import cursorClick from "$lib/images/glove-clicked-heavy.png?url";
-	import multiText from "$lib/images/multi-text.png";
-	import ThreeScene from "./ThreeScene.svelte";
-	import ScrollToExplore from "./ScrollToExplore.svelte";
+	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+	import { gsap } from 'gsap';
+	import letterF from '$lib/images/f.png?url';
+	import letterA from '$lib/images/a.png?url';
+	import letterT from '$lib/images/t.png?url';
+	import letterE from '$lib/images/e.png?url';
+	import letterM from '$lib/images/m.png?url';
+	import letterA2 from '$lib/images/a2.png?url';
+	import cursorDefault from '$lib/images/cursor.png?url';
+	import cursorHover from '$lib/images/glove-heavy.png?url';
+	import cursorClick from '$lib/images/glove-clicked-heavy.png?url';
+	import multiText from '$lib/images/multi-text.png';
+	import ThreeScene from './ThreeScene.svelte';
+	import ScrollToExplore from './ScrollToExplore.svelte';
 
 	const dispatch = createEventDispatcher();
 
@@ -49,14 +49,14 @@
 		particleDensity: 0.7, // 1 particle per 2 lineWidths
 
 		// Non-relative properties
-		backgroundColor: "#f2f2f2",
-		gridColor: "#C8C8C8",
+		backgroundColor: '#f2f2f2',
+		gridColor: '#C8C8C8',
 		hexagonSize: 3,
-		particleColor: "#666666",
+		particleColor: '#666666',
 		particleOpacity: 1,
 		preDrawnParticleSize: 1,
 		preDrawnDensity: 0.9,
-		preDrawnColor: "#333333",
+		preDrawnColor: '#333333',
 		multitextDensity: 9.0,
 		multitextOpacity: 1,
 		multitextWhiteProb: 0,
@@ -133,15 +133,11 @@
 	// Get deterministic particle properties based on index
 	function getParticleProperties(index) {
 		const posPattern =
-			PARTICLE_PATTERNS.positions[
-				index % PARTICLE_PATTERNS.positions.length
-			];
+			PARTICLE_PATTERNS.positions[index % PARTICLE_PATTERNS.positions.length];
 		const sizePattern =
 			PARTICLE_PATTERNS.sizes[index % PARTICLE_PATTERNS.sizes.length];
 		const opacityPattern =
-			PARTICLE_PATTERNS.opacities[
-				index % PARTICLE_PATTERNS.opacities.length
-			];
+			PARTICLE_PATTERNS.opacities[index % PARTICLE_PATTERNS.opacities.length];
 
 		return {
 			offset: {
@@ -291,12 +287,11 @@
 	}
 
 	function cleanup() {
-
 		// Clear all particle arrays
 		particles = [];
 		stampParticles = [];
 		preDrawnParticles = [];
-		spatialGrid.clear()
+		spatialGrid.clear();
 
 		// Clear all batches
 		drawingBatch.clear();
@@ -317,7 +312,7 @@
 				parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
 				parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
 				parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
-				1.0,
+				1.0
 			);
 			gl.clear(gl.COLOR_BUFFER_BIT);
 			gl.deleteProgram(particleProgram);
@@ -334,7 +329,7 @@
 		setupWebGL();
 		// Fallback to 2D context if WebGL setup failed
 		if (!gl) {
-			ctx = canvas.getContext("2d");
+			ctx = canvas.getContext('2d');
 		}
 		// Initialize canvas with background
 		if (ctx) {
@@ -345,7 +340,7 @@
 				parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
 				parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
 				parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
-				1.0,
+				1.0
 			);
 			gl.clear(gl.COLOR_BUFFER_BIT);
 		}
@@ -358,10 +353,7 @@
 			const currentTime = performance.now();
 
 			// Check if we should switch to idle FPS
-			if (
-				!isIdle &&
-				currentTime - lastInteractionTime > CONFIG.idleTimeout
-			) {
+			if (!isIdle && currentTime - lastInteractionTime > CONFIG.idleTimeout) {
 				isIdle = true;
 				FRAME_INTERVAL = 1000 / CONFIG.idleFPS;
 			}
@@ -423,7 +415,7 @@
 
 		// Fallback to 2D context if WebGL setup failed
 		if (!gl) {
-			ctx = canvas.getContext("2d");
+			ctx = canvas.getContext('2d');
 		}
 
 		// Initialize canvas with background
@@ -435,7 +427,7 @@
 				parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
 				parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
 				parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
-				1.0,
+				1.0
 			);
 			gl.clear(gl.COLOR_BUFFER_BIT);
 		}
@@ -449,10 +441,7 @@
 			const currentTime = performance.now();
 
 			// Check if we should switch to idle FPS
-			if (
-				!isIdle &&
-				currentTime - lastInteractionTime > CONFIG.idleTimeout
-			) {
+			if (!isIdle && currentTime - lastInteractionTime > CONFIG.idleTimeout) {
 				isIdle = true;
 				FRAME_INTERVAL = 1000 / CONFIG.idleFPS;
 			}
@@ -781,7 +770,7 @@
 			// Color
 			const rgba = hexToRGBA(
 				particle.color || CONFIG.particleColor,
-				particle.opacity || 1,
+				particle.opacity || 1
 			);
 			colors[colorIndex] = rgba[0];
 			colors[colorIndex + 1] = rgba[1];
@@ -804,15 +793,12 @@
 		// Update resolution uniform
 		const resolutionLocation = gl.getUniformLocation(
 			particleProgram,
-			"resolution",
+			'resolution'
 		);
 		gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
 
 		// Update hex size uniform
-		const hexSizeLocation = gl.getUniformLocation(
-			particleProgram,
-			"hexSize",
-		);
+		const hexSizeLocation = gl.getUniformLocation(particleProgram, 'hexSize');
 		gl.uniform1f(hexSizeLocation, CONFIG.hexagonSize);
 
 		// Prepare data
@@ -821,17 +807,14 @@
 		// Update position buffer
 		gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
 		gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW);
-		const positionLocation = gl.getAttribLocation(
-			particleProgram,
-			"position",
-		);
+		const positionLocation = gl.getAttribLocation(particleProgram, 'position');
 		gl.enableVertexAttribArray(positionLocation);
 		gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
 		// Update color buffer
 		gl.bindBuffer(gl.ARRAY_BUFFER, particleColorBuffer);
 		gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
-		const colorLocation = gl.getAttribLocation(particleProgram, "color");
+		const colorLocation = gl.getAttribLocation(particleProgram, 'color');
 		gl.enableVertexAttribArray(colorLocation);
 		gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0);
 
@@ -851,24 +834,18 @@
 		gl.useProgram(gridProgram);
 
 		// Update resolution uniform
-		const resolutionLocation = gl.getUniformLocation(
-			gridProgram,
-			"resolution",
-		);
+		const resolutionLocation = gl.getUniformLocation(gridProgram, 'resolution');
 		gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
 
 		// Update grid color uniform
-		const gridColorLocation = gl.getUniformLocation(
-			gridProgram,
-			"gridColor",
-		);
+		const gridColorLocation = gl.getUniformLocation(gridProgram, 'gridColor');
 		const gridRGBA = hexToRGBA(CONFIG.gridColor);
 		gl.uniform4f(
 			gridColorLocation,
 			gridRGBA[0],
 			gridRGBA[1],
 			gridRGBA[2],
-			gridRGBA[3],
+			gridRGBA[3]
 		);
 
 		// Update and bind grid vertices
@@ -877,7 +854,7 @@
 		gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
 
 		// Set up vertex attributes
-		const positionLocation = gl.getAttribLocation(gridProgram, "position");
+		const positionLocation = gl.getAttribLocation(gridProgram, 'position');
 		gl.enableVertexAttribArray(positionLocation);
 		gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
@@ -915,12 +892,9 @@
 		gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
 		// Set up attributes and uniforms
-		const positionLoc = gl.getAttribLocation(textureProgram, "position");
-		const texCoordLoc = gl.getAttribLocation(textureProgram, "texCoord");
-		const resolutionLoc = gl.getUniformLocation(
-			textureProgram,
-			"resolution",
-		);
+		const positionLoc = gl.getAttribLocation(textureProgram, 'position');
+		const texCoordLoc = gl.getAttribLocation(textureProgram, 'texCoord');
+		const resolutionLoc = gl.getUniformLocation(textureProgram, 'resolution');
 
 		gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
 		gl.enableVertexAttribArray(positionLoc);
@@ -1019,28 +993,12 @@
 					gl.RGBA,
 					gl.RGBA,
 					gl.UNSIGNED_BYTE,
-					image,
+					image
 				);
-				gl.texParameteri(
-					gl.TEXTURE_2D,
-					gl.TEXTURE_MIN_FILTER,
-					gl.LINEAR,
-				);
-				gl.texParameteri(
-					gl.TEXTURE_2D,
-					gl.TEXTURE_MAG_FILTER,
-					gl.LINEAR,
-				);
-				gl.texParameteri(
-					gl.TEXTURE_2D,
-					gl.TEXTURE_WRAP_S,
-					gl.CLAMP_TO_EDGE,
-				);
-				gl.texParameteri(
-					gl.TEXTURE_2D,
-					gl.TEXTURE_WRAP_T,
-					gl.CLAMP_TO_EDGE,
-				);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 				resolve(texture);
 			};
 			image.src = url;
@@ -1083,12 +1041,12 @@
 
 		// Try WebGL2 first
 		try {
-			gl = canvas.getContext("webgl2", {
+			gl = canvas.getContext('webgl2', {
 				alpha: true,
 				premultipliedAlpha: false,
 				antialias: false,
 				depth: false,
-				powerPreference: "high-performance",
+				powerPreference: 'high-performance',
 			});
 
 			if (gl) {
@@ -1099,12 +1057,12 @@
 		// Fallback to WebGL1
 		if (!gl) {
 			try {
-				gl = canvas.getContext("webgl", {
+				gl = canvas.getContext('webgl', {
 					alpha: true,
 					premultipliedAlpha: false,
 					antialias: false,
 					depth: false,
-					powerPreference: "high-performance",
+					powerPreference: 'high-performance',
 				});
 				if (gl) {
 					gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -1118,12 +1076,12 @@
 		// Final fallback to experimental-webgl
 		if (!gl) {
 			try {
-				gl = canvas.getContext("experimental-webgl", {
+				gl = canvas.getContext('experimental-webgl', {
 					alpha: true,
 					premultipliedAlpha: false,
 					antialias: false,
 					depth: false,
-					powerPreference: "high-performance",
+					powerPreference: 'high-performance',
 				});
 
 				if (gl) {
@@ -1136,35 +1094,31 @@
 		}
 
 		// Create shaders with logging
-		const vertexShader = createShader(
-			gl,
-			gl.VERTEX_SHADER,
-			vertexShaderSource,
-		);
+		const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
 		const fragmentShader = createShader(
 			gl,
 			gl.FRAGMENT_SHADER,
-			fragmentShaderSource,
+			fragmentShaderSource
 		);
 		const gridVertexShader = createShader(
 			gl,
 			gl.VERTEX_SHADER,
-			gridVertexShaderSource,
+			gridVertexShaderSource
 		);
 		const gridFragmentShader = createShader(
 			gl,
 			gl.FRAGMENT_SHADER,
-			gridFragmentShaderSource,
+			gridFragmentShaderSource
 		);
 		const textureVertexShader = createShader(
 			gl,
 			gl.VERTEX_SHADER,
-			textureVertexShaderSource,
+			textureVertexShaderSource
 		);
 		const textureFragmentShader = createShader(
 			gl,
 			gl.FRAGMENT_SHADER,
-			textureFragmentShaderSource,
+			textureFragmentShaderSource
 		);
 
 		if (
@@ -1229,16 +1183,12 @@
 		const testPositions = new Float32Array([0, 0]);
 		const testColors = new Float32Array([1, 1, 1, 1]);
 
-		const positionLocation = gl.getAttribLocation(
-			particleProgram,
-			"position",
-		);
-		const colorLocation = gl.getAttribLocation(particleProgram, "color");
+		const positionLocation = gl.getAttribLocation(particleProgram, 'position');
+		const colorLocation = gl.getAttribLocation(particleProgram, 'color');
 		const resolutionLocation = gl.getUniformLocation(
 			particleProgram,
-			"resolution",
+			'resolution'
 		);
-
 
 		gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
 
@@ -1337,31 +1287,16 @@
 				...rotatePoint(x, y + height, centerX, centerY, rotation),
 				...rotatePoint(x, y + height, centerX, centerY, rotation),
 				...rotatePoint(x + width, y, centerX, centerY, rotation),
-				...rotatePoint(
-					x + width,
-					y + height,
-					centerX,
-					centerY,
-					rotation,
-				),
+				...rotatePoint(x + width, y + height, centerX, centerY, rotation),
 			]);
 
 			gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
 			gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
 			// Set up attributes and uniforms
-			const positionLoc = gl.getAttribLocation(
-				textureProgram,
-				"position",
-			);
-			const texCoordLoc = gl.getAttribLocation(
-				textureProgram,
-				"texCoord",
-			);
-			const resolutionLoc = gl.getUniformLocation(
-				textureProgram,
-				"resolution",
-			);
+			const positionLoc = gl.getAttribLocation(textureProgram, 'position');
+			const texCoordLoc = gl.getAttribLocation(textureProgram, 'texCoord');
+			const resolutionLoc = gl.getUniformLocation(textureProgram, 'resolution');
 
 			gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
 			gl.enableVertexAttribArray(positionLoc);
@@ -1431,9 +1366,8 @@
 					: CONFIG.subsequentStampOpacity
 				: CONFIG.particleOpacity,
 			color:
-				!isStamp &&
-				Math.random() < CONFIG.cursorWhiteParticleProbability
-					? "#ffffff"
+				!isStamp && Math.random() < CONFIG.cursorWhiteParticleProbability
+					? '#ffffff'
 					: CONFIG.particleColor,
 		};
 	}
@@ -1449,9 +1383,9 @@
 		const count = Math.min(
 			Math.max(
 				1,
-				Math.floor(distance * CONFIG.particleDensity * DENSITY_SCALE),
+				Math.floor(distance * CONFIG.particleDensity * DENSITY_SCALE)
 			),
-			MAX_PARTICLES - particles.length,
+			MAX_PARTICLES - particles.length
 		);
 
 		// If we're at max particles, remove oldest ones
@@ -1468,8 +1402,7 @@
 			const angle = Math.atan2(y2 - y1, x2 - x1) + Math.PI / 2;
 
 			// Use pattern table instead of random
-			const patternIndex =
-				(i + Math.floor(x + y)) % OFFSET_PATTERNS.length;
+			const patternIndex = (i + Math.floor(x + y)) % OFFSET_PATTERNS.length;
 			const offset = OFFSET_PATTERNS[patternIndex];
 
 			const perpX = Math.cos(angle) * offset;
@@ -1534,7 +1467,7 @@
 			gsap.to(selectedMagnet, {
 				scale: 1.1,
 				duration: 0.2,
-				ease: "power2.out",
+				ease: 'power2.out',
 				onUpdate: () => scheduleRender(),
 			});
 
@@ -1567,7 +1500,7 @@
 				scale: 1,
 				rotation: 0,
 				duration: 0.3,
-				ease: "power2.out",
+				ease: 'power2.out',
 				onUpdate: () => scheduleRender(),
 				onComplete: () => {
 					magnet.isPickedUp = false;
@@ -1599,15 +1532,12 @@
 
 			// Calculate rotation based on movement velocity
 			const velocityRotation = mouseVelocityX * 0.5; // Adjust multiplier for sensitivity
-			const targetRotation = Math.max(
-				Math.min(velocityRotation, 25),
-				-25,
-			); // Clamp between -25 and 25 degrees
+			const targetRotation = Math.max(Math.min(velocityRotation, 25), -25); // Clamp between -25 and 25 degrees
 
 			gsap.to(selectedMagnet, {
 				rotation: targetRotation,
 				duration: 0.3,
-				ease: "power1.out",
+				ease: 'power1.out',
 			});
 
 			scheduleRender();
@@ -1664,14 +1594,12 @@
 
 		magnet.isStamping = true;
 
-		const tempCanvas = document.createElement("canvas");
-		const tempCtx = tempCanvas.getContext("2d");
+		const tempCanvas = document.createElement('canvas');
+		const tempCtx = tempCanvas.getContext('2d');
 
 		// Make the temp canvas large enough to handle rotated image
 		const maxDimension = Math.ceil(
-			Math.sqrt(
-				magnet.width * magnet.width + magnet.height * magnet.height,
-			),
+			Math.sqrt(magnet.width * magnet.width + magnet.height * magnet.height)
 		);
 		tempCanvas.width = maxDimension;
 		tempCanvas.height = maxDimension;
@@ -1685,7 +1613,7 @@
 			-magnet.width / 2,
 			-magnet.height / 2,
 			magnet.width,
-			magnet.height,
+			magnet.height
 		);
 		tempCtx.restore();
 
@@ -1693,7 +1621,7 @@
 			0,
 			0,
 			tempCanvas.width,
-			tempCanvas.height,
+			tempCanvas.height
 		);
 		const data = imageData.data;
 
@@ -1702,7 +1630,7 @@
 
 		// Determine if this is the initial stamp for this magnet
 		const isInitialStamp = !stampParticles.some(
-			(p) => p.magnetId === magnet.id,
+			(p) => p.magnetId === magnet.id
 		);
 
 		// Use different densities based on whether this is the initial stamp
@@ -1718,27 +1646,21 @@
 
 		// Calculate offset to center the stamp particles around the magnet's position
 		let offsetX = magnet?.width ? magnet.width / 2 : magnet.img.width / 2;
-		let offsetY = magnet?.height
-			? magnet.height / 2
-			: magnet.img.height / 2;
+		let offsetY = magnet?.height ? magnet.height / 2 : magnet.img.height / 2;
 
 		if (tempCanvas) {
-			offsetX =
-				(tempCanvas.width - (magnet?.width || magnet.img.width)) / 2;
-			offsetY =
-				(tempCanvas.height - (magnet?.height || magnet.img.height)) / 2;
+			offsetX = (tempCanvas.width - (magnet?.width || magnet.img.width)) / 2;
+			offsetY = (tempCanvas.height - (magnet?.height || magnet.img.height)) / 2;
 		}
 
 		// Add specific offsets for multi-text image
-		let isMultiText = magnet.img.src.includes("multi-text");
+		let isMultiText = magnet.img.src.includes('multi-text');
 		const multiTextOffsetX = isMultiText
 			? window.innerWidth / 2 -
 				window.innerWidth * 0.15 +
 				window.innerWidth * 0.08
 			: 0; // Half screen minus 15% plus 8vw
-		const multiTextOffsetY = isMultiText
-			? 290 - window.innerHeight * 0.15
-			: 0; // 230px (reduced from 300) minus 15% of height
+		const multiTextOffsetY = isMultiText ? 290 - window.innerHeight * 0.15 : 0; // 230px (reduced from 300) minus 15% of height
 
 		// Function to check if a point already has a stamp nearby using spatial grid
 		const proximityThreshold = 1.5;
@@ -1746,7 +1668,7 @@
 			const nearbyParticles = spatialGrid.queryParticles(
 				x,
 				y,
-				proximityThreshold,
+				proximityThreshold
 			);
 			return nearbyParticles.size > 0;
 		}
@@ -1833,19 +1755,14 @@
 		};
 
 		switch (letter) {
-			case "F":
-			case "E":
-			case "A2":
-				return (
-					heights.high.base + Math.random() * heights.high.variance
-				);
-			case "T":
-				return (
-					heights.middle.base +
-					Math.random() * heights.middle.variance
-				);
-			case "A":
-			case "M":
+			case 'F':
+			case 'E':
+			case 'A2':
+				return heights.high.base + Math.random() * heights.high.variance;
+			case 'T':
+				return heights.middle.base + Math.random() * heights.middle.variance;
+			case 'A':
+			case 'M':
 				return heights.low.base + Math.random() * heights.low.variance;
 			default:
 				return heights.middle.base;
@@ -1855,9 +1772,9 @@
 	function getLetterOffset(letter, index) {
 		// Add specific offsets for F and A
 		switch (letter) {
-			case "F":
+			case 'F':
 				return window.innerWidth * 0.03; // Move F right by 3vw
-			case "A":
+			case 'A':
 				if (index === 1) {
 					// Only the first A
 					return window.innerWidth * 0.01; // Move A right by 1vw
@@ -1872,8 +1789,8 @@
 		if (!magnetImages) return;
 
 		let scale = window.innerWidth / 1920;
-		const letters = ["F", "A", "T", "E", "M", "A2"];
-		const totalWidth = (window.innerWidth * .4); // Original 40% width
+		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
+		const totalWidth = window.innerWidth * 0.4; // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (window.innerWidth - totalWidth) / 2;
 
@@ -1881,13 +1798,11 @@
 		const groupOffset = window.innerWidth * -0.02;
 
 		// Original height
-		const targetWidth = window.innerHeight * 0.18;
-
 
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
-			const height = img.height * scale;
-			const width = img.width * scale;
+			const height = img.height * scale * 1.1;
+			const width = img.width * scale * 1.1;
 			const offset = getLetterOffset(letter, index);
 
 			return {
@@ -1908,34 +1823,6 @@
 		renderAll();
 	}
 
-	// function positionMagnets() {
-	// 	if (!magnets.length) return;
-
-	// 	const { width, height } = getContainerDimensions();
-	// 	const totalWidth = width * 0.4;
-	// 	const spacing = totalWidth / (magnets.length - 1);
-	// 	const startX = (width - totalWidth) / 2;
-	// 	const targetWidth = height * 0.18;
-	// 	const groupOffset = width * -0.02; // Same offset as in initializeMagnets
-
-	// 	magnets.forEach((magnet, index) => {
-	// 		const aspectRatio = magnet.img.width / magnet.img.height;
-	// 		// Limit width to original image width
-	// 		const width = Math.min(targetWidth, magnet.img.width);
-	// 		// Calculate height maintaining aspect ratio, but limit to original image height
-	// 		const height = Math.min(width / aspectRatio, magnet.img.height);
-	// 		const offset = getLetterOffset(magnet.id, index);
-
-	// 		magnet.width = width;
-	// 		magnet.height = height;
-	// 		magnet.x = startX + spacing * index + offset + groupOffset;
-	// 		magnet.y = window.innerHeight * getLetterHeight(magnet.id);
-	// 		magnet.rotation = 0;
-	// 	});
-
-	// 	renderAll();
-	// }
-
 	// Add batch rendering utilities
 	class ParticleBatch {
 		constructor() {
@@ -1946,7 +1833,7 @@
 
 		_initOffscreenCanvas(width, height) {
 			if (!this.offscreenCanvas) {
-				this.offscreenCanvas = document.createElement("canvas");
+				this.offscreenCanvas = document.createElement('canvas');
 			}
 			// Only resize if needed
 			if (
@@ -1955,12 +1842,17 @@
 			) {
 				this.offscreenCanvas.width = width;
 				this.offscreenCanvas.height = height;
-				this.offscreenCtx = this.offscreenCanvas.getContext("2d");
-				this.offscreenCtx.clear()
-				this.offscreenCtx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+				this.offscreenCtx = this.offscreenCanvas.getContext('2d');
+				this.offscreenCtx.clear();
+				this.offscreenCtx.clearRect(
+					0,
+					0,
+					this.offscreenCanvas.width,
+					this.offscreenCanvas.height
+				);
 				// Match main canvas settings
 				this.offscreenCtx.imageSmoothingEnabled = true;
-				this.offscreenCtx.imageSmoothingQuality = "high";
+				this.offscreenCtx.imageSmoothingQuality = 'high';
 			}
 		}
 
@@ -1981,7 +1873,7 @@
 			for (const [opacity, particles] of this.particles.entries()) {
 				this.particles.set(
 					opacity,
-					particles.filter((p) => p.x <= x),
+					particles.filter((p) => p.x <= x)
 				);
 			}
 		}
@@ -1997,7 +1889,7 @@
 				0,
 				0,
 				this.offscreenCanvas.width,
-				this.offscreenCanvas.height,
+				this.offscreenCanvas.height
 			);
 
 			// Group particles by their properties for efficient rendering
@@ -2012,9 +1904,7 @@
 					// Create group key based on visual properties
 					const color = particle.color;
 					const finalOpacity =
-						particle.opacity !== undefined
-							? particle.opacity
-							: opacity;
+						particle.opacity !== undefined ? particle.opacity : opacity;
 					const key = `${color}-${finalOpacity}-${particle.isPredrawn}-${particle.isStampParticle}`;
 
 					if (!renderGroups.has(key)) {
@@ -2050,7 +1940,7 @@
 						-particle.length / 2,
 						-particle.width / 2,
 						particle.length,
-						particle.width,
+						particle.width
 					);
 					this.offscreenCtx.restore();
 				}
@@ -2094,11 +1984,11 @@
 			const start = points[i - 1];
 			const end = points[i];
 			const distance = Math.sqrt(
-				Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2),
+				Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
 			);
 			const particleCount = Math.min(
 				Math.floor(distance * opts.density),
-				MAX_PARTICLES - particles.length,
+				MAX_PARTICLES - particles.length
 			);
 
 			// If we're at max particles, remove oldest ones
@@ -2121,8 +2011,7 @@
 				const angle = Math.atan2(dy, dx);
 
 				// Use pattern table instead of random
-				const patternIndex =
-					(j + Math.floor(x + y)) % OFFSET_PATTERNS.length;
+				const patternIndex = (j + Math.floor(x + y)) % OFFSET_PATTERNS.length;
 				const offset = OFFSET_PATTERNS[patternIndex];
 
 				const perpX = Math.cos(angle) * offset;
@@ -2138,7 +2027,7 @@
 
 		magnet.isStamping = true;
 
-		preDrawnParticles = []
+		preDrawnParticles = [];
 
 		const img = new Image();
 		img.onload = () => {
@@ -2149,11 +2038,11 @@
 			}
 
 			// Create temporary canvas for image
-			const tempCanvas = document.createElement("canvas");
-			const tempCtx = tempCanvas.getContext("2d");
+			const tempCanvas = document.createElement('canvas');
+			const tempCtx = tempCanvas.getContext('2d');
 
 			// Check if this is the multi-text image
-			const isMultiText = img.src.includes("multi-text");
+			const isMultiText = img.src.includes('multi-text');
 
 			// Calculate scaled dimensions while maintaining aspect ratio
 			const scale = isMultiText ? 0.8 : 0.385; // Higher scale for multi-text
@@ -2191,7 +2080,7 @@
 				0,
 				0,
 				tempCanvas.width,
-				tempCanvas.height,
+				tempCanvas.height
 			);
 			const data = imageData.data;
 
@@ -2235,7 +2124,7 @@
 				const nearbyParticles = spatialGrid.queryParticles(
 					x,
 					y,
-					proximityThreshold,
+					proximityThreshold
 				);
 				return nearbyParticles.size > 0;
 			}
@@ -2258,22 +2147,14 @@
 							bottomAlpha <= alphaThreshold;
 
 						const newX =
-							magnet.x -
-							magnet.width / 2 +
-							(x - offsetX) +
-							multiTextOffsetX;
+							magnet.x - magnet.width / 2 + (x - offsetX) + multiTextOffsetX;
 						const newY =
-							magnet.y -
-							magnet.height / 2 +
-							(y - offsetY) +
-							multiTextOffsetY;
+							magnet.y - magnet.height / 2 + (y - offsetY) + multiTextOffsetY;
 
 						if (isEdge) {
 							for (let i = 0; i < particleDensity.edge; i++) {
-								const finalX =
-									newX + (Math.random() - 0.5) * 0.8;
-								const finalY =
-									newY + (Math.random() - 0.5) * 0.8;
+								const finalX = newX + (Math.random() - 0.5) * 0.8;
+								const finalY = newY + (Math.random() - 0.5) * 0.8;
 								if (!hasNearbyStamp(finalX, finalY)) {
 									points.push({
 										x: finalX,
@@ -2369,7 +2250,7 @@
 			gsap.to(obj, {
 				value: 1,
 				duration: 0.3,
-				ease: "power2.out",
+				ease: 'power2.out',
 				onUpdate: () => {
 					cursorOpacity = obj.value;
 				},
@@ -2404,7 +2285,7 @@
 			gsap.to(selectedMagnet, {
 				scale: 1.1,
 				duration: 0.2,
-				ease: "power2.out",
+				ease: 'power2.out',
 			});
 		}
 	}
@@ -2442,11 +2323,11 @@
 			if (collidingMagnet) {
 				// Find free space for the colliding magnet (the one already on the canvas)
 				const magnetsExceptColliding = magnets.filter(
-					(m) => m !== collidingMagnet,
+					(m) => m !== collidingMagnet
 				);
 				const freePosition = findFreeSpace(
 					collidingMagnet,
-					magnetsExceptColliding,
+					magnetsExceptColliding
 				);
 
 				if (freePosition) {
@@ -2455,7 +2336,7 @@
 						x: freePosition.x,
 						y: freePosition.y,
 						duration: 0.3,
-						ease: "power2.out",
+						ease: 'power2.out',
 						onUpdate: () => scheduleRender(),
 						onComplete: () => {
 							// Create stamp for the moved magnet at its new position
@@ -2472,7 +2353,7 @@
 				scale: 1,
 				rotation: finalRotation,
 				duration: 0.3,
-				ease: "power2.out",
+				ease: 'power2.out',
 				onUpdate: () => scheduleRender(),
 				onComplete: () => {
 					droppedMagnet.isPickedUp = false;
@@ -2526,8 +2407,7 @@
 
 	function remToPixels(rem) {
 		return (
-			rem *
-			parseFloat(getComputedStyle(document.documentElement).fontSize)
+			rem * parseFloat(getComputedStyle(document.documentElement).fontSize)
 		);
 	}
 
@@ -2604,11 +2484,11 @@
 			{
 				value: 1,
 				duration: 0.3,
-				ease: "power2.out",
+				ease: 'power2.out',
 				onUpdate: function () {
 					cursorOpacity = this.targets()[0].value;
 				},
-			},
+			}
 		);
 		shouldDraw = true;
 		// Capture initial point on enter
@@ -2623,11 +2503,11 @@
 			{
 				value: 0,
 				duration: 0.3,
-				ease: "power2.out",
+				ease: 'power2.out',
 				onUpdate: function () {
 					cursorOpacity = this.targets()[0].value;
 				},
-			},
+			}
 		);
 		// Reset drawing state when leaving canvas
 		lastX = null;
@@ -2673,7 +2553,7 @@
 		gsap.to(canvas, {
 			opacity: 0,
 			duration: 0.15,
-			ease: "power2.inOut",
+			ease: 'power2.inOut',
 			onComplete: () => {
 				isCanvasVisible = false;
 			},
@@ -2683,10 +2563,7 @@
 	function handleWheel(event) {
 		if (!hasTriggeredTransition) {
 			hasTriggeredTransition = true;
-			if (
-				scrollToExploreComponent &&
-				!scrollToExploreComponent.hasAnimated
-			) {
+			if (scrollToExploreComponent && !scrollToExploreComponent.hasAnimated) {
 				isScrollAnimating = true;
 				scrollToExploreComponent.startAnimation().then(() => {
 					isScrollAnimating = false;
@@ -2694,7 +2571,7 @@
 			}
 			if (threeSceneComponent) {
 				threeSceneComponent.startTransition();
-				dispatch("transitionstart");
+				dispatch('transitionstart');
 			}
 		}
 	}
@@ -2730,8 +2607,8 @@
 	on:resize={() => {
 		window.clearTimeout(resizeInterval);
 		resizeInterval = setTimeout(() => {
-			cleanup()
-			init()
+			cleanup();
+			init();
 		}, 0);
 	}}
 	on:mouseup={handleMouseup}
@@ -2772,7 +2649,7 @@
 			renderAll();
 		}}
 	/>
-	{#if showScrollToExplore || isScrollAnimating}
+	{#if (showScrollToExplore || isScrollAnimating) && !hasTriggeredTransition}
 		<div class="scroll-to-explore">
 			<ScrollToExplore />
 		</div>
