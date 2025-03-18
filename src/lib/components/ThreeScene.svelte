@@ -215,7 +215,7 @@
 		// This gives us more precise control over the rotation behavior
 
 		// Add custom event listeners for model rotation
-		container.addEventListener('mousedown', handleModelDragStart);
+		window.addEventListener('mousedown', handleModelDragStart);
 		window.addEventListener('mousemove', handleModelDragMove);
 		window.addEventListener('mouseup', handleModelDragEnd);
 	}
@@ -571,7 +571,7 @@
 
 		// Set size based on container
 		renderer.setSize(containerWidth, containerHeight, false); // false prevents setting canvas style
-		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 		renderer.outputEncoding = THREE.sRGBEncoding;
 		renderer.toneMapping = THREE.ACESFilmicToneMapping; // More natural color reproduction
 		renderer.toneMappingExposure = 1.0; // Balanced exposure
