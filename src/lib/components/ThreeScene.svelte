@@ -752,7 +752,7 @@
 							child.material.emissiveIntensity = 0.3; // Moderate glow
 						} else if (child.name === 'Slider') {
 							// Special handling for the slider knob
-							child.material.roughness = 0.8; // Slightly glossy
+							child.material.roughness = 0.4; // Slightly glossy
 							child.material.metalness = 0.3; // More metallic
 							child.material.emissive = child.material.color; // Add glow
 							child.material.emissiveIntensity = 0.4; // Subtle glow
@@ -1111,11 +1111,12 @@
 		// Only handle wheel events after the first transition
 		if (!isFirstTransitionComplete) return;
 
-		// Prevent default scrolling behavior
-		event.preventDefault();
-
-		// Handle the scroll event for the animation trigger
-		handleScroll(event);
+		// Only prevent default if we haven't completed the second wheel event
+		if (!hasReceivedSecondWheelEvent) {
+			event.preventDefault();
+			handleScroll(event);
+		}
+		// Otherwise let the event bubble up for normal page scrolling
 	}
 
 	// Handle scroll events for animation triggers
@@ -1127,30 +1128,31 @@
 		if (!hasReceivedSecondWheelEvent) {
 			hasReceivedSecondWheelEvent = true;
 
-			// Perform the full spin and complete wipe to the end
-			performFullSpinAndWipe();
+			// Create a smooth animation to the end
+			const timeline = gsap.timeline();
+
+			// Wipe animation
+			timeline.to(sliderMesh.position, {
+				x: sliderMaxX,
+				duration: 1.2,
+				ease: 'power3.inOut',
+				onUpdate: () => {
+					const progress = calculateWipeProgress(sliderMesh.position.x);
+					dispatch('wipe', { progress });
+					currentSliderPosition = (sliderMesh.position.x - sliderMinX) / (sliderMaxX - sliderMinX);
+				},
+				onComplete: () => {
+					currentSliderPosition = 1;
+					totalScrollAmount = 1;
+					emitEndAnimationEvent();
+					// Remove pointer-events after animation completes
+					if (container) {
+						container.style.pointerEvents = 'none';
+					}
+				}
+			}, '-=0.4'); // Overlap with spin animation
 			return;
 		}
-
-		// Clear any existing timeout
-		if (scrollTimeout) clearTimeout(scrollTimeout);
-
-		// Debounce the scroll updates
-		scrollTimeout = setTimeout(() => {
-			// Accumulate scroll amount and clamp it between 0 and 1
-			currentSliderPosition = Math.max(
-				0,
-				Math.min(1, currentSliderPosition + event.deltaY * SCROLL_SENSITIVITY)
-			);
-			totalScrollAmount = currentSliderPosition;
-
-			// Convert to world position
-			const worldX =
-				sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
-
-			// Update slider position
-			updateSliderPosition(worldX, false);
-		}, 16); // ~60fps timing
 	}
 
 	onMount(async () => {
@@ -1259,12 +1261,14 @@
 		pointer-events: none;
 		opacity: 0;
 		transition: opacity 0.3s ease;
+		z-index: 1000; /* Ensure it's above other content but below modals */
 	}
 
 	.three-container.visible {
 		opacity: 1;
 		pointer-events: auto;
 	}
+
 	/* Force canvas to match container size */
 	:global(.three-container canvas) {
 		width: 100% !important;
