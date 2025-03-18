@@ -1111,11 +1111,12 @@
 		// Only handle wheel events after the first transition
 		if (!isFirstTransitionComplete) return;
 
-		// Prevent default scrolling behavior
-		event.preventDefault();
-
-		// Handle the scroll event for the animation trigger
-		handleScroll(event);
+		// Only prevent default if we haven't completed the second wheel event
+		if (!hasReceivedSecondWheelEvent) {
+			event.preventDefault();
+			handleScroll(event);
+		}
+		// Otherwise let the event bubble up for normal page scrolling
 	}
 
 	// Handle scroll events for animation triggers
@@ -1144,14 +1145,14 @@
 					currentSliderPosition = 1;
 					totalScrollAmount = 1;
 					emitEndAnimationEvent();
+					// Remove pointer-events after animation completes
+					if (container) {
+						container.style.pointerEvents = 'none';
+					}
 				}
 			}, '-=0.4'); // Overlap with spin animation
 			return;
 		}
-
-		// For subsequent wheel events, we don't need to do anything
-		// as the animation is already complete
-		return;
 	}
 
 	onMount(async () => {
@@ -1260,12 +1261,14 @@
 		pointer-events: none;
 		opacity: 0;
 		transition: opacity 0.3s ease;
+		z-index: 1000; /* Ensure it's above other content but below modals */
 	}
 
 	.three-container.visible {
 		opacity: 1;
 		pointer-events: auto;
 	}
+
 	/* Force canvas to match container size */
 	:global(.three-container canvas) {
 		width: 100% !important;
