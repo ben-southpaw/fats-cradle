@@ -752,7 +752,7 @@
 							child.material.emissiveIntensity = 0.3; // Moderate glow
 						} else if (child.name === 'Slider') {
 							// Special handling for the slider knob
-							child.material.roughness = 0.8; // Slightly glossy
+							child.material.roughness = 0.4; // Slightly glossy
 							child.material.metalness = 0.3; // More metallic
 							child.material.emissive = child.material.color; // Add glow
 							child.material.emissiveIntensity = 0.4; // Subtle glow
@@ -1127,30 +1127,31 @@
 		if (!hasReceivedSecondWheelEvent) {
 			hasReceivedSecondWheelEvent = true;
 
-			// Perform the full spin and complete wipe to the end
-			performFullSpinAndWipe();
+			// Create a smooth animation to the end
+			const timeline = gsap.timeline();
+
+			// Wipe animation
+			timeline.to(sliderMesh.position, {
+				x: sliderMaxX,
+				duration: 1.2,
+				ease: 'power3.inOut',
+				onUpdate: () => {
+					const progress = calculateWipeProgress(sliderMesh.position.x);
+					dispatch('wipe', { progress });
+					currentSliderPosition = (sliderMesh.position.x - sliderMinX) / (sliderMaxX - sliderMinX);
+				},
+				onComplete: () => {
+					currentSliderPosition = 1;
+					totalScrollAmount = 1;
+					emitEndAnimationEvent();
+				}
+			}, '-=0.4'); // Overlap with spin animation
 			return;
 		}
 
-		// Clear any existing timeout
-		if (scrollTimeout) clearTimeout(scrollTimeout);
-
-		// Debounce the scroll updates
-		scrollTimeout = setTimeout(() => {
-			// Accumulate scroll amount and clamp it between 0 and 1
-			currentSliderPosition = Math.max(
-				0,
-				Math.min(1, currentSliderPosition + event.deltaY * SCROLL_SENSITIVITY)
-			);
-			totalScrollAmount = currentSliderPosition;
-
-			// Convert to world position
-			const worldX =
-				sliderMinX + (sliderMaxX - sliderMinX) * currentSliderPosition;
-
-			// Update slider position
-			updateSliderPosition(worldX, false);
-		}, 16); // ~60fps timing
+		// For subsequent wheel events, we don't need to do anything
+		// as the animation is already complete
+		return;
 	}
 
 	onMount(async () => {
