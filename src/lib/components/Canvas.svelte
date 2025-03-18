@@ -100,6 +100,9 @@
 	let lastInteractionTime = performance.now();
 	let isIdle = false;
 
+	let saveMultiTextOffsetX;
+	let saveMultiTextOffsetY;
+
 	// Pre-computed pattern tables for particle optimization
 	const OFFSET_PATTERNS = new Float32Array(16); // Pre-computed offsets
 
@@ -286,6 +289,75 @@
 		scheduleRender();
 	}
 
+	function resize() {
+			particles = particles.filter((p) => p.x > 99999);
+			stampParticles = stampParticles.filter((p) => p.x > 99999);
+    
+
+			const canvasWidth = window.innerWidth;
+			const canvasHeight = window.innerHeight;
+
+			const multiTextOffsetX = canvasWidth / 2 - canvasWidth * 0.15 + canvasWidth * 0.08;
+			const multiTextOffsetY = 230 - canvasHeight * 0.025;
+
+			const offsetX = multiTextOffsetX - saveMultiTextOffsetX;
+			const offsetY = multiTextOffsetY - saveMultiTextOffsetY;
+
+			saveMultiTextOffsetX = saveMultiTextOffsetX + offsetX;
+			saveMultiTextOffsetY = saveMultiTextOffsetY + offsetY;
+
+			preDrawnParticles.forEach(particle => {        
+					particle.x = particle.x + offsetX;
+					particle.y = particle.y + offsetY;
+			});
+
+			canvas.width = canvasWidth;
+			canvas.height = canvasHeight;
+	
+			// Resize the WebGL renderer
+			if (gl) {
+				gl.viewport(0, 0, canvasWidth, canvasHeight);
+			}
+
+			 // Reposition magnets based on new window dimensions
+			 if (magnets && magnets.length > 0) {
+        const scale = window.innerWidth / 1920;
+        const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
+        const totalWidth = window.innerWidth * 0.4; // 40% width
+        const spacing = totalWidth / (letters.length - 1);
+        const startX = (window.innerWidth - totalWidth) / 2;
+        const groupOffset = window.innerWidth * -0.02;
+        
+        // Update each magnet's position and scale
+        magnets.forEach((magnet, index) => {
+            const letter = magnet.id;
+            const img = magnetImages[letter];
+            
+            // Update size
+            magnet.height = img.height * scale * 1.1;
+            magnet.width = img.width * scale * 1.1;
+            
+            // Get letter-specific offset
+            const offset = getLetterOffset(letter, index);
+            
+            // Update position
+            magnet.x = startX + spacing * index + offset + groupOffset;
+            magnet.y = window.innerHeight * getLetterHeight(letter);
+        });
+
+				
+
+				  // Recreate predrawn elements with the new dimensions
+				// 	if (magnets[0] && magnets[0].img) {
+        //     createPreDrawnElements(magnets[0]);
+        // }
+    }
+    
+
+			// Optionally, you can also update any other related settings or redraw the scene if necessary
+			renderAll();
+	}
+
 	function cleanup() {
 		// Clear all particle arrays
 		particles = [];
@@ -324,6 +396,7 @@
 
 	function init() {
 		if (!canvas) return;
+
 		// Initialize pattern tables
 		initializePatterns();
 		setupWebGL();
@@ -2118,6 +2191,11 @@
 				? 230 - window.innerHeight * 0.025
 				: 0; // 230px (reduced from 300) minus 15% of height
 
+				if (!saveMultiTextOffsetX) {
+					saveMultiTextOffsetX = multiTextOffsetX;
+					saveMultiTextOffsetY = multiTextOffsetY;
+				}
+
 			// Function to check if a point already has a stamp nearby using spatial grid
 			const proximityThreshold = 1.5;
 			function hasNearbyStamp(x, y) {
@@ -2561,6 +2639,9 @@
 	}
 
 	function handleWheel(event) {
+		// console.log(event);
+		// if (Math.abs(event.deltaY) < 10) return;
+
 		if (!hasTriggeredTransition) {
 			hasTriggeredTransition = true;
 			if (scrollToExploreComponent && !scrollToExploreComponent.hasAnimated) {
@@ -2607,8 +2688,8 @@
 	on:resize={() => {
 		window.clearTimeout(resizeInterval);
 		resizeInterval = setTimeout(() => {
-			cleanup();
-			init();
+			// 
+			if (!hasTriggeredTransition) resize();
 		}, 0);
 	}}
 	on:mouseup={handleMouseup}

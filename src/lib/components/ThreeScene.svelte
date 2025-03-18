@@ -2,7 +2,7 @@
 	import { onMount, createEventDispatcher, onDestroy, tick } from 'svelte';
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+	// import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 	import gsap from 'gsap';
 
 	export let canvas; // Accept canvas from parent
@@ -208,6 +208,8 @@
 
 	function initOrbitControls() {
 		if (!camera || !renderer || !model || controls) return;
+
+		controls = true;
 
 		// We'll implement a custom rotation instead of using OrbitControls
 		// This gives us more precise control over the rotation behavior
@@ -434,7 +436,9 @@
 
 		// Get original mesh dimensions
 		const box = new THREE.Box3().setFromObject(screenMesh);
+
 		const meshWidth = box.max.x - box.min.x;
+		const meshHeight = box.max.y - box.min.y;
 
 		// Keep original proportions
 		const heightScale = 0.98;
@@ -857,15 +861,79 @@
 					// Set up initial clipping planes
 					setupClippingPlanes();
 
-					// Reset UV coordinates
-					const uvs = screenMesh.geometry.attributes.uv;
-					for (let i = 0; i < uvs.count; i++) {
-						const u = uvs.array[i * 2];
-						const v = uvs.array[i * 2 + 1];
-						uvs.array[i * 2] = u;
-						uvs.array[i * 2 + 1] = v;
-					}
-					uvs.needsUpdate = true;
+					if (canvasTexture) {
+    const canvasWidth = canvasTexture.source.data.width;
+    const canvasHeight = canvasTexture.source.data.height;
+
+    // const meshWidth = 0.98;
+    // const meshHeight = 1.13;
+		const meshWidth = 10.57951701794373;
+		const meshHeight = 7.12575262866502;
+
+    const imageRatio = canvasWidth / canvasHeight;
+    const meshRatio = meshWidth / meshHeight;
+
+    // Reset UV coordinates
+    const uvs = screenMesh.geometry.attributes.uv;
+    
+    // Calculate the UV adjustments needed
+    let u0 = 0, u1 = 1;
+    let v0 = 0, v1 = 1;
+    
+    if (imageRatio > meshRatio) {
+        // Image is wider than mesh proportionally
+        // We need to crop the sides of the image
+        const cropFactor = meshRatio / imageRatio;
+        const cropAmount = (1 - cropFactor) / 2;
+        u0 = cropAmount;
+        u1 = 1 - cropAmount;
+    } else {
+        // Image is taller than mesh proportionally
+        // We need to crop the top and bottom of the image
+        const cropFactor = imageRatio / meshRatio;
+        const cropAmount = (1 - cropFactor) / 2;
+        v0 = cropAmount;
+        v1 = 1 - cropAmount;
+    }
+    
+    // Apply new UV mapping based on original vertex positions
+    for (let i = 0; i < uvs.count; i++) {
+        const u = uvs.array[i * 2];
+        const v = uvs.array[i * 2 + 1];
+        
+        // Map original UVs (0-1) to our new cropped region
+        if (u < 0.01) {
+            uvs.array[i * 2] = u0;
+        } else if (u > 0.99) {
+            uvs.array[i * 2] = u1;
+        } else {
+            // Linear interpolation for values in between
+            uvs.array[i * 2] = u0 + (u1 - u0) * u;
+        }
+        
+        if (v < 0.01) {
+            uvs.array[i * 2 + 1] = v0;
+        } else if (v > 0.99) {
+            uvs.array[i * 2 + 1] = v1;
+        } else {
+            // Linear interpolation for values in between
+            uvs.array[i * 2 + 1] = v0 + (v1 - v0) * v;
+        }
+    }
+    
+    uvs.needsUpdate = true;
+}
+
+
+			
+				// 	for (let i = 0; i < uvs.count; i++) {
+				// 		const u = uvs.array[i * 2];
+				// 		const v = uvs.array[i * 2 + 1];
+				// 		uvs.array[i * 2] = u;
+				// 		uvs.array[i * 2 + 1] = v;
+		
+				// 	uvs.needsUpdate = true;
+				// }
 
 					// Rotate the mesh locally
 					screenMesh.rotateZ(Math.PI);
@@ -1122,7 +1190,7 @@
 	// Handle scroll events for animation triggers
 	function handleScroll(event) {
 		if (!isFirstTransitionComplete || !sliderMesh || isDragging) return;
-
+		
 		// If this is the first wheel event after the initial animation,
 		// trigger the full spin and wipe to the end
 		if (!hasReceivedSecondWheelEvent) {
