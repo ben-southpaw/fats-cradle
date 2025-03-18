@@ -442,7 +442,7 @@
 
 		// Keep original proportions
 		const heightScale = 0.98;
-		const widthScale = 1.13; // Maintain original width-to-height ratio
+		const widthScale = 1.05; // Maintain original width-to-height ratio
 
 		// Update mesh scale
 		screenMesh.scale.y = heightScale;
@@ -492,14 +492,6 @@
 		});
 		renderer.shadowMap.enabled = true;
 		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-		// // Add hemisphere light
-		// const hemiLight = new THREE.HemisphereLight(
-		// 	CONFIG.lighting.hemisphere.skyColor,
-		// 	CONFIG.lighting.hemisphere.groundColor,
-		// 	CONFIG.lighting.hemisphere.intensity
-		// );
-		// scene.add(hemiLight);
 
 		// Add ambient light
 		const ambientLight = new THREE.AmbientLight(
@@ -571,7 +563,7 @@
 
 		// Set size based on container
 		renderer.setSize(containerWidth, containerHeight, false); // false prevents setting canvas style
-		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		renderer.outputEncoding = THREE.sRGBEncoding;
 		renderer.toneMapping = THREE.ACESFilmicToneMapping; // More natural color reproduction
 		renderer.toneMappingExposure = 1.0; // Balanced exposure
@@ -862,78 +854,69 @@
 					setupClippingPlanes();
 
 					if (canvasTexture) {
-    const canvasWidth = canvasTexture.source.data.width;
-    const canvasHeight = canvasTexture.source.data.height;
+						const canvasWidth = canvasTexture.source.data.width;
+						const canvasHeight = canvasTexture.source.data.height;
 
-    // const meshWidth = 0.98;
-    // const meshHeight = 1.13;
-		const meshWidth = 10.57951701794373;
-		const meshHeight = 7.12575262866502;
+						// const meshWidth = 0.98;
+						// const meshHeight = 1.13;
+						const meshWidth = 10.57951701794373;
+						const meshHeight = 7.12575262866502;
 
-    const imageRatio = canvasWidth / canvasHeight;
-    const meshRatio = meshWidth / meshHeight;
+						const imageRatio = canvasWidth / canvasHeight;
+						const meshRatio = meshWidth / meshHeight;
 
-    // Reset UV coordinates
-    const uvs = screenMesh.geometry.attributes.uv;
-    
-    // Calculate the UV adjustments needed
-    let u0 = 0, u1 = 1;
-    let v0 = 0, v1 = 1;
-    
-    if (imageRatio > meshRatio) {
-        // Image is wider than mesh proportionally
-        // We need to crop the sides of the image
-        const cropFactor = meshRatio / imageRatio;
-        const cropAmount = (1 - cropFactor) / 2;
-        u0 = cropAmount;
-        u1 = 1 - cropAmount;
-    } else {
-        // Image is taller than mesh proportionally
-        // We need to crop the top and bottom of the image
-        const cropFactor = imageRatio / meshRatio;
-        const cropAmount = (1 - cropFactor) / 2;
-        v0 = cropAmount;
-        v1 = 1 - cropAmount;
-    }
-    
-    // Apply new UV mapping based on original vertex positions
-    for (let i = 0; i < uvs.count; i++) {
-        const u = uvs.array[i * 2];
-        const v = uvs.array[i * 2 + 1];
-        
-        // Map original UVs (0-1) to our new cropped region
-        if (u < 0.01) {
-            uvs.array[i * 2] = u0;
-        } else if (u > 0.99) {
-            uvs.array[i * 2] = u1;
-        } else {
-            // Linear interpolation for values in between
-            uvs.array[i * 2] = u0 + (u1 - u0) * u;
-        }
-        
-        if (v < 0.01) {
-            uvs.array[i * 2 + 1] = v0;
-        } else if (v > 0.99) {
-            uvs.array[i * 2 + 1] = v1;
-        } else {
-            // Linear interpolation for values in between
-            uvs.array[i * 2 + 1] = v0 + (v1 - v0) * v;
-        }
-    }
-    
-    uvs.needsUpdate = true;
-}
+						// Reset UV coordinates
+						const uvs = screenMesh.geometry.attributes.uv;
 
+						// Calculate the UV adjustments needed
+						let u0 = 0,
+							u1 = 1;
+						let v0 = 0,
+							v1 = 1;
 
-			
-				// 	for (let i = 0; i < uvs.count; i++) {
-				// 		const u = uvs.array[i * 2];
-				// 		const v = uvs.array[i * 2 + 1];
-				// 		uvs.array[i * 2] = u;
-				// 		uvs.array[i * 2 + 1] = v;
-		
-				// 	uvs.needsUpdate = true;
-				// }
+						if (imageRatio > meshRatio) {
+							// Image is wider than mesh proportionally
+							// We need to crop the sides of the image
+							const cropFactor = meshRatio / imageRatio;
+							const cropAmount = (1 - cropFactor) / 2;
+							u0 = cropAmount;
+							u1 = 1 - cropAmount;
+						} else {
+							// Image is taller than mesh proportionally
+							// We need to crop the top and bottom of the image
+							const cropFactor = imageRatio / meshRatio;
+							const cropAmount = (1 - cropFactor) / 2;
+							v0 = cropAmount;
+							v1 = 1 - cropAmount;
+						}
+
+						// Apply new UV mapping based on original vertex positions
+						for (let i = 0; i < uvs.count; i++) {
+							const u = uvs.array[i * 2];
+							const v = uvs.array[i * 2 + 1];
+
+							// Map original UVs (0-1) to our new cropped region
+							if (u < 0.01) {
+								uvs.array[i * 2] = u0;
+							} else if (u > 0.99) {
+								uvs.array[i * 2] = u1;
+							} else {
+								// Linear interpolation for values in between
+								uvs.array[i * 2] = u0 + (u1 - u0) * u;
+							}
+
+							if (v < 0.01) {
+								uvs.array[i * 2 + 1] = v0;
+							} else if (v > 0.99) {
+								uvs.array[i * 2 + 1] = v1;
+							} else {
+								// Linear interpolation for values in between
+								uvs.array[i * 2 + 1] = v0 + (v1 - v0) * v;
+							}
+						}
+
+						uvs.needsUpdate = true;
+					}
 
 					// Rotate the mesh locally
 					screenMesh.rotateZ(Math.PI);
@@ -1190,7 +1173,7 @@
 	// Handle scroll events for animation triggers
 	function handleScroll(event) {
 		if (!isFirstTransitionComplete || !sliderMesh || isDragging) return;
-		
+
 		// If this is the first wheel event after the initial animation,
 		// trigger the full spin and wipe to the end
 		if (!hasReceivedSecondWheelEvent) {
@@ -1200,25 +1183,30 @@
 			const timeline = gsap.timeline();
 
 			// Wipe animation
-			timeline.to(sliderMesh.position, {
-				x: sliderMaxX,
-				duration: 1.2,
-				ease: 'power3.inOut',
-				onUpdate: () => {
-					const progress = calculateWipeProgress(sliderMesh.position.x);
-					dispatch('wipe', { progress });
-					currentSliderPosition = (sliderMesh.position.x - sliderMinX) / (sliderMaxX - sliderMinX);
+			timeline.to(
+				sliderMesh.position,
+				{
+					x: sliderMaxX,
+					duration: 1.2,
+					ease: 'power3.inOut',
+					onUpdate: () => {
+						const progress = calculateWipeProgress(sliderMesh.position.x);
+						dispatch('wipe', { progress });
+						currentSliderPosition =
+							(sliderMesh.position.x - sliderMinX) / (sliderMaxX - sliderMinX);
+					},
+					onComplete: () => {
+						currentSliderPosition = 1;
+						totalScrollAmount = 1;
+						emitEndAnimationEvent();
+						// Remove pointer-events after animation completes
+						if (container) {
+							container.style.pointerEvents = 'none';
+						}
+					},
 				},
-				onComplete: () => {
-					currentSliderPosition = 1;
-					totalScrollAmount = 1;
-					emitEndAnimationEvent();
-					// Remove pointer-events after animation completes
-					if (container) {
-						container.style.pointerEvents = 'none';
-					}
-				}
-			}, '-=0.4'); // Overlap with spin animation
+				'-=0.4'
+			); // Overlap with spin animation
 			return;
 		}
 	}

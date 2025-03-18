@@ -290,192 +290,184 @@
 	}
 
 	function resize() {
-			particles = particles.filter((p) => p.x > 99999);
-			stampParticles = stampParticles.filter((p) => p.x > 99999);
-    
+		particles = particles.filter((p) => p.x > 99999);
+		stampParticles = stampParticles.filter((p) => p.x > 99999);
 
-			const canvasWidth = window.innerWidth;
-			const canvasHeight = window.innerHeight;
+		const canvasWidth = window.innerWidth;
+		const canvasHeight = window.innerHeight;
 
-			const multiTextOffsetX = canvasWidth / 2 - canvasWidth * 0.15 + canvasWidth * 0.08;
-			const multiTextOffsetY = 230 - canvasHeight * 0.025;
+		const multiTextOffsetX =
+			canvasWidth / 2 - canvasWidth * 0.15 + canvasWidth * 0.08;
+		const multiTextOffsetY = 230 - canvasHeight * 0.025;
 
-			const offsetX = multiTextOffsetX - saveMultiTextOffsetX;
-			const offsetY = multiTextOffsetY - saveMultiTextOffsetY;
+		const offsetX = multiTextOffsetX - saveMultiTextOffsetX;
+		const offsetY = multiTextOffsetY - saveMultiTextOffsetY;
 
-			saveMultiTextOffsetX = saveMultiTextOffsetX + offsetX;
-			saveMultiTextOffsetY = saveMultiTextOffsetY + offsetY;
+		saveMultiTextOffsetX = saveMultiTextOffsetX + offsetX;
+		saveMultiTextOffsetY = saveMultiTextOffsetY + offsetY;
 
-			preDrawnParticles.forEach(particle => {        
-					particle.x = particle.x + offsetX;
-					particle.y = particle.y + offsetY;
-			});
-
-			canvas.width = canvasWidth;
-			canvas.height = canvasHeight;
-	
-			// Resize the WebGL renderer
-			if (gl) {
-				gl.viewport(0, 0, canvasWidth, canvasHeight);
-			}
-
-			 // Reposition magnets based on new window dimensions
-			 if (magnets && magnets.length > 0) {
-        const scale = window.innerWidth / 1920;
-        const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-        const totalWidth = window.innerWidth * 0.4; // 40% width
-        const spacing = totalWidth / (letters.length - 1);
-        const startX = (window.innerWidth - totalWidth) / 2;
-        const groupOffset = window.innerWidth * -0.02;
-        
-        // Update each magnet's position and scale
-        magnets.forEach((magnet, index) => {
-            const letter = magnet.id;
-            const img = magnetImages[letter];
-            
-            // Update size
-            magnet.height = img.height * scale * 1.1;
-            magnet.width = img.width * scale * 1.1;
-            
-            // Get letter-specific offset
-            const offset = getLetterOffset(letter, index);
-            
-            // Update position
-            magnet.x = startX + spacing * index + offset + groupOffset;
-            magnet.y = window.innerHeight * getLetterHeight(letter);
-        });
-
-				
-
-				  // Recreate predrawn elements with the new dimensions
-				// 	if (magnets[0] && magnets[0].img) {
-        //     createPreDrawnElements(magnets[0]);
-        // }
-    }
-    
-
-			// Optionally, you can also update any other related settings or redraw the scene if necessary
-			renderAll();
-	}
-
-	function cleanup() {
-		// Clear all particle arrays
-		particles = [];
-		stampParticles = [];
-		preDrawnParticles = [];
-		spatialGrid.clear();
-
-		// Clear all batches
-		drawingBatch.clear();
-		predrawnBatch.clear();
-		stampBatch.clear();
-
-		if (animationFrameId) {
-			cancelAnimationFrame(animationFrameId);
-		}
-		if (scrollToExploreComponent) {
-			scrollToExploreComponent = null;
-		}
-		if (ctx) {
-			ctx = null;
-		}
-		if (gl) {
-			gl.clearColor(
-				parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
-				parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
-				parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
-				1.0
-			);
-			gl.clear(gl.COLOR_BUFFER_BIT);
-			gl.deleteProgram(particleProgram);
-			gl.deleteBuffer(particleBuffer);
-			gl.deleteBuffer(particleColorBuffer);
-			gl = null;
-		}
-	}
-
-	function init() {
-		if (!canvas) return;
-
-		// Initialize pattern tables
-		initializePatterns();
-		setupWebGL();
-		// Fallback to 2D context if WebGL setup failed
-		if (!gl) {
-			ctx = canvas.getContext('2d');
-		}
-		// Initialize canvas with background
-		if (ctx) {
-			ctx.fillStyle = CONFIG.backgroundColor;
-			ctx.fillRect(0, 0, canvas.width, canvas.height);
-		} else if (gl) {
-			gl.clearColor(
-				parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
-				parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
-				parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
-				1.0
-			);
-			gl.clear(gl.COLOR_BUFFER_BIT);
-		}
-
-		// Notify that canvas is ready
-		onScreenCanvasReady(canvas);
-
-		function animate() {
-			animationFrameId = requestAnimationFrame(animate);
-			const currentTime = performance.now();
-
-			// Check if we should switch to idle FPS
-			if (!isIdle && currentTime - lastInteractionTime > CONFIG.idleTimeout) {
-				isIdle = true;
-				FRAME_INTERVAL = 1000 / CONFIG.idleFPS;
-			}
-
-			if (currentTime - lastRenderTime >= FRAME_INTERVAL) {
-				renderAll();
-				lastRenderTime = currentTime;
-
-				// Keep notifying about canvas updates
-				onScreenCanvasReady(canvas);
-			}
-		}
-		animate();
-
-		// Create and load all letter images
-		const letterSources = {
-			F: letterF,
-			A: letterA,
-			T: letterT,
-			E: letterE,
-			M: letterM,
-			A2: letterA2,
-		};
-
-		let loadedCount = 0;
-		const totalImages = Object.keys(letterSources).length;
-
-		Object.entries(letterSources).forEach(([letter, src]) => {
-			const img = new Image();
-			img.onload = () => {
-				magnetImages[letter] = img;
-				if (gl && textureProgram) {
-					loadTexture(src).then((texture) => {
-						magnetTextures.set(letter, texture);
-						loadedCount++;
-						if (loadedCount === totalImages) {
-							initializeMagnets();
-							// Create pre-drawn elements only after all images are loaded
-							createPreDrawnElements(magnets[0]);
-						}
-					});
-				}
-			};
-			img.src = src;
+		preDrawnParticles.forEach((particle) => {
+			particle.x = particle.x + offsetX;
+			particle.y = particle.y + offsetY;
 		});
 
-		// Register GSAP plugin
-		gsap.registerPlugin();
+		canvas.width = canvasWidth;
+		canvas.height = canvasHeight;
+
+		// Resize the WebGL renderer
+		if (gl) {
+			gl.viewport(0, 0, canvasWidth, canvasHeight);
+		}
+
+		// Reposition magnets based on new window dimensions
+		if (magnets && magnets.length > 0) {
+			const scale = window.innerWidth / 1920;
+			const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
+			const totalWidth = window.innerWidth * 0.4; // 40% width
+			const spacing = totalWidth / (letters.length - 1);
+			const startX = (window.innerWidth - totalWidth) / 2;
+			const groupOffset = window.innerWidth * -0.02;
+
+			// Update each magnet's position and scale
+			magnets.forEach((magnet, index) => {
+				const letter = magnet.id;
+				const img = magnetImages[letter];
+
+				// Update size
+				magnet.height = img.height * scale * 1.1;
+				magnet.width = img.width * scale * 1.1;
+
+				// Get letter-specific offset
+				const offset = getLetterOffset(letter, index);
+
+				// Update position
+				magnet.x = startX + spacing * index + offset + groupOffset;
+				magnet.y = window.innerHeight * getLetterHeight(letter);
+			});
+		}
+
+		// Optionally, you can also update any other related settings or redraw the scene if necessary
+		renderAll();
 	}
+
+	// function cleanup() {
+	// 	// Clear all particle arrays
+	// 	particles = [];
+	// 	stampParticles = [];
+	// 	preDrawnParticles = [];
+	// 	spatialGrid.clear();
+
+	// 	// Clear all batches
+	// 	drawingBatch.clear();
+	// 	predrawnBatch.clear();
+	// 	stampBatch.clear();
+
+	// 	if (animationFrameId) {
+	// 		cancelAnimationFrame(animationFrameId);
+	// 	}
+	// 	if (scrollToExploreComponent) {
+	// 		scrollToExploreComponent = null;
+	// 	}
+	// 	if (ctx) {
+	// 		ctx = null;
+	// 	}
+	// 	if (gl) {
+	// 		gl.clearColor(
+	// 			parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
+	// 			parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
+	// 			parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
+	// 			1.0
+	// 		);
+	// 		gl.clear(gl.COLOR_BUFFER_BIT);
+	// 		gl.deleteProgram(particleProgram);
+	// 		gl.deleteBuffer(particleBuffer);
+	// 		gl.deleteBuffer(particleColorBuffer);
+	// 		gl = null;
+	// 	}
+	// }
+
+	// function init() {
+	// 	if (!canvas) return;
+
+	// 	// Initialize pattern tables
+	// 	initializePatterns();
+	// 	setupWebGL();
+	// 	// Fallback to 2D context if WebGL setup failed
+	// 	if (!gl) {
+	// 		ctx = canvas.getContext('2d');
+	// 	}
+	// 	// Initialize canvas with background
+	// 	if (ctx) {
+	// 		ctx.fillStyle = CONFIG.backgroundColor;
+	// 		ctx.fillRect(0, 0, canvas.width, canvas.height);
+	// 	} else if (gl) {
+	// 		gl.clearColor(
+	// 			parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
+	// 			parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
+	// 			parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
+	// 			1.0
+	// 		);
+	// 		gl.clear(gl.COLOR_BUFFER_BIT);
+	// 	}
+
+	// 	// Notify that canvas is ready
+	// 	onScreenCanvasReady(canvas);
+
+	// 	function animate() {
+	// 		animationFrameId = requestAnimationFrame(animate);
+	// 		const currentTime = performance.now();
+
+	// 		// Check if we should switch to idle FPS
+	// 		if (!isIdle && currentTime - lastInteractionTime > CONFIG.idleTimeout) {
+	// 			isIdle = true;
+	// 			FRAME_INTERVAL = 1000 / CONFIG.idleFPS;
+	// 		}
+
+	// 		if (currentTime - lastRenderTime >= FRAME_INTERVAL) {
+	// 			renderAll();
+	// 			lastRenderTime = currentTime;
+
+	// 			// Keep notifying about canvas updates
+	// 			onScreenCanvasReady(canvas);
+	// 		}
+	// 	}
+	// 	animate();
+
+	// 	// Create and load all letter images
+	// 	const letterSources = {
+	// 		F: letterF,
+	// 		A: letterA,
+	// 		T: letterT,
+	// 		E: letterE,
+	// 		M: letterM,
+	// 		A2: letterA2,
+	// 	};
+
+	// 	let loadedCount = 0;
+	// 	const totalImages = Object.keys(letterSources).length;
+
+	// 	Object.entries(letterSources).forEach(([letter, src]) => {
+	// 		const img = new Image();
+	// 		img.onload = () => {
+	// 			magnetImages[letter] = img;
+	// 			if (gl && textureProgram) {
+	// 				loadTexture(src).then((texture) => {
+	// 					magnetTextures.set(letter, texture);
+	// 					loadedCount++;
+	// 					if (loadedCount === totalImages) {
+	// 						initializeMagnets();
+	// 						// Create pre-drawn elements only after all images are loaded
+	// 						createPreDrawnElements(magnets[0]);
+	// 					}
+	// 				});
+	// 			}
+	// 		};
+	// 		img.src = src;
+	// 	});
+
+	// 	// Register GSAP plugin
+	// 	gsap.registerPlugin();
+	// }
 
 	onMount(() => {
 		if (!canvas) return;
@@ -2184,17 +2176,17 @@
 			// Add specific offsets for multi-text image
 			const multiTextOffsetX = isMultiText
 				? window.innerWidth / 2 -
-					window.innerWidth * 0.15 +
+					window.innerWidth * 0.23 +
 					window.innerWidth * 0.08
 				: 0; // Half screen minus 15% plus 8vw
 			const multiTextOffsetY = isMultiText
 				? 230 - window.innerHeight * 0.025
 				: 0; // 230px (reduced from 300) minus 15% of height
 
-				if (!saveMultiTextOffsetX) {
-					saveMultiTextOffsetX = multiTextOffsetX;
-					saveMultiTextOffsetY = multiTextOffsetY;
-				}
+			if (!saveMultiTextOffsetX) {
+				saveMultiTextOffsetX = multiTextOffsetX;
+				saveMultiTextOffsetY = multiTextOffsetY;
+			}
 
 			// Function to check if a point already has a stamp nearby using spatial grid
 			const proximityThreshold = 1.5;
@@ -2688,7 +2680,7 @@
 	on:resize={() => {
 		window.clearTimeout(resizeInterval);
 		resizeInterval = setTimeout(() => {
-			// 
+			//
 			if (!hasTriggeredTransition) resize();
 		}, 0);
 	}}
