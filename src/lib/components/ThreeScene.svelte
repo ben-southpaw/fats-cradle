@@ -432,7 +432,7 @@
 			type: 'animationComplete',
 		};
 		//update to live link later
-		window.parent.postMessage(message, 'https://fatscradle.com/');
+		// window.parent.postMessage(message, 'https://fatscradle.com/');
 		//remove after live
 		window.parent.postMessage(
 			message,
