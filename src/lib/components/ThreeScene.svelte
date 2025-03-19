@@ -432,10 +432,7 @@
 			type: 'animationComplete',
 		};
 		//update to live link later
-		window.parent.postMessage(
-			message,
-			'https://my.readymag.com/edit/5177230/preview/'
-		);
+		window.parent.postMessage(message, 'https://fatscradle.com/');
 	}
 
 	function calculateWipeProgress(x) {
