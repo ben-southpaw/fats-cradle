@@ -1338,7 +1338,7 @@
 						emitEndAnimationEvent();
 						// Remove pointer-events after animation completes
 						if (container) {
-							container.style.pointerEvents = 'none';
+							// container.style.pointerEvents = 'none';
 						}
 					},
 				},
