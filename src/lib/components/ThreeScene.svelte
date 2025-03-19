@@ -433,6 +433,11 @@
 		};
 		//update to live link later
 		window.parent.postMessage(message, 'https://fatscradle.com/');
+		//remove after live
+		window.parent.postMessage(
+			message,
+			'https://my.readymag.com/edit/5177230/preview/'
+		);
 	}
 
 	function calculateWipeProgress(x) {
@@ -1338,7 +1343,7 @@
 						emitEndAnimationEvent();
 						// Remove pointer-events after animation completes
 						if (container) {
-							// container.style.pointerEvents = 'none';
+							container.style.pointerEvents = 'none';
 						}
 					},
 				},
