@@ -19,11 +19,13 @@
 	let isVisible = false;
 	let modelLoaded = false;
 	let animationFrameId;
+let rotationAnimationId;
 	let canvasTexture;
 	let knobWidth = 0;
 	let controls;
 
 	let isDraggingModel = false;
+let rotationStopTimeout = null;
 
 	function updateCanvasTexture() {
 		if (!canvas) return;
@@ -218,6 +220,9 @@
 		window.addEventListener('mousedown', handleModelDragStart);
 		window.addEventListener('mousemove', handleModelDragMove);
 		window.addEventListener('mouseup', handleModelDragEnd);
+		
+		// Start animation loop for continuous updates
+		animateRotation();
 	}
 
 	function handleModelDragStart(event) {
@@ -230,6 +235,19 @@
 			y: event.clientY,
 		};
 	}
+
+	// Initial model scale to restore when not rotated
+	let initialModelScale = { x: 1, y: 1, z: 1 };
+	// Current target scale factor (will be interpolated smoothly)
+	let currentScaleFactor = 1.0;
+	let targetScaleFactor = 1.0;
+	// Scale interpolation speed (higher = faster transitions)
+	const SCALE_SMOOTHING = 0.1;
+	// Minimum scale factor when at maximum rotation
+	const MIN_SCALE_FACTOR = 0.75; // More aggressive scaling for vertical extension
+	// Maximum rotation angle where scaling begins to apply (in radians)
+	const X_SCALE_THRESHOLD = Math.PI / 12; // 15 degrees for X rotation (vertical extension)
+	const Y_SCALE_THRESHOLD = Math.PI / 4; // 45 degrees for Y rotation (less critical)
 
 	function handleModelDragMove(event) {
 		if (!isDraggingModel || !model) return;
@@ -272,14 +290,126 @@
 		};
 	}
 
+	function applyDynamicScaling() {
+		if (!model) return;
+
+		// Store initial scale if not already stored
+		if (initialModelScale.x === 1 && !model.userData.initialScaleStored) {
+			initialModelScale = {
+				x: model.scale.x,
+				y: model.scale.y,
+				z: model.scale.z
+			};
+			model.userData.initialScaleStored = true;
+		}
+
+		// Calculate rotation magnitudes (absolute values)
+		const xRotation = Math.abs(modelRotation.x % (Math.PI * 2));
+		const yRotation = Math.abs(modelRotation.y % (Math.PI * 2));
+
+		// Normalize rotation to 0-PI range (since rotation beyond PI is equivalent)
+		const normalizedXRot = Math.min(xRotation, Math.PI * 2 - xRotation);
+		const normalizedYRot = Math.min(yRotation, Math.PI * 2 - yRotation);
+
+		// Calculate scale factor based on rotation angle
+		// Only start scaling when rotation exceeds threshold
+		let xScaleFactor = 1.0;
+		let yScaleFactor = 1.0;
+
+		// X rotation (vertical extension) is more critical - use lower threshold and more aggressive scaling
+		if (normalizedXRot > X_SCALE_THRESHOLD) {
+			// Map rotation from threshold to PI/2 to scale factor from 1.0 to MIN_SCALE_FACTOR
+			// Use a quadratic curve for more aggressive scaling at higher angles
+			const xProgress = Math.min(1.0, (normalizedXRot - X_SCALE_THRESHOLD) / (Math.PI/2 - X_SCALE_THRESHOLD));
+			// Square the progress for more aggressive scaling at higher angles
+			xScaleFactor = 1.0 - (xProgress * xProgress * (1.0 - MIN_SCALE_FACTOR));
+		}
+
+		// Y rotation is less critical - use higher threshold and less aggressive scaling
+		if (normalizedYRot > Y_SCALE_THRESHOLD) {
+			const yProgress = Math.min(1.0, (normalizedYRot - Y_SCALE_THRESHOLD) / (Math.PI/2 - Y_SCALE_THRESHOLD));
+			yScaleFactor = 1.0 - (yProgress * (1.0 - (MIN_SCALE_FACTOR + 0.1))); // Less reduction for Y rotation
+		}
+
+		// Use the minimum scale factor from both rotations
+		targetScaleFactor = Math.min(xScaleFactor, yScaleFactor);
+
+		// Smoothly interpolate between current scale and target scale
+		// This prevents sudden jumps in scale
+		currentScaleFactor += (targetScaleFactor - currentScaleFactor) * SCALE_SMOOTHING;
+
+		// Apply smoothly interpolated scale
+		model.scale.x = initialModelScale.x * currentScaleFactor;
+		model.scale.y = initialModelScale.y * currentScaleFactor;
+		model.scale.z = initialModelScale.z * currentScaleFactor;
+
+		// Debug
+		// console.log(`X rotation: ${(normalizedXRot * 180 / Math.PI).toFixed(1)}°, Y rotation: ${(normalizedYRot * 180 / Math.PI).toFixed(1)}°, Scale: ${currentScaleFactor.toFixed(3)} (target: ${targetScaleFactor.toFixed(3)})`);
+	}
+
 	function handleModelDragEnd() {
 		isDraggingModel = false;
-		// Preserve momentum when releasing but scale it down slightly for better control
-		rotationVelocity.x *= 0.7;
-		rotationVelocity.y *= 0.7;
+		// Almost completely eliminate momentum - just a tiny bit for natural feel
+		rotationVelocity.x *= 0.1; // Drastically reduced for minimal momentum
+		rotationVelocity.y *= 0.1; // Drastically reduced for minimal momentum
 		// Reset target velocity to prevent sudden jumps
 		targetVelocity.x = rotationVelocity.x;
 		targetVelocity.y = rotationVelocity.y;
+		
+		// Clear any existing timeout
+		if (rotationStopTimeout) {
+			clearTimeout(rotationStopTimeout);
+		}
+		
+		// Set a timeout to completely stop rotation after a short delay
+		rotationStopTimeout = setTimeout(() => {
+			// Completely stop all rotation
+			rotationVelocity.x = 0;
+			rotationVelocity.y = 0;
+			targetVelocity.x = 0;
+			targetVelocity.y = 0;
+		}, 300); // 300ms of inertia, then stop completely
+	}
+
+	function animateRotation() {
+		if (!model || !isFirstTransitionComplete) return;
+
+		// Define a much higher velocity threshold to stop rotation more quickly
+		const VELOCITY_THRESHOLD = 0.001; // 10x higher threshold
+		
+		// Only update rotation if we're dragging or velocity is above threshold
+		if (isDraggingModel || 
+		    Math.abs(rotationVelocity.x) > VELOCITY_THRESHOLD || 
+		    Math.abs(rotationVelocity.y) > VELOCITY_THRESHOLD) {
+			
+			// Smoothly interpolate current velocity toward target velocity
+			rotationVelocity.y += (targetVelocity.y - rotationVelocity.y) * SMOOTHING;
+			rotationVelocity.x += (targetVelocity.x - rotationVelocity.x) * SMOOTHING;
+
+			// Update model rotation based on smoothed velocity
+			modelRotation.y += rotationVelocity.y;
+			modelRotation.x += rotationVelocity.x;
+
+			// Apply rotation to model without limits
+			model.rotation.y = modelRotation.y;
+			model.rotation.x = modelRotation.x;
+
+			// Apply very strong damping to quickly reduce velocity
+			rotationVelocity.x *= DAMPING * 0.8; // Much stronger damping
+			rotationVelocity.y *= DAMPING * 0.8; // Much stronger damping
+			
+			// If velocity gets very small, just stop it completely
+			if (Math.abs(rotationVelocity.x) < VELOCITY_THRESHOLD) rotationVelocity.x = 0;
+			if (Math.abs(rotationVelocity.y) < VELOCITY_THRESHOLD) rotationVelocity.y = 0;
+		}
+
+		// Always update dynamic scaling based on current rotation
+		applyDynamicScaling();
+
+		// Continue animation loop if component is still mounted
+		if (model) {
+			rotationAnimationId = requestAnimationFrame(animateRotation);
+		}
 	}
 
 	function emitEndAnimationEvent() {
@@ -1296,9 +1426,17 @@
 			if (renderer.domElement) renderer.domElement.remove();
 		}
 
-		// Cancel animation frame
-		if (typeof window !== 'undefined' && animationFrameId) {
-			cancelAnimationFrame(animationFrameId);
+		// Cancel animation frames and timeouts
+		if (typeof window !== 'undefined') {
+			if (animationFrameId) {
+				cancelAnimationFrame(animationFrameId);
+			}
+			if (rotationAnimationId) {
+				cancelAnimationFrame(rotationAnimationId);
+			}
+			if (rotationStopTimeout) {
+				clearTimeout(rotationStopTimeout);
+			}
 		}
 	});
 </script>

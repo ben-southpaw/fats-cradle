@@ -2761,25 +2761,20 @@
 		height: 100%;
 		z-index: 1;
 		overflow: hidden;
+		margin: 0; /* Ensure no margins */
+		padding: 0; /* Ensure no padding */
 	}
 
 	canvas {
-		width: 100%;
-		height: 100%;
-		/* aspect-ratio: 2/1; */
+		width: 100vw;
+		height: 100vh;
 		opacity: 1;
 		transition: opacity 0.15s ease;
-		position: absolute;
-		/* top: 50%; */
-		/* left: 50%; */
-		/* transform: translateY(-50%) translateX(-50%); */
-
-		/* @media (max-aspect-ratio: 1.49) {
-			height: 100%;
-		}
-		@media (min-aspect-ratio: 1.5) {
-			width: 100%;
-		} */
+		position: fixed;
+		top: 0;
+		left: 0;
+		margin: 0;
+		padding: 0;
 	}
 
 	canvas.hidden {
