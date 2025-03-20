@@ -1433,6 +1433,11 @@
 			console.log('=========================');
 		}
 		
+		// Apply canvas scaling factor to convert from display coordinates to internal rendering coordinates
+		// This is crucial when the canvas display size doesn't match the internal rendering size
+		relX = relX * scaleX;
+		relY = relY * scaleY;
+		
 		// Return the adjusted coordinates
 		return {
 			x: relX,
