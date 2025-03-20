@@ -293,8 +293,8 @@
 		console.log(
 			window.outerWidth,
 			'window outerwidth dimensions',
-			window.parent.document.documentElement.clientWidth,
-			'window parent client width',
+			// window.parent.document.documentElement.clientWidth,
+			// 'window parent client width',
 			window.parent.outerWidth.outerWwidth,
 			'window parent outerwidth',
 			screen.width,
