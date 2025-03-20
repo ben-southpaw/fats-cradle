@@ -1355,9 +1355,13 @@
 	}
 
 	function getPointerPos(e) {
+		// Get canvas position within the page
+		const rect = canvas.getBoundingClientRect();
+		
+		// Return coordinates relative to the canvas
 		return {
-			x: e.clientX,
-			y: e.clientY,
+			x: e.clientX - rect.left,
+			y: e.clientY - rect.top,
 		};
 	}
 
