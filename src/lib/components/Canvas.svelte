@@ -165,8 +165,6 @@
 
 	// Canvas setup
 	let canvas;
-	// Fixed scaling factor based on debug output
-	const CURSOR_SCALE = 0.75; // Exact ratio between display and render dimensions (1440/1920)
 	
 	// Function to detect ReadyMag environment
 	function detectEnvironment() {
@@ -1403,21 +1401,9 @@
 		const x = relX * actualScaleX;
 		const y = relY * actualScaleY;
 		
-		// If we still have issues, fall back to our manual fixed scaling
-		// const x = relX * CURSOR_SCALE;
-		// const y = relY * CURSOR_SCALE;
-		
-		// Log helpful diagnostic information occasionally
-		if (Math.random() < 0.01) {
-			console.log('=== Cursor Debug Info ===');
-			console.log('Browser coordinates:', e.clientX, e.clientY);
-			console.log('Canvas rect:', rect.left, rect.top, rect.width, rect.height);
-			console.log('Canvas dimensions:', displayWidth, 'x', displayHeight, '(display) /', renderWidth, 'x', renderHeight, '(render)');
-			console.log('Calculated scale factors:', actualScaleX.toFixed(4), actualScaleY.toFixed(4));
-			console.log('Canvas-relative:', relX, relY);
-			console.log('Final coordinates:', x.toFixed(2), y.toFixed(2));
-			console.log('=========================');
-		}
+		// Store both the raw display coordinates and the internal rendering coordinates
+		// We'll use rawCoords for visual cursor positioning and x,y for internal logic
+		e.rawCoords = { x: relX, y: relY };
 		
 		// Return the properly scaled coordinates
 		return { x, y };
@@ -2216,10 +2202,13 @@
 			FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
 		}
 
+		// Get pointer position for internal canvas operations
 		let pos = getPointerPos(event);
 
-		m.x = pos.x - 5;
-		m.y = pos.y - 5;
+		// Use raw coordinates for visual cursor positioning 
+		// (unscaled display coordinates for visual accuracy)
+		m.x = event.rawCoords.x - 5;
+		m.y = event.rawCoords.y - 5;
 
 		// Stop magnet interactions if transitioning
 		if (isTransitioning) {
