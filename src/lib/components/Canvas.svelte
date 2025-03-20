@@ -29,11 +29,17 @@
 			return { width: parentDimensions.width, height: parentDimensions.height };
 		}
 
-		if (!canvas)
-			return { width: window.innerWidth, height: window.innerHeight };
+		if (!canvas) {
+			// Use a consistent aspect ratio when falling back to window width
+			const width = window.innerWidth;
+			return { width, height: width * 0.5625 }; // 16:9 aspect ratio
+		}
 		const container = canvas.parentElement;
-		if (!container)
-			return { width: window.innerWidth, height: window.innerHeight };
+		if (!container) {
+			// Use a consistent aspect ratio when falling back to window width
+			const width = window.innerWidth;
+			return { width, height: width * 0.5625 }; // 16:9 aspect ratio
+		}
 
 		return {
 			width: container.clientWidth,
@@ -292,13 +298,8 @@
 	}
 
 	function resize() {
-		// Use parent dimensions if available, otherwise fall back to window dimensions
-		const canvasWidth = parentDimensions
-			? parentDimensions.width
-			: window.innerWidth;
-		const canvasHeight = parentDimensions
-			? parentDimensions.height
-			: window.innerHeight;
+		// Get dimensions from the container using our consistent function
+		const { width: canvasWidth, height: canvasHeight } = getContainerDimensions();
 
 		console.log(
 			'Using dimensions:',
@@ -335,7 +336,8 @@
 
 		// Reposition magnets based on new dimensions
 		if (magnets && magnets.length > 0) {
-			let scale = window.innerWidth / 1920;
+			// Use canvas width instead of window width for consistent scaling
+			let scale = canvasWidth / 1920;
 			const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
 			const totalWidth = canvasWidth * 0.4; // 40% width
 			const spacing = totalWidth / (letters.length - 1);
@@ -1740,10 +1742,13 @@
 			const width = img.width * scale * 1.1;
 			const offset = getLetterOffset(letter, index);
 
+			// Get container height for consistent vertical positioning
+			const { height: containerHeight } = getContainerDimensions();
+			
 			return {
 				id: letter,
 				x: startX + spacing * index + offset + groupOffset, // Keep width/2 adjustment out since WebGL handles centering
-				y: window.innerHeight * getLetterHeight(letter),
+				y: containerHeight * getLetterHeight(letter),
 				img: img,
 				width,
 				height,
