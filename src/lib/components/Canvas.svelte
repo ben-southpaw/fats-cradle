@@ -17,6 +17,9 @@
 	const dispatch = createEventDispatcher();
 
 	let resizeInterval = undefined;
+	let isInIframe = false;
+	let iframeWidth = 0;
+	let iframeHeight = 0;
 
 	export let onScreenCanvasReady = () => {};
 	export let showScrollToExplore = true;
@@ -289,7 +292,35 @@
 		scheduleRender();
 	}
 
+	// Detect if we're in an iframe and get dimensions
+	function detectIframe() {
+		try {
+			isInIframe = window.self !== window.top;
+			console.log('Is in iframe:', isInIframe);
+
+			// If we're in an iframe, try to get the parent dimensions
+			if (isInIframe) {
+				// Get the actual dimensions of the iframe element
+				iframeWidth = window.innerWidth;
+				iframeHeight = window.innerHeight;
+				console.log('Iframe dimensions:', iframeWidth, iframeHeight);
+			}
+		} catch (e) {
+			// If we get a security error, we're definitely in an iframe
+			isInIframe = true;
+			iframeWidth = window.innerWidth;
+			iframeHeight = window.innerHeight;
+			console.log(
+				'Iframe detected (from security error):',
+				iframeWidth,
+				iframeHeight
+			);
+		}
+	}
+
 	function resize() {
+		// Detect iframe on resize
+		detectIframe();
 		console.log(window.innerWidth, window.innerHeight, 'window dimensions');
 
 		particles = particles.filter((p) => p.x > 99999);
@@ -322,7 +353,23 @@
 
 		// Reposition magnets based on new window dimensions
 		if (magnets && magnets.length > 0) {
-			const scale = window.innerWidth / 1920;
+			// Base scale on window width, but adjust for iframe if needed
+			let scale = window.innerWidth / 1920;
+
+			// If in iframe with fixed width, adjust the scale
+			if (isInIframe) {
+				if (iframeWidth === 1920) {
+					// Special case for Readymag with 1920px width
+					scale = 0.7; // Use a fixed scale that works well in Readymag
+					console.log('Using fixed scale for Readymag:', scale);
+				} else {
+					// Apply a correction factor based on the iframe's dimensions
+					const iframeRatio = iframeWidth / 1920;
+					scale = scale * Math.min(iframeRatio, 1);
+					console.log('Adjusted scale for iframe:', scale);
+				}
+			}
+
 			const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
 			const totalWidth = window.innerWidth * 0.4; // 40% width
 			const spacing = totalWidth / (letters.length - 1);
@@ -334,9 +381,22 @@
 				const letter = magnet.id;
 				const img = magnetImages[letter];
 
-				// Update size
-				magnet.height = img.height * scale * 1.1;
-				magnet.width = img.width * scale * 1.1;
+				// Apply additional scaling if in iframe
+				let adjustedScale;
+				if (isInIframe && iframeWidth === 1920) {
+					// If we're in a 1920px iframe (Readymag), use a more appropriate scale
+					adjustedScale = scale * 0.8; // Reduce scale to fit better in the iframe
+					console.log('Using Readymag-specific scaling');
+				} else if (isInIframe) {
+					adjustedScale = scale * Math.min(iframeWidth / 1920, 1);
+				} else {
+					adjustedScale = scale * 1.1;
+				}
+				console.log('Magnet scale:', adjustedScale, 'for letter:', letter);
+
+				// Update size with adjusted scale
+				magnet.height = img.height * adjustedScale;
+				magnet.width = img.width * adjustedScale;
 
 				// Get letter-specific offset
 				const offset = getLetterOffset(letter, index);
@@ -472,6 +532,15 @@
 
 	onMount(() => {
 		if (!canvas) return;
+
+		// Detect if we're in an iframe
+		detectIframe();
+		console.log(
+			'Canvas initialization - iframe detection:',
+			isInIframe,
+			iframeWidth,
+			iframeHeight
+		);
 
 		// Initialize pattern tables
 		initializePatterns();
@@ -865,7 +934,13 @@
 
 		// Update hex size uniform
 		const hexSizeLocation = gl.getUniformLocation(particleProgram, 'hexSize');
-		gl.uniform1f(hexSizeLocation, CONFIG.hexagonSize);
+		// Adjust hexagon size for iframe if needed
+		let hexSize = CONFIG.hexagonSize;
+		if (isInIframe && iframeWidth === 1920) {
+			// Scale down hexagons in Readymag iframe
+			hexSize = CONFIG.hexagonSize * 0.7;
+		}
+		gl.uniform1f(hexSizeLocation, hexSize);
 
 		// Prepare data
 		const { positions, colors } = prepareParticleData(particles);
@@ -984,14 +1059,29 @@
 
 	// Helper function to prepare grid vertices
 	function prepareGridVertices() {
-		const size = CONFIG.hexagonSize * 3;
+		// Adjust hexagon size for iframe if needed
+		let hexSize = CONFIG.hexagonSize;
+		if (isInIframe && iframeWidth === 1920) {
+			// Scale down hexagons in Readymag iframe
+			hexSize = CONFIG.hexagonSize * 0.7;
+		}
+
+		const size = hexSize * 5;
 		const hexWidth = size * 2; // Width of a hexagon
 		const hexHeight = size * Math.sqrt(3); // Height of a hexagon
 		const vertices = [];
 
 		// Calculate grid dimensions with proper spacing
-		const horizontalSpacing = hexWidth * 0.75; // Overlap horizontally by 1/4 of width
-		const verticalSpacing = hexHeight;
+		let horizontalSpacing = hexWidth * 0.75; // Overlap horizontally by 1/4 of width
+		let verticalSpacing = hexHeight;
+
+		// Adjust spacing for iframe if needed
+		if (isInIframe && iframeWidth === 1920) {
+			// Increase density of hexagons in Readymag iframe
+			horizontalSpacing = hexWidth * 0.65;
+			verticalSpacing = hexHeight * 0.9;
+		}
+
 		const cols = Math.ceil(canvas.width / horizontalSpacing) + 1;
 		const rows = Math.ceil(canvas.height / verticalSpacing) + 1;
 
@@ -1403,7 +1493,13 @@
 	}
 
 	// Shared particle creation function
-	function createParticle(x, y, isStamp = false, isPredrawn = false) {
+	function createParticle(
+		x,
+		y,
+		isStamp = false,
+		isPredrawn = false,
+		customProps = null
+	) {
 		let finalX = x;
 		let finalY = y;
 
@@ -1418,12 +1514,18 @@
 			finalY += (Math.random() - 0.5) * offsetScale * 2;
 		}
 
+		// Adjust sizes for iframe if needed
+		let sizeFactor = 0.5;
+		if (isInIframe && iframeWidth === 1920) {
+			sizeFactor = 0.8; // Scale down particles in Readymag iframe
+		}
+
 		return {
 			x: finalX,
 			y: finalY,
 			angle: Math.random() * Math.PI * 2,
-			length: CONFIG.particleLength,
-			width: CONFIG.particleWidth,
+			length: customProps?.size || CONFIG.particleLength * sizeFactor,
+			width: customProps?.size || CONFIG.particleWidth * sizeFactor,
 			isStampParticle: isStamp,
 			isPredrawn,
 			opacity: isStamp
@@ -1474,7 +1576,9 @@
 			const perpX = Math.cos(angle) * offset;
 			const perpY = Math.sin(angle) * offset;
 
-			particles.push(createParticle(x + perpX, y + perpY));
+			// Get deterministic properties for this particle
+			const props = getParticleProperties(Math.floor(Math.random() * 1000));
+			particles.push(createParticle(x + perpX, y + perpY, false, false, props));
 		}
 	}
 
@@ -2083,7 +2187,10 @@
 				const perpX = Math.cos(angle) * offset;
 				const perpY = Math.sin(angle) * offset;
 
-				particles.push(createParticle(x + perpX, y + perpY));
+				// Pass the properties to createParticle
+				particles.push(
+					createParticle(x + perpX, y + perpY, false, false, props)
+				);
 			}
 		}
 	}
