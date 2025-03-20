@@ -24,16 +24,10 @@
 	// Function to get container dimensions
 	function getContainerDimensions() {
 		if (!canvas)
-			return {
-				width: document.documentElement.clientWidth,
-				height: window.innerHeight,
-			};
+			return { width: window.innerWidth, height: window.innerHeight };
 		const container = canvas.parentElement;
 		if (!container)
-			return {
-				width: document.documentElement.clientWidth,
-				height: window.innerHeight,
-			};
+			return { width: window.innerWidth, height: window.innerHeight };
 
 		return {
 			width: container.clientWidth,
@@ -57,7 +51,7 @@
 		// Non-relative properties
 		backgroundColor: '#f2f2f2',
 		gridColor: '#C8C8C8',
-		hexagonSize: 4,
+		hexagonSize: 3,
 		particleColor: '#666666',
 		particleOpacity: 1,
 		preDrawnParticleSize: 1,
@@ -297,19 +291,22 @@
 
 	function resize() {
 		console.log(
-			window.innerWidth,
-			window.innerHeight,
-			'window dimensions',
-			document.documentElement.clientWidth,
-			'client',
-			window.visualViewport.width,
-			'visual'
+			window.outerWidth,
+			'window outerwidth dimensions',
+			window.parent.document.documentElement.clientWidth,
+			'window parent client width',
+			window.parent.outerWidth.outerWwidth,
+			'window parent outerwidth',
+			screen.width,
+			'screen width',
+			screen.availWidth,
+			'screen avail width'
 		);
 
 		particles = particles.filter((p) => p.x > 99999);
 		stampParticles = stampParticles.filter((p) => p.x > 99999);
 
-		const canvasWidth = document.documentElement.clientWidth;
+		const canvasWidth = window.innerWidth;
 		const canvasHeight = window.innerHeight;
 
 		const multiTextOffsetX = canvasWidth / 2 - canvasWidth * 0.15;
@@ -338,10 +335,10 @@
 		if (magnets && magnets.length > 0) {
 			const scale = window.innerWidth / 1920;
 			const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-			const totalWidth = document.documentElement.clientWidth * 0.4; // 40% width
+			const totalWidth = window.innerWidth * 0.4; // 40% width
 			const spacing = totalWidth / (letters.length - 1);
-			const startX = (document.documentElement.clientWidth - totalWidth) / 2;
-			const groupOffset = document.documentElement.clientWidth * -0.02;
+			const startX = (window.innerWidth - totalWidth) / 2;
+			const groupOffset = window.innerWidth * -0.02;
 
 			// Update each magnet's position and scale
 			magnets.forEach((magnet, index) => {
@@ -1107,6 +1104,14 @@
 		// Get container dimensions
 		const { width, height } = getContainerDimensions();
 
+		// let width = window.innerWidth;
+		// let height = window.innerWidth * 0.5;
+
+		// if (window.innerWidth / window.innerHeight > 1.49) {
+		// 	width = window.innerWidth;
+		// 	height = window.innerWidth * 0.5;
+		// }
+
 		// Set canvas size to match container
 		canvas.width = width;
 		canvas.height = height;
@@ -1728,9 +1733,9 @@
 		// Add specific offsets for multi-text image
 		let isMultiText = magnet.img.src.includes('multi-text');
 		const multiTextOffsetX = isMultiText
-			? document.documentElement.clientWidth / 2 -
-				document.documentElement.clientWidth * 0.15 +
-				document.documentElement.clientWidth * 0.08
+			? window.innerWidth / 2 -
+				window.innerWidth * 0.15 +
+				window.innerWidth * 0.08
 			: 0; // Half screen minus 15% plus 8vw
 		const multiTextOffsetY = isMultiText ? 290 - window.innerHeight * 0.15 : 0; // 230px (reduced from 300) minus 15% of height
 
@@ -1845,11 +1850,11 @@
 		// Add specific offsets for F and A
 		switch (letter) {
 			case 'F':
-				return document.documentElement.clientWidth * 0.03; // Move F right by 3vw
+				return window.innerWidth * 0.03; // Move F right by 3vw
 			case 'A':
 				if (index === 1) {
 					// Only the first A
-					return document.documentElement.clientWidth * 0.01; // Move A right by 1vw
+					return window.innerWidth * 0.01; // Move A right by 1vw
 				}
 				return 0;
 			default:
@@ -1862,12 +1867,12 @@
 
 		let scale = window.innerWidth / 1920;
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-		const totalWidth = document.documentElement.clientWidth * 0.4; // Original 40% width
+		const totalWidth = window.innerWidth * 0.4; // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
-		const startX = (document.documentElement.clientWidth - totalWidth) / 2;
+		const startX = (window.innerWidth - totalWidth) / 2;
 
 		// Original group offset
-		const groupOffset = document.documentElement.clientWidth * -0.02;
+		const groupOffset = window.innerWidth * -0.02;
 
 		// Original height
 
@@ -2182,9 +2187,9 @@
 
 			// Add specific offsets for multi-text image
 			const multiTextOffsetX = isMultiText
-				? document.documentElement.clientWidth / 2 -
-					document.documentElement.clientWidth * 0.23 +
-					document.documentElement.clientWidth * 0.08
+				? window.innerWidth / 2 -
+					window.innerWidth * 0.23 +
+					window.innerWidth * 0.08
 				: 0; // Half screen minus 15% plus 8vw
 			const multiTextOffsetY = isMultiText
 				? 230 - window.innerHeight * 0.025
