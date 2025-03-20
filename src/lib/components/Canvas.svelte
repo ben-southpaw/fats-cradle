@@ -1387,61 +1387,32 @@
 		// Get canvas position within the page
 		const rect = canvas.getBoundingClientRect();
 		
-		// Get container dimensions
-		const { width: containerWidth, height: containerHeight } = getContainerDimensions();
+		// Get the percentage position within the display canvas
+		// This normalizes the position regardless of actual canvas size
+		const percentX = (e.clientX - rect.left) / rect.width;
+		const percentY = (e.clientY - rect.top) / rect.height;
 		
-		// Get canvas rendering dimensions (may be different from display dimensions due to scaling)
-		const canvasWidth = canvas.width;
-		const canvasHeight = canvas.height;
+		// Apply these percentages to the internal rendering dimensions
+		// This maps directly to the internal coordinate system
+		const mappedX = percentX * canvas.width;
+		const mappedY = percentY * canvas.height;
 		
-		// Calculate scaling factors between display size and rendering size
-		// This is important if the canvas is being scaled by CSS or device pixel ratio
-		const scaleX = canvasWidth / rect.width;
-		const scaleY = canvasHeight / rect.height;
-		
-		// Calculate raw browser and canvas-relative coordinates
-		const rawX = e.clientX;
-		const rawY = e.clientY;
-		let relX = (e.clientX - rect.left);
-		let relY = (e.clientY - rect.top);
-		
-		// Apply ReadyMag-specific coordinate corrections if detected
-		if (isReadyMag) {
-			// Apply scaling and offset corrections for ReadyMag environment
-			relX = relX * envScaleFactor.x + envOffset.x;
-			
-			// Progressive correction for Y-axis that increases as cursor moves down
-			// This corrects for the observed issue where offset increases with Y position
-			const yRatio = relY / containerHeight;
-			relY = relY * (1 - yRatio * 0.1); // Apply up to 10% correction at bottom
-		}
-		
-		// Apply scaling to get coordinates in the canvas rendering space
-		const canvasX = relX * scaleX;
-		const canvasY = relY * scaleY;
-		
-		// Log helpful diagnostic information occasionally to avoid console spam
+		// Log helpful diagnostic information occasionally
 		if (Math.random() < 0.01) {
 			console.log('=== Cursor Debug Info ===');
 			console.log('Environment:', isReadyMag ? 'ReadyMag' : 'Standard');
-			console.log('Browser coordinates:', rawX, rawY);
+			console.log('Browser coordinates:', e.clientX, e.clientY);
 			console.log('Canvas rect:', rect.left, rect.top, rect.width, rect.height);
-			console.log('Canvas-relative coordinates:', relX, relY);
-			console.log('Canvas rendering dimensions:', canvasWidth, canvasHeight);
-			console.log('Scaling factors:', scaleX, scaleY);
-			console.log('Container dimensions:', containerWidth, containerHeight);
+			console.log('Percentage within canvas:', percentX.toFixed(3), percentY.toFixed(3));
+			console.log('Canvas rendering dimensions:', canvas.width, canvas.height);
+			console.log('Mapped coordinates:', mappedX.toFixed(1), mappedY.toFixed(1));
 			console.log('=========================');
 		}
 		
-		// Apply canvas scaling factor to convert from display coordinates to internal rendering coordinates
-		// This is crucial when the canvas display size doesn't match the internal rendering size
-		relX = relX * scaleX;
-		relY = relY * scaleY;
-		
-		// Return the adjusted coordinates
+		// Return the mapped coordinates
 		return {
-			x: relX,
-			y: relY
+			x: mappedX,
+			y: mappedY
 		};
 	}
 
