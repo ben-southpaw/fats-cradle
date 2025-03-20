@@ -20,9 +20,15 @@
 
 	export let onScreenCanvasReady = () => {};
 	export let showScrollToExplore = true;
+	export let parentDimensions = null;
 
 	// Function to get container dimensions
 	function getContainerDimensions() {
+		// Use parent dimensions if available
+		if (parentDimensions) {
+			return { width: parentDimensions.width, height: parentDimensions.height };
+		}
+
 		if (!canvas)
 			return { width: window.innerWidth, height: window.innerHeight };
 		const container = canvas.parentElement;
@@ -96,7 +102,6 @@
 	let pendingRender = false;
 	let lastRenderTime = 0;
 	let FRAME_INTERVAL = 1000 / CONFIG.targetFPS;
-	let lastParticleUpdate = 0;
 	let lastInteractionTime = performance.now();
 	let isIdle = false;
 
@@ -154,13 +159,11 @@
 
 	// Canvas setup
 	let canvas;
-	let canvasOffset = { x: 0, y: 0 };
 	let ctx;
 	let shouldDraw = true;
 	let particles = [];
 	let stampParticles = []; // For magnet stamps
 	let preDrawnParticles = []; // For pre-drawn elements
-	let drawingPoints = []; // For storing drawing path points
 	let lastX = null;
 	let lastY = null;
 	let selectedMagnet = null;
@@ -172,7 +175,6 @@
 	let cursorElement;
 	let m = { x: 0, y: 0 };
 	let cursorOpacity = 0; // Start invisible
-	let cursorImage;
 	let cursorHoverImage;
 	let cursorClickImage;
 
@@ -290,27 +292,27 @@
 	}
 
 	function resize() {
+		// Use parent dimensions if available, otherwise fall back to window dimensions
+		const canvasWidth = parentDimensions
+			? parentDimensions.width
+			: window.innerWidth;
+		const canvasHeight = parentDimensions
+			? parentDimensions.height
+			: window.innerHeight;
+
 		console.log(
-			window.outerWidth,
-			'window outerwidth dimensions',
-			// window.parent.document.documentElement.clientWidth,
-			// 'window parent client width',
-			// window.parent.outerWidth.outerWwidth,
-			// 'window parent outerwidth',
-			screen.width,
-			'screen width',
-			screen.availWidth,
-			'screen avail width'
+			'Using dimensions:',
+			canvasWidth,
+			canvasHeight,
+			parentDimensions ? '(from parent)' : '(from window)'
 		);
 
 		particles = particles.filter((p) => p.x > 99999);
 		stampParticles = stampParticles.filter((p) => p.x > 99999);
 
-		const canvasWidth = window.innerWidth;
-		const canvasHeight = window.innerHeight;
-
-		const multiTextOffsetX = canvasWidth / 2 - canvasWidth * 0.15;
-		const multiTextOffsetY = 230 - canvasHeight * 0.025;
+		const multiTextOffsetX =
+			canvasWidth < 1450 ? canvasWidth * 0.33 : canvasWidth * 0.4;
+		const multiTextOffsetY = canvasHeight * 0.3;
 
 		const offsetX = multiTextOffsetX - saveMultiTextOffsetX;
 		const offsetY = multiTextOffsetY - saveMultiTextOffsetY;
@@ -331,162 +333,40 @@
 			gl.viewport(0, 0, canvasWidth, canvasHeight);
 		}
 
-		// Reposition magnets based on new window dimensions
+		// Reposition magnets based on new dimensions
 		if (magnets && magnets.length > 0) {
-			const scale = window.innerWidth / 1920;
+			let scale = window.innerWidth / 1920;
 			const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-			const totalWidth = window.innerWidth * 0.4; // 40% width
+			const totalWidth = canvasWidth * 0.4; // 40% width
 			const spacing = totalWidth / (letters.length - 1);
-			const startX = (window.innerWidth - totalWidth) / 2;
-			const groupOffset = window.innerWidth * -0.02;
+			const startX = (canvasWidth - totalWidth) / 2;
+			const groupOffset = canvasWidth * -0.02;
 
 			// Update each magnet's position and scale
 			magnets.forEach((magnet, index) => {
 				const letter = magnet.id;
 				const img = magnetImages[letter];
-
-				// Update size
-				magnet.height = img.height * scale * 1.1;
-				magnet.width = img.width * scale * 1.1;
-
-				// Get letter-specific offset
-				const offset = getLetterOffset(letter, index);
-
-				// Update position
-				magnet.x = startX + spacing * index + offset + groupOffset;
-				magnet.y = window.innerHeight * getLetterHeight(letter);
+				
+					// Update size
+					magnet.height = img.height * scale * 1.1;
+					magnet.width = img.width * scale * 1.1;
+					
+					// Get letter-specific offset
+					const offset = getLetterOffset(letter, index);
+					
+					// Update position
+					magnet.x = startX + spacing * index + offset + groupOffset;
+					magnet.y = canvasHeight * getLetterHeight(letter);
 			});
 		}
 
-		// Optionally, you can also update any other related settings or redraw the scene if necessary
 		renderAll();
 	}
 
-	// function cleanup() {
-	// 	// Clear all particle arrays
-	// 	particles = [];
-	// 	stampParticles = [];
-	// 	preDrawnParticles = [];
-	// 	spatialGrid.clear();
-
-	// 	// Clear all batches
-	// 	drawingBatch.clear();
-	// 	predrawnBatch.clear();
-	// 	stampBatch.clear();
-
-	// 	if (animationFrameId) {
-	// 		cancelAnimationFrame(animationFrameId);
-	// 	}
-	// 	if (scrollToExploreComponent) {
-	// 		scrollToExploreComponent = null;
-	// 	}
-	// 	if (ctx) {
-	// 		ctx = null;
-	// 	}
-	// 	if (gl) {
-	// 		gl.clearColor(
-	// 			parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
-	// 			parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
-	// 			parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
-	// 			1.0
-	// 		);
-	// 		gl.clear(gl.COLOR_BUFFER_BIT);
-	// 		gl.deleteProgram(particleProgram);
-	// 		gl.deleteBuffer(particleBuffer);
-	// 		gl.deleteBuffer(particleColorBuffer);
-	// 		gl = null;
-	// 	}
-	// }
-
-	// function init() {
-	// 	if (!canvas) return;
-
-	// 	// Initialize pattern tables
-	// 	initializePatterns();
-	// 	setupWebGL();
-	// 	// Fallback to 2D context if WebGL setup failed
-	// 	if (!gl) {
-	// 		ctx = canvas.getContext('2d');
-	// 	}
-	// 	// Initialize canvas with background
-	// 	if (ctx) {
-	// 		ctx.fillStyle = CONFIG.backgroundColor;
-	// 		ctx.fillRect(0, 0, canvas.width, canvas.height);
-	// 	} else if (gl) {
-	// 		gl.clearColor(
-	// 			parseInt(CONFIG.backgroundColor.slice(1, 3), 16) / 255,
-	// 			parseInt(CONFIG.backgroundColor.slice(3, 5), 16) / 255,
-	// 			parseInt(CONFIG.backgroundColor.slice(5, 7), 16) / 255,
-	// 			1.0
-	// 		);
-	// 		gl.clear(gl.COLOR_BUFFER_BIT);
-	// 	}
-
-	// 	// Notify that canvas is ready
-	// 	onScreenCanvasReady(canvas);
-
-	// 	function animate() {
-	// 		animationFrameId = requestAnimationFrame(animate);
-	// 		const currentTime = performance.now();
-
-	// 		// Check if we should switch to idle FPS
-	// 		if (!isIdle && currentTime - lastInteractionTime > CONFIG.idleTimeout) {
-	// 			isIdle = true;
-	// 			FRAME_INTERVAL = 1000 / CONFIG.idleFPS;
-	// 		}
-
-	// 		if (currentTime - lastRenderTime >= FRAME_INTERVAL) {
-	// 			renderAll();
-	// 			lastRenderTime = currentTime;
-
-	// 			// Keep notifying about canvas updates
-	// 			onScreenCanvasReady(canvas);
-	// 		}
-	// 	}
-	// 	animate();
-
-	// 	// Create and load all letter images
-	// 	const letterSources = {
-	// 		F: letterF,
-	// 		A: letterA,
-	// 		T: letterT,
-	// 		E: letterE,
-	// 		M: letterM,
-	// 		A2: letterA2,
-	// 	};
-
-	// 	let loadedCount = 0;
-	// 	const totalImages = Object.keys(letterSources).length;
-
-	// 	Object.entries(letterSources).forEach(([letter, src]) => {
-	// 		const img = new Image();
-	// 		img.onload = () => {
-	// 			magnetImages[letter] = img;
-	// 			if (gl && textureProgram) {
-	// 				loadTexture(src).then((texture) => {
-	// 					magnetTextures.set(letter, texture);
-	// 					loadedCount++;
-	// 					if (loadedCount === totalImages) {
-	// 						initializeMagnets();
-	// 						// Create pre-drawn elements only after all images are loaded
-	// 						createPreDrawnElements(magnets[0]);
-	// 					}
-	// 				});
-	// 			}
-	// 		};
-	// 		img.src = src;
-	// 	});
-
-	// 	// Register GSAP plugin
-	// 	gsap.registerPlugin();
-	// }
-
 	onMount(() => {
 		if (!canvas) return;
-
 		// Initialize pattern tables
 		initializePatterns();
-
 		// Try WebGL first
 		setupWebGL();
 
@@ -590,15 +470,6 @@
 			}
 		};
 	});
-
-	$: {
-		// Watch for CONFIG changes that affect predrawn elements
-		const { preDrawnDensity, preDrawnParticleSize } = CONFIG;
-		if (canvas && magnets && magnets.length > 0 && magnets[0]?.img) {
-			// preDrawnParticles = []; // Clear existing particles
-			// createPreDrawnElements(magnets[0]); // Recreate with new settings
-		}
-	}
 
 	// WebGL setup
 	let gl;
@@ -1101,17 +972,8 @@
 			return;
 		}
 
-		// Get container dimensions
+		// Get container dimensions - use parent dimensions if available
 		const { width, height } = getContainerDimensions();
-
-		// let width = window.innerWidth;
-		// let height = window.innerWidth * 0.5;
-
-		// if (window.innerWidth / window.innerHeight > 1.49) {
-		// 	width = window.innerWidth;
-		// 	height = window.innerWidth * 0.5;
-		// }
-
 		// Set canvas size to match container
 		canvas.width = width;
 		canvas.height = height;
@@ -1320,15 +1182,15 @@
 	// Magnet textures
 	let magnetTextures = new Map();
 
-	// Map letters to their image URLs
-	const letterImages = {
-		F: letterF,
-		A: letterA,
-		T: letterT,
-		E: letterE,
-		M: letterM,
-		A2: letterA2,
-	};
+	// // Map letters to their image URLs
+	// const letterImages = {
+	// 	F: letterF,
+	// 	A: letterA,
+	// 	T: letterT,
+	// 	E: letterE,
+	// 	M: letterM,
+	// 	A2: letterA2,
+	// };
 
 	function drawMagnets() {
 		if (!gl || !textureProgram) {
@@ -1453,6 +1315,7 @@
 	const MAX_PARTICLES = 800000; // Adjust based on needs
 	function generateParticles(x1, y1, x2, y2) {
 		const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+		// Use parent dimensions if available
 		const { width, height } = getContainerDimensions();
 
 		// Scale up density for short distances
@@ -1489,18 +1352,7 @@
 		}
 	}
 
-	// Get pointer position relative to canvas
-	const CURSOR_OFFSET_X = 0.62; // Increased X offset
-	const CURSOR_OFFSET_Y = 0.42; // Keep Y offset the same
-
 	function getPointerPos(e) {
-		// return {
-		// 	x: (mousePos.x * canvasOffset.originalWidth),
-		// 	y: (mousePos.y * canvasOffset.originalHeight),
-		// 	px: mousePos.x,
-		// 	py: mousePos.y,
-		// };
-
 		return {
 			x: e.clientX,
 			y: e.clientY,
@@ -1715,6 +1567,7 @@
 			? CONFIG.initialStampDensity
 			: CONFIG.subsequentStampDensity;
 
+		// Define particle size properties
 		const particleSize = {
 			length: CONFIG.particleLength * (0.8 + Math.random() * 0.4), // Maintain 80-120% of length
 			width: CONFIG.particleWidth * (0.9 + Math.random() * 0.2), // Maintain 90-110% of width
@@ -1732,12 +1585,10 @@
 
 		// Add specific offsets for multi-text image
 		let isMultiText = magnet.img.src.includes('multi-text');
-		const multiTextOffsetX = isMultiText
-			? window.innerWidth / 2 -
-				window.innerWidth * 0.15 +
-				window.innerWidth * 0.08
-			: 0; // Half screen minus 15% plus 8vw
-		const multiTextOffsetY = isMultiText ? 290 - window.innerHeight * 0.15 : 0; // 230px (reduced from 300) minus 15% of height
+		// Use container dimensions for responsive layout
+		const { width, height } = getContainerDimensions();
+		const multiTextOffsetX = isMultiText ? width * 0.33 : 0; // Half screen minus 15% plus 8vw
+		const multiTextOffsetY = isMultiText ? height * 0.65 : 0; // 230px (reduced from 300) minus 15% of height
 
 		// Function to check if a point already has a stamp nearby using spatial grid
 		const proximityThreshold = 1.5;
@@ -1848,13 +1699,16 @@
 
 	function getLetterOffset(letter, index) {
 		// Add specific offsets for F and A
+		// Use parent dimensions if available for responsive layout
+		const containerDims = getContainerDimensions();
+
 		switch (letter) {
 			case 'F':
-				return window.innerWidth * 0.03; // Move F right by 3vw
+				return containerDims.width * 0.03; // Move F right by 3vw
 			case 'A':
 				if (index === 1) {
 					// Only the first A
-					return window.innerWidth * 0.01; // Move A right by 1vw
+					return containerDims.width * 0.01; // Move A right by 1vw
 				}
 				return 0;
 			default:
@@ -1865,14 +1719,18 @@
 	function initializeMagnets() {
 		if (!magnetImages) return;
 
-		let scale = window.innerWidth / 1920;
+		// Use parent dimensions for responsive layout
+		const { width } = getContainerDimensions();
+
+		// Calculate scale based on container width for responsive sizing
+		let scale = width / 1920;
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-		const totalWidth = window.innerWidth * 0.4; // Original 40% width
+		const totalWidth = width * 0.4; // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
-		const startX = (window.innerWidth - totalWidth) / 2;
+		const startX = (width - totalWidth) / 2;
 
 		// Original group offset
-		const groupOffset = window.innerWidth * -0.02;
+		const groupOffset = width * -0.02;
 
 		// Original height
 
@@ -2121,8 +1979,16 @@
 			// Check if this is the multi-text image
 			const isMultiText = img.src.includes('multi-text');
 
-			// Calculate scaled dimensions while maintaining aspect ratio
-			const scale = isMultiText ? 0.8 : 0.385; // Higher scale for multi-text
+			// Calculate scaled dimensions while maintaining aspect ratio - responsive to screen size
+			const { width: containerWidth, height: containerHeight } =
+				getContainerDimensions();
+			const baseScale = isMultiText ? 1.25 : 0.385; // Base scale factor
+			// Adjust scale based on screen dimensions - smaller on smaller screens
+			const screenRatio = Math.min(
+				containerWidth / 1920,
+				containerHeight / 1080
+			);
+			const scale = baseScale * screenRatio;
 
 			const aspectRatio = img.width / img.height;
 			const maxWidth = canvas.width * 0.8; // Max 80% of canvas width
@@ -2186,14 +2052,10 @@
 			}
 
 			// Add specific offsets for multi-text image
-			const multiTextOffsetX = isMultiText
-				? window.innerWidth / 2 -
-					window.innerWidth * 0.23 +
-					window.innerWidth * 0.08
-				: 0; // Half screen minus 15% plus 8vw
-			const multiTextOffsetY = isMultiText
-				? 230 - window.innerHeight * 0.025
-				: 0; // 230px (reduced from 300) minus 15% of height
+			// Use parent dimensions if available
+			const { width, height } = getContainerDimensions();
+			const multiTextOffsetX = isMultiText ? width * 0.33 : 0; // Half screen minus 15% plus 8vw
+			const multiTextOffsetY = isMultiText ? height * 0.3 : 0; // 230px (reduced from 300) minus 15% of height
 
 			if (!saveMultiTextOffsetX) {
 				saveMultiTextOffsetX = multiTextOffsetX;
