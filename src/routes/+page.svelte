@@ -10,7 +10,9 @@
 
 	onMount(() => {
 		// Listen for messages from parent
+		console.log('mounted');
 		window.addEventListener('message', (event) => {
+			console.log(event.origin, 'event origin');
 			// Verify origin for security
 			if (event.origin === 'https://fatscradle.com') {
 				const data = event.data;
@@ -39,7 +41,7 @@
 		// Fallback - if we don't get parent dimensions within 1 second, show anyway
 		setTimeout(() => {
 			if (!isReady) {
-				isReady = true;
+				// isReady = true;
 			}
 		}, 1000);
 	});
