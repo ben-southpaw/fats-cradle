@@ -165,6 +165,31 @@
 
 	// Canvas setup
 	let canvas;
+	// Environment detection
+	let isReadyMag = false;
+	let envScaleFactor = { x: 1, y: 1 };
+	let envOffset = { x: 0, y: 0 };
+	
+	// Function to detect ReadyMag environment
+	function detectEnvironment() {
+		try {
+			// Check for ReadyMag-specific objects or URL patterns
+			isReadyMag = window.location.hostname.includes('readymag.com') || 
+						 document.referrer.includes('readymag.com') ||
+						 !!document.querySelector('[data-readymag]');
+			
+			console.log('Environment detection:', isReadyMag ? 'ReadyMag' : 'Standard');
+			
+			if (isReadyMag) {
+				// Initial ReadyMag coordinate correction factors
+				// These values are starting points and may need adjustment based on testing
+				envScaleFactor = { x: 1, y: 1 };
+				envOffset = { x: 0, y: 0 };
+			}
+		} catch (e) {
+			console.error('Error detecting environment:', e);
+		}
+	}
 	let ctx;
 	let shouldDraw = true;
 	let particles = [];
@@ -367,6 +392,10 @@
 
 	onMount(() => {
 		if (!canvas) return;
+		
+		// Detect if we're running in ReadyMag
+		detectEnvironment();
+		
 		// Initialize pattern tables
 		initializePatterns();
 		// Try WebGL first
@@ -1358,10 +1387,56 @@
 		// Get canvas position within the page
 		const rect = canvas.getBoundingClientRect();
 		
-		// Return coordinates relative to the canvas
+		// Get container dimensions
+		const { width: containerWidth, height: containerHeight } = getContainerDimensions();
+		
+		// Get canvas rendering dimensions (may be different from display dimensions due to scaling)
+		const canvasWidth = canvas.width;
+		const canvasHeight = canvas.height;
+		
+		// Calculate scaling factors between display size and rendering size
+		// This is important if the canvas is being scaled by CSS or device pixel ratio
+		const scaleX = canvasWidth / rect.width;
+		const scaleY = canvasHeight / rect.height;
+		
+		// Calculate raw browser and canvas-relative coordinates
+		const rawX = e.clientX;
+		const rawY = e.clientY;
+		let relX = (e.clientX - rect.left);
+		let relY = (e.clientY - rect.top);
+		
+		// Apply ReadyMag-specific coordinate corrections if detected
+		if (isReadyMag) {
+			// Apply scaling and offset corrections for ReadyMag environment
+			relX = relX * envScaleFactor.x + envOffset.x;
+			
+			// Progressive correction for Y-axis that increases as cursor moves down
+			// This corrects for the observed issue where offset increases with Y position
+			const yRatio = relY / containerHeight;
+			relY = relY * (1 - yRatio * 0.1); // Apply up to 10% correction at bottom
+		}
+		
+		// Apply scaling to get coordinates in the canvas rendering space
+		const canvasX = relX * scaleX;
+		const canvasY = relY * scaleY;
+		
+		// Log helpful diagnostic information occasionally to avoid console spam
+		if (Math.random() < 0.01) {
+			console.log('=== Cursor Debug Info ===');
+			console.log('Environment:', isReadyMag ? 'ReadyMag' : 'Standard');
+			console.log('Browser coordinates:', rawX, rawY);
+			console.log('Canvas rect:', rect.left, rect.top, rect.width, rect.height);
+			console.log('Canvas-relative coordinates:', relX, relY);
+			console.log('Canvas rendering dimensions:', canvasWidth, canvasHeight);
+			console.log('Scaling factors:', scaleX, scaleY);
+			console.log('Container dimensions:', containerWidth, containerHeight);
+			console.log('=========================');
+		}
+		
+		// Return the adjusted coordinates
 		return {
-			x: e.clientX - rect.left,
-			y: e.clientY - rect.top,
+			x: relX,
+			y: relY
 		};
 	}
 
