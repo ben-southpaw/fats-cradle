@@ -584,7 +584,7 @@
 
 		// Keep original proportions
 		const heightScale = 0.98;
-		const widthScale = 1.05; // Maintain original width-to-height ratio
+		const widthScale = 1; // Maintain original width-to-height ratio
 
 		// Update mesh scale
 		screenMesh.scale.y = heightScale;

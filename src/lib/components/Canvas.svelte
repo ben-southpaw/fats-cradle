@@ -290,14 +290,21 @@
 	}
 
 	function resize() {
+		console.log(
+			window.innerWidth,
+			window.innerHeight,
+			'window dimensions',
+			container.width,
+			'container width'
+		);
+
 		particles = particles.filter((p) => p.x > 99999);
 		stampParticles = stampParticles.filter((p) => p.x > 99999);
 
 		const canvasWidth = window.innerWidth;
 		const canvasHeight = window.innerHeight;
 
-		const multiTextOffsetX =
-			canvasWidth / 2 - canvasWidth * 0.15 + canvasWidth * 0.08;
+		const multiTextOffsetX = canvasWidth / 2 - canvasWidth * 0.15;
 		const multiTextOffsetY = 230 - canvasHeight * 0.025;
 
 		const offsetX = multiTextOffsetX - saveMultiTextOffsetX;
