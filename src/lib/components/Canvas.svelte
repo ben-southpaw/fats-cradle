@@ -290,7 +290,15 @@
 	}
 
 	function resize() {
-		console.log(window.innerWidth, window.innerHeight, 'window dimensions');
+		console.log(
+			window.innerWidth,
+			window.innerHeight,
+			'window dimensions',
+			document.documentElement.clientHeight,
+			'client',
+			window.visualViewport.width,
+			'visual'
+		);
 
 		particles = particles.filter((p) => p.x > 99999);
 		stampParticles = stampParticles.filter((p) => p.x > 99999);
