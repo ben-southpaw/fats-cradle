@@ -165,10 +165,8 @@
 
 	// Canvas setup
 	let canvas;
-	// Environment detection
-	let isReadyMag = false;
-	let envScaleFactor = { x: 1, y: 1 };
-	let envOffset = { x: 0, y: 0 };
+	// Fixed scaling factor based on debug output
+	const CURSOR_SCALE = 0.75; // Exact ratio between display and render dimensions (1440/1920)
 	
 	// Function to detect ReadyMag environment
 	function detectEnvironment() {
@@ -1387,33 +1385,42 @@
 		// Get canvas position within the page
 		const rect = canvas.getBoundingClientRect();
 		
-		// Get the percentage position within the display canvas
-		// This normalizes the position regardless of actual canvas size
-		const percentX = (e.clientX - rect.left) / rect.width;
-		const percentY = (e.clientY - rect.top) / rect.height;
+		// Get exact dimensions from the actual elements
+		const displayWidth = rect.width;
+		const displayHeight = rect.height;
+		const renderWidth = canvas.width;
+		const renderHeight = canvas.height;
 		
-		// Apply these percentages to the internal rendering dimensions
-		// This maps directly to the internal coordinate system
-		const mappedX = percentX * canvas.width;
-		const mappedY = percentY * canvas.height;
+		// Calculate actual scaling factors in case they've changed
+		const actualScaleX = renderWidth / displayWidth;
+		const actualScaleY = renderHeight / displayHeight;
+		
+		// Calculate coordinates relative to the canvas display position
+		const relX = e.clientX - rect.left;
+		const relY = e.clientY - rect.top;
+		
+		// Apply dynamically calculated scaling for precise mapping
+		const x = relX * actualScaleX;
+		const y = relY * actualScaleY;
+		
+		// If we still have issues, fall back to our manual fixed scaling
+		// const x = relX * CURSOR_SCALE;
+		// const y = relY * CURSOR_SCALE;
 		
 		// Log helpful diagnostic information occasionally
 		if (Math.random() < 0.01) {
 			console.log('=== Cursor Debug Info ===');
-			console.log('Environment:', isReadyMag ? 'ReadyMag' : 'Standard');
 			console.log('Browser coordinates:', e.clientX, e.clientY);
 			console.log('Canvas rect:', rect.left, rect.top, rect.width, rect.height);
-			console.log('Percentage within canvas:', percentX.toFixed(3), percentY.toFixed(3));
-			console.log('Canvas rendering dimensions:', canvas.width, canvas.height);
-			console.log('Mapped coordinates:', mappedX.toFixed(1), mappedY.toFixed(1));
+			console.log('Canvas dimensions:', displayWidth, 'x', displayHeight, '(display) /', renderWidth, 'x', renderHeight, '(render)');
+			console.log('Calculated scale factors:', actualScaleX.toFixed(4), actualScaleY.toFixed(4));
+			console.log('Canvas-relative:', relX, relY);
+			console.log('Final coordinates:', x.toFixed(2), y.toFixed(2));
 			console.log('=========================');
 		}
 		
-		// Return the mapped coordinates
-		return {
-			x: mappedX,
-			y: mappedY
-		};
+		// Return the properly scaled coordinates
+		return { x, y };
 	}
 
 	function scheduleRender() {
