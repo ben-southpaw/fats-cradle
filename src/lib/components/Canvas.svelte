@@ -165,27 +165,6 @@
 
 	// Canvas setup
 	let canvas;
-	
-	// Function to detect ReadyMag environment
-	function detectEnvironment() {
-		try {
-			// Check for ReadyMag-specific objects or URL patterns
-			isReadyMag = window.location.hostname.includes('readymag.com') || 
-						 document.referrer.includes('readymag.com') ||
-						 !!document.querySelector('[data-readymag]');
-			
-			console.log('Environment detection:', isReadyMag ? 'ReadyMag' : 'Standard');
-			
-			if (isReadyMag) {
-				// Initial ReadyMag coordinate correction factors
-				// These values are starting points and may need adjustment based on testing
-				envScaleFactor = { x: 1, y: 1 };
-				envOffset = { x: 0, y: 0 };
-			}
-		} catch (e) {
-			console.error('Error detecting environment:', e);
-		}
-	}
 	let ctx;
 	let shouldDraw = true;
 	let particles = [];
@@ -320,7 +299,8 @@
 
 	function resize() {
 		// Get dimensions from the container using our consistent function
-		const { width: canvasWidth, height: canvasHeight } = getContainerDimensions();
+		const { width: canvasWidth, height: canvasHeight } =
+			getContainerDimensions();
 
 		console.log(
 			'Using dimensions:',
@@ -369,17 +349,17 @@
 			magnets.forEach((magnet, index) => {
 				const letter = magnet.id;
 				const img = magnetImages[letter];
-				
-					// Update size
-					magnet.height = img.height * scale * 1.1;
-					magnet.width = img.width * scale * 1.1;
-					
-					// Get letter-specific offset
-					const offset = getLetterOffset(letter, index);
-					
-					// Update position
-					magnet.x = startX + spacing * index + offset + groupOffset;
-					magnet.y = canvasHeight * getLetterHeight(letter);
+
+				// Update size
+				magnet.height = img.height * scale * 1.1;
+				magnet.width = img.width * scale * 1.1;
+
+				// Get letter-specific offset
+				const offset = getLetterOffset(letter, index);
+
+				// Update position
+				magnet.x = startX + spacing * index + offset + groupOffset;
+				magnet.y = canvasHeight * getLetterHeight(letter);
 			});
 		}
 
@@ -388,10 +368,6 @@
 
 	onMount(() => {
 		if (!canvas) return;
-		
-		// Detect if we're running in ReadyMag
-		detectEnvironment();
-		
 		// Initialize pattern tables
 		initializePatterns();
 		// Try WebGL first
@@ -1382,29 +1358,29 @@
 	function getPointerPos(e) {
 		// Get canvas position within the page
 		const rect = canvas.getBoundingClientRect();
-		
+
 		// Get exact dimensions from the actual elements
 		const displayWidth = rect.width;
 		const displayHeight = rect.height;
 		const renderWidth = canvas.width;
 		const renderHeight = canvas.height;
-		
+
 		// Calculate actual scaling factors in case they've changed
 		const actualScaleX = renderWidth / displayWidth;
 		const actualScaleY = renderHeight / displayHeight;
-		
+
 		// Calculate coordinates relative to the canvas display position
 		const relX = e.clientX - rect.left;
 		const relY = e.clientY - rect.top;
-		
+
 		// Apply dynamically calculated scaling for precise mapping
 		const x = relX * actualScaleX;
 		const y = relY * actualScaleY;
-		
+
 		// Store both the raw display coordinates and the internal rendering coordinates
 		// We'll use rawCoords for visual cursor positioning and x,y for internal logic
 		e.rawCoords = { x: relX, y: relY };
-		
+
 		// Return the properly scaled coordinates
 		return { x, y };
 	}
@@ -1792,7 +1768,7 @@
 
 			// Get container height for consistent vertical positioning
 			const { height: containerHeight } = getContainerDimensions();
-			
+
 			return {
 				id: letter,
 				x: startX + spacing * index + offset + groupOffset, // Keep width/2 adjustment out since WebGL handles centering
@@ -2205,7 +2181,7 @@
 		// Get pointer position for internal canvas operations
 		let pos = getPointerPos(event);
 
-		// Use raw coordinates for visual cursor positioning 
+		// Use raw coordinates for visual cursor positioning
 		// (unscaled display coordinates for visual accuracy)
 		m.x = event.rawCoords.x - 5;
 		m.y = event.rawCoords.y - 5;
@@ -2561,8 +2537,7 @@
 	}
 
 	function handleWheel(event) {
-		// console.log(event);
-		// if (Math.abs(event.deltaY) < 10) return;
+		if (Math.abs(event.deltaY) < 10) return;
 
 		if (!hasTriggeredTransition) {
 			hasTriggeredTransition = true;
