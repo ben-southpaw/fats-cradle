@@ -24,9 +24,7 @@
 
 					// Now we have dimensions, we can show the canvas
 					isReady = true;
-                    console.log('received message', parentDimensions, 'yay');
 				}
-
 			}
 		});
 
@@ -73,5 +71,6 @@
 		max-width: 100vw;
 		height: 100vh;
 		overflow: hidden;
+		cursor: none;
 	}
 </style>
