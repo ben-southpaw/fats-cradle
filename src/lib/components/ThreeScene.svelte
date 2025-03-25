@@ -868,6 +868,9 @@
 								: new THREE.Color(0xffffff);
 							const originalName = child.material.name;
 
+							// Determine if this is a screen-related material
+							const isScreen = child.name.toLowerCase().includes('screen');
+
 							// Create basic fallback material with original appearance
 							const materialProps = {
 								name: originalName,
