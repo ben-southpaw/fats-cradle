@@ -2674,11 +2674,6 @@
 		opacity: 1;
 		transition: opacity 0.15s ease;
 		position: absolute;
-		/* position: fixed;
-		top: 0;
-		left: 0; */
-		/* margin: 0;
-		padding: 0; */
 	}
 
 	canvas.hidden {

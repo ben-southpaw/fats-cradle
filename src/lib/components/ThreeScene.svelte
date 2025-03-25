@@ -2,7 +2,6 @@
 	import { onMount, createEventDispatcher, onDestroy, tick } from 'svelte';
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-	// import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 	import gsap from 'gsap';
 
 	export let canvas; // Accept canvas from parent
@@ -433,9 +432,7 @@
 		};
 		//update to live link later
 		window.parent.postMessage(message, 'https://fatscradle.com/');
-		//remove after live
-		// window.parent.postMessage(
-		// 	message,
+
 		// 	'https://my.readymag.com/edit/5177230/preview/'
 		// );
 	}
@@ -753,11 +750,48 @@
 			return originalLoadTexture.call(this, url, onLoad, onProgress, onError);
 		};
 
+		// Override the GLTFLoader's loadTextureImage method to handle blob URLs
+		const originalLoadTextureImage = loader.loadTextureImage;
+		loader.loadTextureImage = function (textureIndex, source, loader) {
+			// Check if the source URI is a blob URL
+			if (source.uri && source.uri.startsWith('blob:')) {
+				// Create a dummy texture for blob URLs
+				const texture = new THREE.Texture();
+				texture.name = `texture-${textureIndex}`;
+				texture.flipY = false;
+				texture.needsUpdate = true;
+
+				// Return a promise that resolves with the dummy texture
+				return Promise.resolve(texture);
+			}
+
+			// Otherwise use the original method
+			return originalLoadTextureImage.call(this, textureIndex, source, loader);
+		};
+
 		try {
+			// Override console.error to suppress texture loading errors
+			const originalConsoleError = console.error;
+			console.error = function (...args) {
+				// Check if this is a texture loading error
+				if (
+					args.length > 0 &&
+					typeof args[0] === 'string' &&
+					args[0].includes("THREE.GLTFLoader: Couldn't load texture blob:")
+				) {
+					// Suppress these specific errors
+					return;
+				}
+				// Pass through all other errors
+				originalConsoleError.apply(console, args);
+			};
+
+			// Load the model
 			const gltf = await loader.loadAsync(CONFIG.model.path);
 			model = gltf.scene;
 
-			// Log successful model loading
+			// Restore original console.error
+			console.error = originalConsoleError;
 
 			// Restore the original texture loader after loading the model
 			THREE.TextureLoader.prototype.load = originalLoadTexture;
@@ -835,12 +869,20 @@
 							const originalName = child.material.name;
 
 							// Create basic fallback material with original appearance
-							child.material = new THREE.MeshStandardMaterial({
+							const materialProps = {
 								name: originalName,
 								color: originalColor,
-								roughness: 0.4, // Original roughness
-								metalness: 0.2, // Original metalness
-							});
+								roughness: isScreen ? 0.1 : 0.4, // Lower roughness for screen
+								metalness: isScreen ? 0.0 : 0.2, // No metalness for screen
+							};
+
+							// Add emissive properties for screen materials
+							if (isScreen) {
+								materialProps.emissive = new THREE.Color(0xffffff);
+								materialProps.emissiveIntensity = 0.2;
+							}
+
+							child.material = new THREE.MeshStandardMaterial(materialProps);
 						}
 
 						// Check if this is a magnet by looking at material color and name
