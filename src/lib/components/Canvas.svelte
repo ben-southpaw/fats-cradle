@@ -53,12 +53,12 @@
 		lineWidth: 12,
 
 		// Sizes relative to lineWidth
-		particleSize: 0.75, // 75% of lineWidth
-		particleLength: 0.5, // 50% of lineWidth
-		particleWidth: 0.6, // 60% of lineWidth
+		particleSize: 1, // 75% of lineWidth
+		particleLength: 1, // 50% of lineWidth
+		particleWidth: 1, // 60% of lineWidth
 
 		// Density as particles per lineWidth
-		particleDensity: 0.7, // 1 particle per 2 lineWidths
+		particleDensity: 1.5, // 1 particle per 2 lineWidths
 
 		// Non-relative properties
 		backgroundColor: '#f2f2f2',
@@ -302,13 +302,6 @@
 		const { width: canvasWidth, height: canvasHeight } =
 			getContainerDimensions();
 
-		console.log(
-			'Using dimensions:',
-			canvasWidth,
-			canvasHeight,
-			parentDimensions ? '(from parent)' : '(from window)'
-		);
-
 		particles = particles.filter((p) => p.x > 99999);
 		stampParticles = stampParticles.filter((p) => p.x > 99999);
 
@@ -351,8 +344,8 @@
 				const img = magnetImages[letter];
 
 				// Update size
-				magnet.height = img.height * scale * 1.1;
-				magnet.width = img.width * scale * 1.1;
+				magnet.height = img.height * scale * 1.2;
+				magnet.width = img.width * scale * 1.2;
 
 				// Get letter-specific offset
 				const offset = getLetterOffset(letter, index);
@@ -1756,14 +1749,14 @@
 		const startX = (width - totalWidth) / 2;
 
 		// Original group offset
-		const groupOffset = width * -0.02;
+		const groupOffset = width * -0.015;
 
 		// Original height
 
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
-			const height = img.height * scale * 1.1;
-			const width = img.width * scale * 1.1;
+			const height = img.height * scale * 1.2;
+			const width = img.width * scale * 1.2;
 			const offset = getLetterOffset(letter, index);
 
 			// Get container height for consistent vertical positioning
