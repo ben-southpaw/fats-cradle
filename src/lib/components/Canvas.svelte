@@ -333,7 +333,7 @@
 			// Use canvas width instead of window width for consistent scaling
 			let scale = canvasWidth / 1920;
 			const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-			const totalWidth = canvasWidth * 0.4; // 40% width
+			const totalWidth = canvasWidth * 0.43; // 40% width
 			const spacing = totalWidth / (letters.length - 1);
 			const startX = (canvasWidth - totalWidth) / 2;
 			const groupOffset = canvasWidth * -0.02;
@@ -344,8 +344,8 @@
 				const img = magnetImages[letter];
 
 				// Update size
-				magnet.height = img.height * scale * 1.2;
-				magnet.width = img.width * scale * 1.2;
+				magnet.height = img.height * scale * 1.25;
+				magnet.width = img.width * scale * 1.25;
 
 				// Get letter-specific offset
 				const offset = getLetterOffset(letter, index);
@@ -1606,7 +1606,7 @@
 		let isMultiText = magnet.img.src.includes('multi-text');
 		// Use container dimensions for responsive layout
 		const { width, height } = getContainerDimensions();
-		const multiTextOffsetX = isMultiText ? width * 0.33 : 0; // Half screen minus 15% plus 8vw
+		const multiTextOffsetX = isMultiText ? width * 0.36 : 0; // Half screen minus 15% plus 8vw
 		const multiTextOffsetY = isMultiText ? height * 0.65 : 0; // 230px (reduced from 300) minus 15% of height
 
 		// Function to check if a point already has a stamp nearby using spatial grid
@@ -1744,7 +1744,7 @@
 		// Calculate scale based on container width for responsive sizing
 		let scale = width / 1920;
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-		const totalWidth = width * 0.4; // Original 40% width
+		const totalWidth = width * 0.43; // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (width - totalWidth) / 2;
 
@@ -1755,8 +1755,8 @@
 
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
-			const height = img.height * scale * 1.2;
-			const width = img.width * scale * 1.2;
+			const height = img.height * scale * 1.25;
+			const width = img.width * scale * 1.25;
 			const offset = getLetterOffset(letter, index);
 
 			// Get container height for consistent vertical positioning
@@ -2004,7 +2004,7 @@
 			// Calculate scaled dimensions while maintaining aspect ratio - responsive to screen size
 			const { width: containerWidth, height: containerHeight } =
 				getContainerDimensions();
-			const baseScale = isMultiText ? 1.25 : 0.385; // Base scale factor
+			const baseScale = isMultiText ? 1.08 : 0.385; // Base scale factor
 			// Adjust scale based on screen dimensions - smaller on smaller screens
 			const screenRatio = Math.min(
 				containerWidth / 1920,
@@ -2076,7 +2076,7 @@
 			// Add specific offsets for multi-text image
 			// Use parent dimensions if available
 			const { width, height } = getContainerDimensions();
-			const multiTextOffsetX = isMultiText ? width * 0.33 : 0; // Half screen minus 15% plus 8vw
+			const multiTextOffsetX = isMultiText ? width * 0.36 : 0; // Half screen minus 15% plus 8vw
 			const multiTextOffsetY = isMultiText ? height * 0.3 : 0; // 230px (reduced from 300) minus 15% of height
 
 			if (!saveMultiTextOffsetX) {
