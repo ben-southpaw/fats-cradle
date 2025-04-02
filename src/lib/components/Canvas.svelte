@@ -9,8 +9,8 @@
 	import letterM from '$lib/images/m.png?url';
 	import letterA2 from '$lib/images/a2.png?url';
 	import cursorDefault from '$lib/images/cursor.png?url';
-	import cursorHover from '$lib/images/glove-heavy.png?url';
-	import cursorClick from '$lib/images/glove-clicked-heavy.png?url';
+	import cursorHover from '$lib/images/Open.png?url';
+	import cursorClick from '$lib/images/Closed.png?url';
 	import multiText from '$lib/images/multi-text.png';
 	import ThreeScene from './ThreeScene.svelte';
 	import ScrollToExplore from './ScrollToExplore.svelte';
@@ -2633,9 +2633,14 @@
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
 >
-	{#if isClicking && isHoveringMagnet}
-		<img src={cursorClick} alt="cursor" />
-	{/if}
+	<img
+		src={isClicking && isHoveringMagnet
+			? cursorClick
+			: isHoveringMagnet
+				? cursorHover
+				: cursorDefault}
+		alt="cursor"
+	/>
 </div>
 
 <style>
@@ -2643,7 +2648,7 @@
 		margin: 0;
 		padding: 0;
 		overflow: hidden;
-		/* cursor: none; */
+		cursor: none; /* Hide the default cursor */
 	}
 
 	.canvas-container {
@@ -2676,8 +2681,8 @@
 		left: 0;
 		pointer-events: none;
 		z-index: 9999;
-		width: 32px;
-		height: 32px;
+		width: 90px;
+		height: 90px;
 		transform-origin: center;
 	}
 
