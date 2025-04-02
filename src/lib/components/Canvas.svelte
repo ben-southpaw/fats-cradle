@@ -2643,7 +2643,7 @@
 		margin: 0;
 		padding: 0;
 		overflow: hidden;
-		cursor: none; /* Hide the default cursor */
+		/* cursor: none; */
 	}
 
 	.canvas-container {
