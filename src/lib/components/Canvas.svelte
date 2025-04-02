@@ -2677,8 +2677,8 @@
 
 	.cursor {
 		position: fixed;
-		top: 0;
-		left: 0;
+		top: -6px;
+		left: -20px;
 		pointer-events: none;
 		z-index: 9999;
 		width: 90px;
