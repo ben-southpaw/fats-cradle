@@ -1,5 +1,4 @@
 <script>
-	import { fade } from 'svelte/transition';
 	import { onMount } from 'svelte';
 	import scrollToExploreAnimation from '$lib/images/lottie/animations/0619d505-1c63-42a8-972d-70aeeb5d2763.json';
 
@@ -34,11 +33,7 @@
 	});
 </script>
 
-<div
-	class="container"
-	bind:this={container}
-	out:fade={{ delay: 500, duration: 500 }}
->
+<div class="container" bind:this={container}>
 	{#if mounted && LottiePlayer}
 		<svelte:component
 			this={LottiePlayer}
@@ -62,6 +57,7 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
+		opacity: 1;
 	}
 
 	:global(.lottie-player) {

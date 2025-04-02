@@ -1,5 +1,6 @@
 <script>
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import { gsap } from 'gsap';
 	import letterF from '$lib/images/f.png?url';
 	import letterA from '$lib/images/a.png?url';
@@ -2621,7 +2622,7 @@
 		}}
 	/>
 	{#if (showScrollToExplore || isScrollAnimating) && !hasTriggeredTransition}
-		<div class="scroll-to-explore">
+		<div class="scroll-to-explore" out:fade={{ delay: 500, duration: 500 }}>
 			<ScrollToExplore />
 		</div>
 	{/if}
@@ -2632,14 +2633,9 @@
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
 >
-	<img
-		src={isClicking && isHoveringMagnet
-			? cursorClick
-			: isHoveringMagnet
-				? cursorHover
-				: cursorDefault}
-		alt="cursor"
-	/>
+	{#if isClicking && isHoveringMagnet}
+		<img src={cursorClick} alt="cursor" />
+	{/if}
 </div>
 
 <style>
@@ -2698,5 +2694,6 @@
 		left: 50%;
 		transform: translateX(-50%);
 		z-index: 10;
+		opacity: 1;
 	}
 </style>
