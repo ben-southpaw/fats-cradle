@@ -2845,6 +2845,11 @@
 		cursor: none; /* Hide the default cursor */
 	}
 
+	/* Ensure all elements within the canvas container have cursor: none */
+	.canvas-container, .canvas-container * {
+		cursor: none !important;
+	}
+
 	.canvas-container {
 		position: absolute;
 		top: 0;
@@ -2854,6 +2859,7 @@
 		height: 100%;
 		z-index: 1;
 		overflow: hidden;
+		cursor: none; /* Hide the default cursor on the container */
 	}
 
 	canvas {
@@ -2862,6 +2868,7 @@
 		opacity: 1;
 		transition: opacity 0.15s ease;
 		position: absolute;
+		cursor: none; /* Hide the default cursor on the canvas itself */
 	}
 
 	canvas.hidden {
