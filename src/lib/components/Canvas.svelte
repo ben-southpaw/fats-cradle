@@ -2422,6 +2422,98 @@
 		return null; // No free space found
 	}
 
+	// Function to resolve collisions between magnets during transition
+	function resolveCollisionsForTransition(magnets, newPositions) {
+		// Create a copy of magnets with their new positions for collision checking
+		const magnetsCopy = magnets.map((magnet, index) => ({
+			...magnet,
+			originalIndex: index,
+			newX: newPositions[index].x,
+			newY: newPositions[index].y,
+			moved: Math.abs(newPositions[index].x - magnet.x) > 5 || 
+				   Math.abs(newPositions[index].y - magnet.y) > 5
+		}));
+		
+		// Sort by distance moved (largest first) to prioritize magnets that need to move most
+		magnetsCopy.sort((a, b) => {
+			if (!a.moved && b.moved) return 1;
+			if (a.moved && !b.moved) return -1;
+			
+			const distA = Math.sqrt(Math.pow(a.newX - a.x, 2) + Math.pow(a.newY - a.y, 2));
+			const distB = Math.sqrt(Math.pow(b.newX - b.x, 2) + Math.pow(b.newY - b.y, 2));
+			return distB - distA; // Descending order
+		});
+		
+		// Process each magnet to resolve collisions
+		for (let i = 0; i < magnetsCopy.length; i++) {
+			const current = magnetsCopy[i];
+			
+			// Skip magnets that don't need to move
+			if (!current.moved) continue;
+			
+			// Create a temporary magnet with the new position
+			const tempMagnet = { 
+				...current, 
+				x: current.newX, 
+				y: current.newY 
+			};
+			
+			// Check for collisions with other magnets at their new positions
+			let hasCollision = false;
+			
+			for (let j = 0; j < magnetsCopy.length; j++) {
+				if (i === j) continue; // Skip self
+				
+				const other = magnetsCopy[j];
+				const otherMagnet = { 
+					...other, 
+					x: other.newX, 
+					y: other.newY 
+				};
+				
+				if (checkCollision(tempMagnet, otherMagnet)) {
+					hasCollision = true;
+					break;
+				}
+			}
+			
+			// If there's a collision, find a free space
+			if (hasCollision) {
+				// Create array of other magnets at their new positions
+				const otherMagnets = magnetsCopy
+					.filter((_, idx) => idx !== i)
+					.map(m => ({ 
+						...m, 
+						x: m.newX, 
+						y: m.newY 
+					}));
+				
+				// Find a free space starting from the current new position
+				const startingPoint = { 
+					...current, 
+					x: current.newX, 
+					y: current.newY 
+				};
+				
+				const freePosition = findFreeSpace(startingPoint, otherMagnets);
+				
+				if (freePosition) {
+					// Update the new position
+					current.newX = freePosition.x;
+					current.newY = freePosition.y;
+				}
+			}
+			
+			// Update the original newPositions array
+			newPositions[current.originalIndex] = { 
+				x: current.newX, 
+				y: current.newY 
+			};
+		}
+		
+		return newPositions;
+	}
+
 	function checkCanvasBounds(magnet) {
 		if (!canvas) return { x: magnet.x, y: magnet.y };
 
@@ -2429,21 +2521,39 @@
 		const width = magnet.width * scale;
 		const height = magnet.height * scale;
 
-		// Add padding to keep magnets fully visible
-		const padding = 10;
+		// Standard padding for normal operation
+		const padding = 15;
 
 		// Calculate bounds with padding
 		let x = magnet.x;
 		let y = magnet.y;
 
-		// Left boundary
-		x = Math.max(width / 2 + padding, x);
-		// Right boundary
-		x = Math.min(canvas.width - width / 2 - padding, x);
-		// Top boundary
-		y = Math.max(height / 2 + padding, y);
-		// Bottom boundary
-		y = Math.min(canvas.height - height / 2 - padding, y);
+		if (useVirtualBoundary) {
+			// Create a virtual boundary (75% of canvas size) for transition
+			const virtualBoundaryScale = 0.62;
+			const virtualWidth = canvas.width * virtualBoundaryScale;
+			const virtualHeight = canvas.height * virtualBoundaryScale;
+
+			// Calculate offset to center the virtual boundary
+			const offsetX = (canvas.width - virtualWidth) / 2;
+			const offsetY = (canvas.height - virtualHeight) / 2;
+
+			// Constrain to virtual boundary
+			x = Math.max(offsetX + width / 2, x);
+			x = Math.min(offsetX + virtualWidth - width / 2, x);
+			y = Math.max(offsetY + height / 2, y);
+			y = Math.min(offsetY + virtualHeight - height / 2, y);
+		} else {
+			// Standard boundary checking for normal operation
+			// Left boundary
+			x = Math.max(width / 2 + padding, x);
+			// Right boundary
+			x = Math.min(canvas.width - width / 2 - padding, x);
+			// Top boundary
+			y = Math.max(height / 2 + padding, y);
+			// Bottom boundary
+			y = Math.min(canvas.height - height / 2 - padding, y);
+		}
 
 		return { x, y };
 	}
@@ -2488,6 +2598,8 @@
 	let threeSceneComponent;
 	let scrollToExploreComponent;
 	let hasTriggeredTransition = false;
+	// Flag to indicate when we should use a more restrictive virtual boundary for magnets
+	let useVirtualBoundary = false;
 	let isScrollAnimating = false;
 	let isCanvasVisible = true;
 
@@ -2535,15 +2647,56 @@
 
 		if (!hasTriggeredTransition) {
 			hasTriggeredTransition = true;
+
 			if (scrollToExploreComponent && !scrollToExploreComponent.hasAnimated) {
 				isScrollAnimating = true;
 				scrollToExploreComponent.startAnimation().then(() => {
 					isScrollAnimating = false;
 				});
 			}
+
 			if (threeSceneComponent) {
+				// Start 3D transition first
 				threeSceneComponent.startTransition();
 				dispatch('transitionstart');
+
+				// Enable virtual boundary for magnets
+				setTimeout(() => {
+					// Enable virtual boundary
+					useVirtualBoundary = true;
+
+					// Apply the virtual boundary to all magnets
+					if (magnets && magnets.length > 0 && canvas) {
+						// First, get new positions using virtual boundary
+						const newPositions = magnets.map(magnet => {
+							return checkCanvasBounds(magnet);
+						});
+						
+						// Then, resolve any collisions between magnets
+						const collisionFreePositions = resolveCollisionsForTransition(magnets, newPositions);
+						
+						// Finally, animate magnets to their new positions
+						magnets.forEach((magnet, index) => {
+							const newPos = collisionFreePositions[index];
+							
+							// Only animate if position has changed significantly
+							const positionChanged =
+								Math.abs(newPos.x - magnet.x) > 5 ||
+								Math.abs(newPos.y - magnet.y) > 5;
+
+							if (positionChanged) {
+								// Animate magnets to their new positions
+								gsap.to(magnet, {
+									x: newPos.x,
+									y: newPos.y,
+									duration: 0.3,
+									ease: 'power1.out',
+									onUpdate: () => scheduleRender(),
+								});
+							}
+						});
+					}
+				}, 1000); // Delay to let the transition start first
 			}
 		}
 	}
