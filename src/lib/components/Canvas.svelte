@@ -2605,6 +2605,32 @@
 
 	let isTransitioning = false;
 
+	// Function to move stamp particles with their associated magnet
+	function moveStampParticlesWithMagnet(magnetId, deltaX, deltaY) {
+		// Only proceed if there's actual movement
+		if (deltaX === 0 && deltaY === 0) return;
+		
+		// Remove particles from spatial grid before updating positions
+		stampParticles.forEach(particle => {
+			if (particle.magnetId === magnetId) {
+				spatialGrid.removeParticle(particle);
+			}
+		});
+
+		// Update positions
+		stampParticles.forEach(particle => {
+			if (particle.magnetId === magnetId) {
+				particle.x += deltaX;
+				particle.y += deltaY;
+				// Re-add particle to spatial grid with updated position
+				spatialGrid.addParticle(particle);
+			}
+		});
+
+		// Schedule a render to update the visual
+		scheduleRender();
+	}
+
 	function handleTransitionStart() {
 		isTransitioning = true;
 		shouldDraw = false;
@@ -2685,13 +2711,28 @@
 								Math.abs(newPos.y - magnet.y) > 5;
 
 							if (positionChanged) {
+								// Track the previous position for delta calculation
+								let prevX = magnet.x;
+								let prevY = magnet.y;
+
 								// Animate magnets to their new positions
 								gsap.to(magnet, {
 									x: newPos.x,
 									y: newPos.y,
 									duration: 0.3,
 									ease: 'power1.out',
-									onUpdate: () => scheduleRender(),
+									onUpdate: function() {
+										// Calculate incremental delta movement since last update
+										const deltaX = magnet.x - prevX;
+										const deltaY = magnet.y - prevY;
+										
+										// Move associated stamp particles with the magnet
+										moveStampParticlesWithMagnet(magnet.id, deltaX, deltaY);
+										
+										// Update previous position for next frame
+										prevX = magnet.x;
+										prevY = magnet.y;
+									},
 								});
 							}
 						});
