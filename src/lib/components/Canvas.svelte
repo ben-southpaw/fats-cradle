@@ -2238,7 +2238,7 @@
 		if (isTransitioning) return;
 
 		if (isHoveringMagnet && hoveredMagnet) {
-            
+          //
 			// Start magnet drag
 			isDraggingMagnet = true;
 			selectedMagnet = hoveredMagnet;
@@ -2879,7 +2879,7 @@
 		position: fixed;
 		top: -6px;
 		left: -20px;
-		/* pointer-events: none; */
+		pointer-events: none;
 		z-index: 9999;
 		width: 90px;
 		height: 90px;
