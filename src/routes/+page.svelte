@@ -40,6 +40,9 @@
 				isReady = true;
 			}
 		}, 2000);
+
+		// Call the function to start listening for mousemove and hiding the cursor
+		hideCursorOnRoot();
 	});
 
 	function handleTransitionStart() {
@@ -52,14 +55,22 @@
 			canvasComponent.clearWithProgress(progress);
 		}
 	}
+
+	function hideCursorOnRoot() {
+		const rootElement = document.documentElement; // Get the root <html> element
+
+		rootElement.addEventListener('mousemove', () => {
+			rootElement.style.cursor = 'none';
+		});
+	}
 </script>
 
 <section>
 	{#if isReady}
-    <ThreeScene
-        on:transitionstart={handleTransitionStart}
-        on:wipe={handleWipe}
-    />
+		<ThreeScene
+			on:transitionstart={handleTransitionStart}
+			on:wipe={handleWipe}
+		/>
 		<Canvas bind:this={canvasComponent} {parentDimensions} />
 	{/if}
 </section>

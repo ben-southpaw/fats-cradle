@@ -1,6 +1,6 @@
 <script>
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-	import { fade } from 'svelte/transition';
+	import { fade, scale } from 'svelte/transition';
 	import { gsap } from 'gsap';
 	import letterF from '$lib/images/f.png?url';
 	import letterA from '$lib/images/a.png?url';
@@ -2838,6 +2838,7 @@
 		<img
 			src={isClicking ? cursorClick : isHoveringMagnet && cursorHover}
 			alt="cursor"
+			transition:scale={{ duration: 350 }}
 		/>
 	{/if}
 </div>
