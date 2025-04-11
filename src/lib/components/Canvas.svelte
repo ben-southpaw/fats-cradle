@@ -2213,17 +2213,17 @@
 		}
 
 		// Only animate if cursor opacity is 0
-		if (cursorOpacity === 0) {
-			const obj = { value: 0 };
-			gsap.to(obj, {
-				value: 1,
-				duration: 0.3,
-				ease: 'power2.out',
-				onUpdate: () => {
-					cursorOpacity = obj.value;
-				},
-			});
-		}
+		// if (cursorOpacity === 0) {
+		// 	const obj = { value: 0 };
+		// 	gsap.to(obj, {
+		// 		value: 1,
+		// 		duration: 0.3,
+		// 		ease: 'power2.out',
+		// 		onUpdate: () => {
+		// 			cursorOpacity = obj.value;
+		// 		},
+		// 	});
+		// }
 	}
 
 	function handleMousedown(e) {
@@ -2238,7 +2238,7 @@
 		if (isTransitioning) return;
 
 		if (isHoveringMagnet && hoveredMagnet) {
-          //
+			//
 			// Start magnet drag
 			isDraggingMagnet = true;
 			selectedMagnet = hoveredMagnet;
@@ -2429,87 +2429,92 @@
 			originalIndex: index,
 			newX: newPositions[index].x,
 			newY: newPositions[index].y,
-			moved: Math.abs(newPositions[index].x - magnet.x) > 5 || 
-				   Math.abs(newPositions[index].y - magnet.y) > 5
+			moved:
+				Math.abs(newPositions[index].x - magnet.x) > 5 ||
+				Math.abs(newPositions[index].y - magnet.y) > 5,
 		}));
-		
+
 		// Sort by distance moved (largest first) to prioritize magnets that need to move most
 		magnetsCopy.sort((a, b) => {
 			if (!a.moved && b.moved) return 1;
 			if (a.moved && !b.moved) return -1;
-			
-			const distA = Math.sqrt(Math.pow(a.newX - a.x, 2) + Math.pow(a.newY - a.y, 2));
-			const distB = Math.sqrt(Math.pow(b.newX - b.x, 2) + Math.pow(b.newY - b.y, 2));
+
+			const distA = Math.sqrt(
+				Math.pow(a.newX - a.x, 2) + Math.pow(a.newY - a.y, 2)
+			);
+			const distB = Math.sqrt(
+				Math.pow(b.newX - b.x, 2) + Math.pow(b.newY - b.y, 2)
+			);
 			return distB - distA; // Descending order
 		});
-		
+
 		// Process each magnet to resolve collisions
 		for (let i = 0; i < magnetsCopy.length; i++) {
 			const current = magnetsCopy[i];
-			
+
 			// Skip magnets that don't need to move
 			if (!current.moved) continue;
-			
+
 			// Create a temporary magnet with the new position
-			const tempMagnet = { 
-				...current, 
-				x: current.newX, 
-				y: current.newY 
+			const tempMagnet = {
+				...current,
+				x: current.newX,
+				y: current.newY,
 			};
-			
+
 			// Check for collisions with other magnets at their new positions
 			let hasCollision = false;
-			
+
 			for (let j = 0; j < magnetsCopy.length; j++) {
 				if (i === j) continue; // Skip self
-				
+
 				const other = magnetsCopy[j];
-				const otherMagnet = { 
-					...other, 
-					x: other.newX, 
-					y: other.newY 
+				const otherMagnet = {
+					...other,
+					x: other.newX,
+					y: other.newY,
 				};
-				
+
 				if (checkCollision(tempMagnet, otherMagnet)) {
 					hasCollision = true;
 					break;
 				}
 			}
-			
+
 			// If there's a collision, find a free space
 			if (hasCollision) {
 				// Create array of other magnets at their new positions
 				const otherMagnets = magnetsCopy
 					.filter((_, idx) => idx !== i)
-					.map(m => ({ 
-						...m, 
-						x: m.newX, 
-						y: m.newY 
+					.map((m) => ({
+						...m,
+						x: m.newX,
+						y: m.newY,
 					}));
-				
+
 				// Find a free space starting from the current new position
-				const startingPoint = { 
-					...current, 
-					x: current.newX, 
-					y: current.newY 
+				const startingPoint = {
+					...current,
+					x: current.newX,
+					y: current.newY,
 				};
-				
+
 				const freePosition = findFreeSpace(startingPoint, otherMagnets);
-				
+
 				if (freePosition) {
 					// Update the new position
 					current.newX = freePosition.x;
 					current.newY = freePosition.y;
 				}
 			}
-			
+
 			// Update the original newPositions array
-			newPositions[current.originalIndex] = { 
-				x: current.newX, 
-				y: current.newY 
+			newPositions[current.originalIndex] = {
+				x: current.newX,
+				y: current.newY,
 			};
 		}
-		
+
 		return newPositions;
 	}
 
@@ -2608,16 +2613,16 @@
 	function moveStampParticlesWithMagnet(magnetId, deltaX, deltaY) {
 		// Only proceed if there's actual movement
 		if (deltaX === 0 && deltaY === 0) return;
-		
+
 		// Remove particles from spatial grid before updating positions
-		stampParticles.forEach(particle => {
+		stampParticles.forEach((particle) => {
 			if (particle.magnetId === magnetId) {
 				spatialGrid.removeParticle(particle);
 			}
 		});
 
 		// Update positions
-		stampParticles.forEach(particle => {
+		stampParticles.forEach((particle) => {
 			if (particle.magnetId === magnetId) {
 				particle.x += deltaX;
 				particle.y += deltaY;
@@ -2693,17 +2698,20 @@
 					// Apply the virtual boundary to all magnets
 					if (magnets && magnets.length > 0 && canvas) {
 						// First, get new positions using virtual boundary
-						const newPositions = magnets.map(magnet => {
+						const newPositions = magnets.map((magnet) => {
 							return checkCanvasBounds(magnet);
 						});
-						
+
 						// Then, resolve any collisions between magnets
-						const collisionFreePositions = resolveCollisionsForTransition(magnets, newPositions);
-						
+						const collisionFreePositions = resolveCollisionsForTransition(
+							magnets,
+							newPositions
+						);
+
 						// Finally, animate magnets to their new positions
 						magnets.forEach((magnet, index) => {
 							const newPos = collisionFreePositions[index];
-							
+
 							// Only animate if position has changed significantly
 							const positionChanged =
 								Math.abs(newPos.x - magnet.x) > 5 ||
@@ -2720,14 +2728,14 @@
 									y: newPos.y,
 									duration: 0.3,
 									ease: 'power1.out',
-									onUpdate: function() {
+									onUpdate: function () {
 										// Calculate incremental delta movement since last update
 										const deltaX = magnet.x - prevX;
 										const deltaY = magnet.y - prevY;
-										
+
 										// Move associated stamp particles with the magnet
 										moveStampParticlesWithMagnet(magnet.id, deltaX, deltaY);
-										
+
 										// Update previous position for next frame
 										prevX = magnet.x;
 										prevY = magnet.y;
@@ -2821,20 +2829,20 @@
 	{/if}
 </div>
 
-<div
+<!-- <div
 	class="cursor"
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
 >
-	<!-- <img
+	<img
 		src={isClicking && isHoveringMagnet
 			? cursorClick
 			: isHoveringMagnet
 				? cursorHover
 				: cursorDefault}
 		alt="cursor"
-	/> -->
-</div>
+	/>
+</div> -->
 
 <style>
 	:global(body) {
@@ -2845,7 +2853,8 @@
 	}
 
 	/* Ensure all elements within the canvas container have cursor: none */
-	.canvas-container, .canvas-container * {
+	.canvas-container,
+	.canvas-container * {
 		/* cursor: none !important; */
 	}
 

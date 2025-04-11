@@ -56,11 +56,11 @@
 
 <section>
 	{#if isReady}
+    <ThreeScene
+        on:transitionstart={handleTransitionStart}
+        on:wipe={handleWipe}
+    />
 		<Canvas bind:this={canvasComponent} {parentDimensions} />
-		<ThreeScene
-			on:transitionstart={handleTransitionStart}
-			on:wipe={handleWipe}
-		/>
 	{/if}
 </section>
 
