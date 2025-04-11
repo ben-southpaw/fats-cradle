@@ -2852,10 +2852,10 @@
 	}
 
 	/* Ensure all elements within the canvas container have cursor: none */
-	.canvas-container,
+	/* .canvas-container,
 	.canvas-container * {
 		cursor: none !important;
-	}
+	} */
 
 	.canvas-container {
 		position: absolute;

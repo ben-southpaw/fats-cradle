@@ -40,9 +40,6 @@
 				isReady = true;
 			}
 		}, 2000);
-
-		// Call the function to start listening for mousemove and hiding the cursor
-		hideCursorOnRoot();
 	});
 
 	function handleTransitionStart() {
@@ -54,14 +51,6 @@
 		if (canvasComponent) {
 			canvasComponent.clearWithProgress(progress);
 		}
-	}
-
-	function hideCursorOnRoot() {
-		const rootElement = document.documentElement; // Get the root <html> element
-
-		rootElement.addEventListener('mousemove', () => {
-			rootElement.style.cursor = 'none';
-		});
 	}
 </script>
 
