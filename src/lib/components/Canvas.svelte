@@ -182,8 +182,6 @@
 	let cursorElement;
 	let m = { x: 0, y: 0 };
 	let cursorOpacity = 0; // Start invisible
-	let cursorHoverImage;
-	let cursorClickImage;
 
 	let lastMouseX = 0;
 	let lastMouseY = 0;
@@ -2827,14 +2825,14 @@
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
 >
-	<img
+	<!-- <img
 		src={isClicking && isHoveringMagnet
 			? cursorClick
 			: isHoveringMagnet
 				? cursorHover
 				: cursorDefault}
 		alt="cursor"
-	/>
+	/> -->
 </div>
 
 <style>
@@ -2842,12 +2840,12 @@
 		margin: 0;
 		padding: 0;
 		overflow: hidden;
-		cursor: none; /* Hide the default cursor */
+		/* cursor: none; Hide the default cursor */
 	}
 
 	/* Ensure all elements within the canvas container have cursor: none */
 	.canvas-container, .canvas-container * {
-		cursor: none !important;
+		/* cursor: none !important; */
 	}
 
 	.canvas-container {
@@ -2859,7 +2857,7 @@
 		height: 100%;
 		z-index: 1;
 		overflow: hidden;
-		cursor: none; /* Hide the default cursor on the container */
+		/* cursor: none;  */
 	}
 
 	canvas {
@@ -2868,7 +2866,7 @@
 		opacity: 1;
 		transition: opacity 0.15s ease;
 		position: absolute;
-		cursor: none; /* Hide the default cursor on the canvas itself */
+		/* cursor: none;  */
 	}
 
 	canvas.hidden {
