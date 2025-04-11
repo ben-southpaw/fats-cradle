@@ -2213,17 +2213,17 @@
 		}
 
 		// Only animate if cursor opacity is 0
-		// if (cursorOpacity === 0) {
-		// 	const obj = { value: 0 };
-		// 	gsap.to(obj, {
-		// 		value: 1,
-		// 		duration: 0.3,
-		// 		ease: 'power2.out',
-		// 		onUpdate: () => {
-		// 			cursorOpacity = obj.value;
-		// 		},
-		// 	});
-		// }
+		if (cursorOpacity === 0) {
+			const obj = { value: 0 };
+			gsap.to(obj, {
+				value: 1,
+				duration: 0.3,
+				ease: 'power2.out',
+				onUpdate: () => {
+					cursorOpacity = obj.value;
+				},
+			});
+		}
 	}
 
 	function handleMousedown(e) {
@@ -2829,20 +2829,18 @@
 	{/if}
 </div>
 
-<!-- <div
+<div
 	class="cursor"
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
 >
-	<img
-		src={isClicking && isHoveringMagnet
-			? cursorClick
-			: isHoveringMagnet
-				? cursorHover
-				: cursorDefault}
-		alt="cursor"
-	/>
-</div> -->
+	{#if isHoveringMagnet}
+		<img
+			src={isClicking ? cursorClick : isHoveringMagnet && cursorHover}
+			alt="cursor"
+		/>
+	{/if}
+</div>
 
 <style>
 	:global(body) {
@@ -2855,7 +2853,7 @@
 	/* Ensure all elements within the canvas container have cursor: none */
 	.canvas-container,
 	.canvas-container * {
-		/* cursor: none !important; */
+		cursor: none !important;
 	}
 
 	.canvas-container {
