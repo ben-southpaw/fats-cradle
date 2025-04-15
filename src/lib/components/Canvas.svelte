@@ -2838,7 +2838,7 @@
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
 >
-	{#if isHoveringMagnet && !hasTriggeredTransitiong}
+	{#if isHoveringMagnet && !hasTriggeredTransition}
 		<img
 			src={isClicking ? cursorClick : isHoveringMagnet && cursorHover}
 			alt="cursor"
