@@ -2817,7 +2817,11 @@
 			particles = particles.filter((p) => p.x > clearX);
 			stampParticles = stampParticles.filter((p) => p.x > clearX);
 			preDrawnParticles = preDrawnParticles.filter((p) => p.x > clearX);
-
+			const message = {
+				type: 'wipeStart',
+			};
+			//update to live link later
+			window.parent.postMessage(message, 'https://fatscradle.com/');
 			// Force a render to update the canvas
 			renderAll();
 		}}
@@ -2834,7 +2838,7 @@
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
 >
-	{#if isHoveringMagnet && !hasTriggeredTransition}
+	{#if isHoveringMagnet && !hasTriggeredTransitiong}
 		<img
 			src={isClicking ? cursorClick : isHoveringMagnet && cursorHover}
 			alt="cursor"
