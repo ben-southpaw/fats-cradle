@@ -195,6 +195,21 @@
 	let lastFrameTime = 0;
 	const DAMPING = 0.97; // Increased damping factor for smoother deceleration
 	const SMOOTHING = 0.15; // Smoothing factor for velocity changes (lower = smoother)
+	
+	// Rotation constraints to prevent model from breaching top and bottom of container
+	const MAX_X_ROTATION = Math.PI / 6; // Maximum vertical rotation (30 degrees)
+	
+	// Function to enforce rotation constraints
+	function enforceRotationConstraints() {
+		if (!model) return;
+		
+		// Completely disable X-axis rotation (vertical rotation)
+		modelRotation.x = 0;
+		model.rotation.x = 0;
+		
+		// Horizontal rotation (Y-axis) has no constraints
+		model.rotation.y = modelRotation.y;
+	}
 
 	function initOrbitControls() {
 		if (!camera || !renderer || !model || controls) return;
@@ -256,8 +271,9 @@
 		lastFrameTime = now;
 
 		// Calculate target velocity based on mouse movement (smoother)
+		// Only apply rotation to Y-axis (horizontal rotation)
 		targetVelocity.y = deltaMove.x * ROTATION_SPEED * (16.7 / deltaTime);
-		targetVelocity.x = deltaMove.y * ROTATION_SPEED * (16.7 / deltaTime);
+		targetVelocity.x = 0; // Disable vertical rotation completely
 
 		// Smoothly interpolate current velocity toward target velocity
 		rotationVelocity.y += (targetVelocity.y - rotationVelocity.y) * SMOOTHING;
@@ -267,9 +283,8 @@
 		modelRotation.y += rotationVelocity.y;
 		modelRotation.x += rotationVelocity.x;
 
-		// Apply rotation to model without limits
-		model.rotation.y = modelRotation.y;
-		model.rotation.x = modelRotation.x;
+		// Apply rotation constraints
+		enforceRotationConstraints();
 
 		// Update previous position
 		previousMousePosition = {
@@ -382,10 +397,9 @@
 			// Update model rotation based on smoothed velocity
 			modelRotation.y += rotationVelocity.y;
 			modelRotation.x += rotationVelocity.x;
-
-			// Apply rotation to model without limits
-			model.rotation.y = modelRotation.y;
-			model.rotation.x = modelRotation.x;
+			
+			// Apply rotation constraints
+			enforceRotationConstraints();
 
 			// Apply very strong damping to quickly reduce velocity
 			rotationVelocity.x *= DAMPING * 0.8; // Much stronger damping
@@ -450,21 +464,53 @@
 			// Change cursor to grabbing when actively dragging
 			if (container) container.style.cursor = 'grabbing';
 
-			// Get screen coordinates
-			const rect = container.getBoundingClientRect();
-
-			// Project current slider position to screen space
-			const sliderPos = new THREE.Vector3(
-				sliderMesh.position.x,
-				sliderMesh.position.y,
-				sliderMesh.position.z
-			);
-			sliderPos.project(camera);
-			const sliderScreenX = ((sliderPos.x + 1) * rect.width) / 2;
-
-			// Calculate and store the offset from the cursor to the knob center
-			dragOffset = event.clientX - sliderScreenX;
+			// Store initial mouse position and slider position for precise tracking
+			initialMouseX = event.clientX;
+			initialSliderX = sliderMesh.position.x;
+			
+			// Initialize the screen space cache immediately for responsive initial drag
+			updateScreenSpaceCache();
 		}
+	}
+
+	// Variables for precise slider tracking
+	let initialMouseX = 0; // Initial mouse X position when drag starts
+	let initialSliderX = 0; // Initial slider X position when drag starts
+	
+	// Cache for screen space calculations
+	let cachedMinScreenX = 0;
+	let cachedMaxScreenX = 0;
+	let cachedTrackScreenWidth = 0;
+	let lastScreenCalculationTime = 0;
+	let screenCalculationInterval = 100; // ms between recalculations
+
+	// Pre-calculate screen space values for slider bounds
+	function updateScreenSpaceCache() {
+		if (!container || !sliderMesh || !camera) return;
+		
+		const rect = container.getBoundingClientRect();
+		
+		// Project slider bounds to screen space
+		const minPoint = new THREE.Vector3(
+			sliderMinX,
+			sliderMesh.position.y,
+			sliderMesh.position.z
+		);
+		const maxPoint = new THREE.Vector3(
+			sliderMaxX,
+			sliderMesh.position.y,
+			sliderMesh.position.z
+		);
+
+		// Convert to screen space
+		minPoint.project(camera);
+		maxPoint.project(camera);
+
+		// Convert to pixel coordinates
+		cachedMinScreenX = ((minPoint.x + 1) * rect.width) / 2;
+		cachedMaxScreenX = ((maxPoint.x + 1) * rect.width) / 2;
+		cachedTrackScreenWidth = cachedMaxScreenX - cachedMinScreenX;
+		lastScreenCalculationTime = performance.now();
 	}
 
 	function handleMouseMove(event) {
@@ -493,41 +539,28 @@
 		// Set the flag indicating this is a manual update
 		isManualSliderUpdate = true;
 
-		// Get screen coordinates
-		const rect = container.getBoundingClientRect();
-
-		// Adjust mouse position by the initial drag offset
-		const adjustedX = event.clientX - dragOffset;
-		const x = adjustedX - rect.left;
-
-		// Project slider bounds to screen space
-		const minPoint = new THREE.Vector3(
-			sliderMinX,
-			sliderMesh.position.y,
-			sliderMesh.position.z
-		);
-		const maxPoint = new THREE.Vector3(
-			sliderMaxX,
-			sliderMesh.position.y,
-			sliderMesh.position.z
-		);
-
-		// Convert to screen space
-		minPoint.project(camera);
-		maxPoint.project(camera);
-
-		// Convert to pixel coordinates
-		const minScreenX = ((minPoint.x + 1) * rect.width) / 2;
-		const maxScreenX = ((maxPoint.x + 1) * rect.width) / 2;
-
-		// Calculate position within track bounds
-		const trackScreenWidth = maxScreenX - minScreenX;
-		const mouseOffset = x - minScreenX;
-		const progress = Math.max(0, Math.min(1, mouseOffset / trackScreenWidth));
-
-		// Convert screen position back to world space
-		const worldX = sliderMinX + (sliderMaxX - sliderMinX) * progress;
-		updateSliderPosition(worldX, true); // Use immediate update for dragging
+		// Calculate the mouse movement delta from the initial position
+		const mouseDelta = event.clientX - initialMouseX;
+		
+		// Calculate the world space scale factor (how much world units per pixel)
+		const worldToScreenRatio = (sliderMaxX - sliderMinX) / cachedTrackScreenWidth;
+		
+		// Apply the mouse movement to the initial slider position, scaled to world units
+		let newSliderX = initialSliderX + (mouseDelta * worldToScreenRatio);
+		
+		// Clamp to slider bounds
+		newSliderX = Math.max(sliderMinX, Math.min(sliderMaxX, newSliderX));
+		
+		// Update slider position immediately for direct tracking
+		updateSliderPosition(newSliderX, true);
+		
+		// Calculate normalized position for animation trigger check
+		const normalizedPosition = (newSliderX - sliderMinX) / (sliderMaxX - sliderMinX);
+		
+		// Check if we've reached the end during drag
+		if (normalizedPosition >= 0.99 && !hasReachedEndDuringDrag) {
+			hasReachedEndDuringDrag = true;
+		}
 	}
 
 	function handleMouseUp() {
@@ -1124,11 +1157,19 @@
 				CONFIG.model.initial.position.y,
 				CONFIG.model.initial.position.z
 			);
+			// Set initial rotation
 			model.rotation.set(
 				CONFIG.model.initial.rotation.x,
 				CONFIG.model.initial.rotation.y,
 				CONFIG.model.initial.rotation.z
 			);
+			
+			// Initialize modelRotation to match the model's rotation
+			modelRotation.x = model.rotation.x;
+			modelRotation.y = model.rotation.y;
+			
+			// Apply rotation constraints immediately
+			enforceRotationConstraints();
 
 			// Calculate and set initial scale to match screen
 			const screenScale = calculateScreenMatchingScale();

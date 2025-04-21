@@ -2692,9 +2692,6 @@
 
 	// Handler for when the model is facing away from the user during rotation
 	function handleModelFacingAway() {
-		// This is called when the model is facing away from the user
-		console.log('Model is facing away - repositioning magnets');
-		
 		// Apply the virtual boundary to all magnets while model is facing away
 		if (magnets && magnets.length > 0 && canvas) {
 			// Enable virtual boundary if not already enabled
@@ -2718,7 +2715,7 @@
 			});
 			
 			// Force redraw to apply new positions
-			redrawCanvas();
+			renderAll();
 		}
 	}
 
