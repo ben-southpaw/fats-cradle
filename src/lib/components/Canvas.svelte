@@ -2210,6 +2210,15 @@
 				);
 			});
 			hoveredMagnet = findClickedMagnet({ x, y });
+			
+			// Update cursor style based on hover and drag state
+			if (isDraggingMagnet) {
+				document.body.style.cursor = 'grabbing';
+			} else if (isHoveringMagnet) {
+				document.body.style.cursor = 'grab';
+			} else {
+				document.body.style.cursor = 'default';
+			}
 		}
 
 		// Only animate if cursor opacity is 0
@@ -2241,6 +2250,8 @@
 			//
 			// Start magnet drag
 			isDraggingMagnet = true;
+			// Update cursor to grabbing when starting to drag
+			document.body.style.cursor = 'grabbing';
 			selectedMagnet = hoveredMagnet;
 			selectedMagnet.grabOffsetX = hoveredMagnet.x - pos.x;
 			selectedMagnet.grabOffsetY = hoveredMagnet.y - pos.y;
@@ -2267,6 +2278,13 @@
 		if (isDraggingMagnet && selectedMagnet) {
 			const droppedMagnet = selectedMagnet;
 			isDraggingMagnet = false;
+			
+			// Reset cursor based on whether still hovering over a magnet
+			if (isHoveringMagnet) {
+				document.body.style.cursor = 'grab';
+			} else {
+				document.body.style.cursor = 'default';
+			}
 			const finalRotation = Math.round(droppedMagnet.rotation / 5) * 5;
 
 			// Check canvas bounds and get corrected position
@@ -2677,6 +2695,9 @@
 
 		if (!hasTriggeredTransition) {
 			hasTriggeredTransition = true;
+			
+			// Reset cursor to default when triggering scroll animation
+			document.body.style.cursor = 'default';
 
 			if (scrollToExploreComponent && !scrollToExploreComponent.hasAnimated) {
 				isScrollAnimating = true;
@@ -2887,7 +2908,7 @@
 		pointer-events: none;
 	}
 
-	.cursor {
+	/* .cursor {
 		position: fixed;
 		top: -6px;
 		left: -20px;
@@ -2902,7 +2923,7 @@
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
-	}
+	} */
 
 	.scroll-to-explore {
 		pointer-events: none;

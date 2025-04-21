@@ -412,6 +412,9 @@
 		if (!controls) {
 			initOrbitControls();
 		}
+		
+		// Reset cursor to default when animation completes
+		if (container) container.style.cursor = 'default';
 
 		const message = {
 			type: 'animationComplete',
@@ -443,6 +446,9 @@
 
 		if (intersects.length > 0) {
 			isDragging = true;
+			
+			// Change cursor to grabbing when actively dragging
+			if (container) container.style.cursor = 'grabbing';
 
 			// Get screen coordinates
 			const rect = container.getBoundingClientRect();
@@ -462,6 +468,26 @@
 	}
 
 	function handleMouseMove(event) {
+		// Check for hover state to update cursor even if not dragging
+		if (isFirstTransitionComplete && sliderMesh && !isDragging) {
+			// Convert mouse coordinates to normalized device coordinates (-1 to +1)
+			mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+			mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+			// Update the picking ray with the camera and mouse position
+			raycaster.setFromCamera(mouse, camera);
+
+			// Calculate objects intersecting the picking ray
+			const intersects = raycaster.intersectObject(sliderMesh, true);
+
+			// Update cursor style based on hover state
+			if (intersects.length > 0) {
+				if (container) container.style.cursor = 'grab';
+			} else {
+				if (container) container.style.cursor = 'default';
+			}
+		}
+		
 		if (!isDragging || !isFirstTransitionComplete || !sliderMesh) return;
 
 		// Set the flag indicating this is a manual update
@@ -510,6 +536,21 @@
 		if (hasReachedEndDuringDrag) {
 			emitEndAnimationEvent();
 			hasReachedEndDuringDrag = false; // Reset the flag
+			// Reset cursor to default after animation is triggered
+			if (container) container.style.cursor = 'default';
+		} else {
+			// Check if we're still hovering over the slider
+			mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+			mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+			raycaster.setFromCamera(mouse, camera);
+			const intersects = raycaster.intersectObject(sliderMesh, true);
+			
+			// Update cursor based on hover state
+			if (intersects.length > 0) {
+				if (container) container.style.cursor = 'grab';
+			} else {
+				if (container) container.style.cursor = 'default';
+			}
 		}
 		
 		isDragging = false;
