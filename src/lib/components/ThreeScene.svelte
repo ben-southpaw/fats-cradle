@@ -130,6 +130,7 @@
 	let scrollAnimation;
 	let scrollTimeout;
 	let hasReceivedSecondWheelEvent = false; // Track if we've received a second wheel event
+	let isManualSliderUpdate = false; // Track if slider was updated manually via drag
 	const dispatch = createEventDispatcher();
 
 	// Function to calculate effective track length accounting for knob width
@@ -191,8 +192,13 @@
 
 		// Check if we've reached the end
 		if (currentSliderPosition >= 1) {
-			emitEndAnimationEvent();
-			// No need to remove event listeners as we now use a single handler
+			// Only check the manual flag if it's a manual update
+			// For manual updates, only trigger if the user is still dragging
+			// For non-manual updates (scroll events), proceed as normal
+			if (!isManualSliderUpdate || (isManualSliderUpdate && isDragging)) {
+				emitEndAnimationEvent();
+				// No need to remove event listeners as we now use a single handler
+			}
 		}
 	}
 
@@ -478,6 +484,9 @@
 	function handleMouseMove(event) {
 		if (!isDragging || !isFirstTransitionComplete || !sliderMesh) return;
 
+		// Set the flag indicating this is a manual update
+		isManualSliderUpdate = true;
+
 		// Get screen coordinates
 		const rect = container.getBoundingClientRect();
 
@@ -518,6 +527,8 @@
 	function handleMouseUp() {
 		isDragging = false;
 		dragOffset = 0;
+		// Reset the manual update flag when the drag ends
+		isManualSliderUpdate = false;
 	}
 
 	// handlePostTransitionScroll has been replaced by handleScroll
