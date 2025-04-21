@@ -223,6 +223,7 @@
 		window.addEventListener('mousedown', handleModelDragStart);
 		window.addEventListener('mousemove', handleModelDragMove);
 		window.addEventListener('mouseup', handleModelDragEnd);
+		window.addEventListener('mouseleave', handleModelDragEnd); // Stop rotation when mouse leaves window
 
 		// Start animation loop for continuous updates
 		animateRotation();
@@ -1526,6 +1527,7 @@
 			window.removeEventListener('mouseup', handleMouseUp);
 			window.removeEventListener('mousemove', handleModelDragMove);
 			window.removeEventListener('mouseup', handleModelDragEnd);
+			window.removeEventListener('mouseleave', handleModelDragEnd);
 			// Clean up custom rotation handlers
 			if (container) {
 				container.removeEventListener('mousedown', handleModelDragStart);
