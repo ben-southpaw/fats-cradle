@@ -131,26 +131,8 @@
 	let scrollTimeout;
 	let hasReceivedSecondWheelEvent = false; // Track if we've received a second wheel event
 	let isManualSliderUpdate = false; // Track if slider was updated manually via drag
+	let hasReachedEndDuringDrag = false; // Track if slider reached end during a manual drag
 	const dispatch = createEventDispatcher();
-
-	// Function to calculate effective track length accounting for knob width
-	function getEffectiveTrackLength() {
-		return sliderMaxX - sliderMinX - knobWidth;
-	}
-
-	// Function to convert world position to normalized position (0-1)
-	function worldToNormalizedPosition(worldX) {
-		const effectiveMin = sliderMinX + knobWidth / 2;
-		const effectiveMax = sliderMaxX - knobWidth / 2;
-		return (worldX - effectiveMin) / (effectiveMax - effectiveMin);
-	}
-
-	// Function to convert normalized position (0-1) to world position
-	function normalizedToWorldPosition(normalized) {
-		const effectiveMin = sliderMinX + knobWidth / 2;
-		const effectiveMax = sliderMaxX - knobWidth / 2;
-		return effectiveMin + normalized * (effectiveMax - effectiveMin);
-	}
 
 	// Reactive statement to update slider position whenever currentSliderPosition changes
 	$: if (sliderMesh && isFirstTransitionComplete) {
@@ -192,12 +174,13 @@
 
 		// Check if we've reached the end
 		if (currentSliderPosition >= 1) {
-			// Only check the manual flag if it's a manual update
-			// For manual updates, only trigger if the user is still dragging
-			// For non-manual updates (scroll events), proceed as normal
-			if (!isManualSliderUpdate || (isManualSliderUpdate && isDragging)) {
+			if (!isManualSliderUpdate) {
+				// For non-manual updates (scroll events), proceed as normal
 				emitEndAnimationEvent();
-				// No need to remove event listeners as we now use a single handler
+			} else if (isManualSliderUpdate && isDragging) {
+				// For manual updates, just mark that we've reached the end during drag
+				// This flag stays true even if they drag back from the end
+				hasReachedEndDuringDrag = true;
 			}
 		}
 	}
@@ -354,9 +337,6 @@
 		model.scale.x = initialModelScale.x * currentScaleFactor;
 		model.scale.y = initialModelScale.y * currentScaleFactor;
 		model.scale.z = initialModelScale.z * currentScaleFactor;
-
-		// Debug
-		// console.log(`X rotation: ${(normalizedXRot * 180 / Math.PI).toFixed(1)}°, Y rotation: ${(normalizedYRot * 180 / Math.PI).toFixed(1)}°, Scale: ${currentScaleFactor.toFixed(3)} (target: ${targetScaleFactor.toFixed(3)})`);
 	}
 
 	function handleModelDragEnd() {
@@ -525,55 +505,17 @@
 	}
 
 	function handleMouseUp() {
+		// If we were dragging and had reached the end at any point during the drag,
+		// now fire the animation
+		if (hasReachedEndDuringDrag) {
+			emitEndAnimationEvent();
+			hasReachedEndDuringDrag = false; // Reset the flag
+		}
+		
 		isDragging = false;
 		dragOffset = 0;
 		// Reset the manual update flag when the drag ends
 		isManualSliderUpdate = false;
-	}
-
-	// handlePostTransitionScroll has been replaced by handleScroll
-	// Function to perform a complete spin and wipe to the end
-	function performFullSpinAndWipe() {
-		if (!sliderMesh || !model) return;
-
-		// Kill any existing animations
-		if (scrollAnimation) scrollAnimation.kill();
-
-		// Create a timeline for the sequence
-		const timeline = gsap.timeline({
-			onComplete: () => {
-				// After animation completes, update the state
-				currentSliderPosition = 1;
-				totalScrollAmount = 1;
-				emitEndAnimationEvent();
-			},
-		});
-
-		// First, perform a quick spin animation on the model
-		timeline.to(model.rotation, {
-			y: model.rotation.y + Math.PI * 2, // Full 360-degree spin
-			duration: 0.8, // Fast spin
-			ease: 'power2.inOut',
-		});
-
-		// Then, perform the complete wipe animation to the end, but only after the spin is complete
-		timeline.to(
-			sliderMesh.position,
-			{
-				x: sliderMaxX, // Go all the way to the end
-				duration: 1.2,
-				ease: 'power3.out',
-				onUpdate: () => {
-					// Calculate and dispatch progress during animation
-					const progress = calculateWipeProgress(sliderMesh.position.x);
-					dispatch('wipe', { progress });
-				},
-			},
-			'>'
-		);
-
-		// Store the animation for potential cancellation
-		scrollAnimation = timeline;
 	}
 
 	// Create a raycaster for slider interaction

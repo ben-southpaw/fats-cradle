@@ -2833,7 +2833,7 @@
 	{/if}
 </div>
 
-<div
+<!-- <div
 	class="cursor"
 	bind:this={cursorElement}
 	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
@@ -2845,7 +2845,7 @@
 			transition:scale={{ duration: 350 }}
 		/>
 	{/if}
-</div>
+</div> -->
 
 <style>
 	:global(body) {
