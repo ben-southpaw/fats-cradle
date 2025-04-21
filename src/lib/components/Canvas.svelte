@@ -2690,6 +2690,38 @@
 		});
 	}
 
+	// Handler for when the model is facing away from the user during rotation
+	function handleModelFacingAway() {
+		// This is called when the model is facing away from the user
+		console.log('Model is facing away - repositioning magnets');
+		
+		// Apply the virtual boundary to all magnets while model is facing away
+		if (magnets && magnets.length > 0 && canvas) {
+			// Enable virtual boundary if not already enabled
+			useVirtualBoundary = true;
+			
+			// Get new positions using virtual boundary
+			const newPositions = magnets.map((magnet) => {
+				return checkCanvasBounds(magnet);
+			});
+
+			// Resolve any collisions between magnets
+			const collisionFreePositions = resolveCollisionsForTransition(
+				magnets,
+				newPositions
+			);
+
+			// Apply new positions immediately (while model is facing away)
+			magnets.forEach((magnet, index) => {
+				magnet.x = collisionFreePositions[index].x;
+				magnet.y = collisionFreePositions[index].y;
+			});
+			
+			// Force redraw to apply new positions
+			redrawCanvas();
+		}
+	}
+
 	function handleWheel(event) {
 		if (Math.abs(event.deltaY) < 10) return;
 
@@ -2707,65 +2739,13 @@
 			}
 
 			if (threeSceneComponent) {
+				// Enable virtual boundary for magnets but don't reposition yet
+				// The repositioning will happen when the model is facing away
+				useVirtualBoundary = true;
+				
 				// Start 3D transition first
 				threeSceneComponent.startTransition();
 				dispatch('transitionstart');
-
-				// Enable virtual boundary for magnets
-				setTimeout(() => {
-					// Enable virtual boundary
-					useVirtualBoundary = true;
-
-					// Apply the virtual boundary to all magnets
-					if (magnets && magnets.length > 0 && canvas) {
-						// First, get new positions using virtual boundary
-						const newPositions = magnets.map((magnet) => {
-							return checkCanvasBounds(magnet);
-						});
-
-						// Then, resolve any collisions between magnets
-						const collisionFreePositions = resolveCollisionsForTransition(
-							magnets,
-							newPositions
-						);
-
-						// Finally, animate magnets to their new positions
-						magnets.forEach((magnet, index) => {
-							const newPos = collisionFreePositions[index];
-
-							// Only animate if position has changed significantly
-							const positionChanged =
-								Math.abs(newPos.x - magnet.x) > 5 ||
-								Math.abs(newPos.y - magnet.y) > 5;
-
-							if (positionChanged) {
-								// Track the previous position for delta calculation
-								let prevX = magnet.x;
-								let prevY = magnet.y;
-
-								// Animate magnets to their new positions
-								gsap.to(magnet, {
-									x: newPos.x,
-									y: newPos.y,
-									duration: 0.3,
-									ease: 'power1.out',
-									onUpdate: function () {
-										// Calculate incremental delta movement since last update
-										const deltaX = magnet.x - prevX;
-										const deltaY = magnet.y - prevY;
-
-										// Move associated stamp particles with the magnet
-										moveStampParticlesWithMagnet(magnet.id, deltaX, deltaY);
-
-										// Update previous position for next frame
-										prevX = magnet.x;
-										prevY = magnet.y;
-									},
-								});
-							}
-						});
-					}
-				}, 1000); // Delay to let the transition start first
 			}
 		}
 	}
@@ -2829,6 +2809,7 @@
 		on:transitionstart={handleTransitionStart}
 		on:snapbackstart={handleSnapBackStart}
 		on:transitioncomplete={handleTransitionComplete}
+		on:facingAway={handleModelFacingAway}
 		on:wipe={({ detail: { progress } }) => {
 			// Clear particles based on wipe progress
 			const canvasWidth = canvas.width;

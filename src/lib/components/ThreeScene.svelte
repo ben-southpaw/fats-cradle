@@ -1243,6 +1243,11 @@
 		setupClippingPlanes();
 	}
 
+	// Function to emit event when model is facing away from user
+	function emitFacingAwayEvent() {
+		dispatch('facingAway');
+	}
+
 	export function startTransition() {
 		if (!modelLoaded || !model || isTransitioning) return;
 
@@ -1267,7 +1272,7 @@
 			}
 		);
 
-		// Animation sequence
+		// Animation sequence with two phases
 		const timeline = gsap.timeline({
 			delay: CONFIG.animation.delay,
 			onComplete: () => {
@@ -1277,33 +1282,53 @@
 			},
 		});
 
-		// Animate scale down and rotate
-		timeline
-			.to(model.position, {
+		// Store initial rotation for reference
+		const initialRotationY = model.rotation.y;
+
+		// Phase 1: Rotate away from user (180 degrees)
+		timeline.to(
+			model.rotation,
+			{
+				y: initialRotationY + Math.PI, // Rotate 180 degrees
+				duration: CONFIG.animation.duration / 2,
+				ease: 'power2.inOut',
+				onComplete: emitFacingAwayEvent // Emit event when facing away
+			}
+		);
+
+		// Phase 2: Complete the rotation (another 180 degrees to complete 360)
+		timeline.to(
+			model.rotation,
+			{
+				y: initialRotationY + Math.PI * 2, // Complete full 360 rotation
+				duration: CONFIG.animation.duration / 2,
+				ease: 'power2.inOut',
+			},
+			'>'
+		);
+
+		// Animate position and scale over the entire duration
+		timeline.to(
+			model.position,
+			{
 				z: CONFIG.model.final.position.z,
 				duration: CONFIG.animation.duration,
 				ease: 'power2.inOut',
-			})
-			.to(
-				model.rotation,
-				{
-					y: CONFIG.model.final.rotation.y,
-					duration: CONFIG.animation.duration,
-					ease: 'power2.inOut',
-				},
-				0
-			)
-			.to(
-				model.scale,
-				{
-					x: CONFIG.model.final.scale.x,
-					y: CONFIG.model.final.scale.y,
-					z: CONFIG.model.final.scale.z,
-					duration: CONFIG.animation.duration,
-					ease: 'power3.inOut',
-				},
-				0
-			);
+			},
+			0 // Start at the beginning of the timeline
+		);
+
+		timeline.to(
+			model.scale,
+			{
+				x: CONFIG.model.final.scale.x,
+				y: CONFIG.model.final.scale.y,
+				z: CONFIG.model.final.scale.z,
+				duration: CONFIG.animation.duration,
+				ease: 'power3.inOut',
+			},
+			0 // Start at the beginning of the timeline
+		);
 	}
 
 	// Separate wipe animation function
