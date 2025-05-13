@@ -122,6 +122,7 @@
 
 	let isTransitioning = false;
 	let isFirstTransitionComplete = false;
+	let hasFacedAway = false;
 	let totalScrollAmount = 0;
 	let currentSliderPosition = 0;
 	const SCROLL_SENSITIVITY = 0.0005; // Reduced sensitivity
@@ -1327,49 +1328,42 @@
 		// Store initial rotation for reference
 		const initialRotationY = model.rotation.y;
 
-		// Phase 1: Rotate away from user (180 degrees)
+		// Animate rotation, position and scale together
 		timeline.to(
 			model.rotation,
 			{
-				y: initialRotationY + Math.PI, // Rotate 180 degrees
-				duration: CONFIG.animation.duration / 2,
+				y: initialRotationY + Math.PI * 2, // Full 360 rotation
+				duration: CONFIG.animation.duration,
 				ease: 'power2.inOut',
-				onComplete: emitFacingAwayEvent // Emit event when facing away
-			}
-		);
-
-		// Phase 2: Complete the rotation (another 180 degrees to complete 360)
-		timeline.to(
-			model.rotation,
-			{
-				y: initialRotationY + Math.PI * 2, // Complete full 360 rotation
-				duration: CONFIG.animation.duration / 2,
-				ease: 'power2.inOut',
+				onUpdate: () => {
+					// Emit facing away event halfway through the rotation
+					if (model.rotation.y >= initialRotationY + Math.PI && !hasFacedAway) {
+						emitFacingAwayEvent();
+						hasFacedAway = true;
+					}
+				}
 			},
-			'>'
-		);
-
-		// Animate position and scale over the entire duration
-		timeline.to(
+			0
+		)
+		.to(
 			model.position,
 			{
 				z: CONFIG.model.final.position.z,
 				duration: CONFIG.animation.duration,
 				ease: 'power2.inOut',
 			},
-			0 // Start at the beginning of the timeline
-		);
-
-		timeline.to(
+			0
+		)
+		.to(
 			model.scale,
 			{
 				x: CONFIG.model.final.scale.x,
 				y: CONFIG.model.final.scale.y,
 				z: CONFIG.model.final.scale.z,
 				duration: CONFIG.animation.duration,
-				ease: 'power3.inOut',
+				ease: 'power2.inOut',
 			},
-			0 // Start at the beginning of the timeline
+			0
 		);
 	}
 
