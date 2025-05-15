@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
-	import scrollToExploreAnimation from '$lib/images/lottie/animations/0619d505-1c63-42a8-972d-70aeeb5d2763.json';
+	import scrollToExploreAnimation from '$lib/images/lottie/animations/animation.json';
 
 	let container;
 	let LottiePlayer;
@@ -42,7 +42,6 @@
 			autoplay={false}
 			controls={false}
 			renderer="svg"
-			background="transparent"
 			controlsLayout={[]}
 			class="lottie-player"
 			on:complete={handleComplete}
@@ -61,7 +60,7 @@
 	}
 
 	:global(.lottie-player) {
-		width: min(700px, 90vw) !important;
-		height: min(350px, 45vh) !important;
+		width: min(700px, 50vw) !important;
+		height: min(350px, 32vh) !important;
 	}
 </style>

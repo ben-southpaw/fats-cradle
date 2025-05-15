@@ -2210,7 +2210,7 @@
 				);
 			});
 			hoveredMagnet = findClickedMagnet({ x, y });
-			
+
 			// Update cursor style based on hover and drag state
 			if (isDraggingMagnet) {
 				document.body.style.cursor = 'grabbing';
@@ -2278,7 +2278,7 @@
 		if (isDraggingMagnet && selectedMagnet) {
 			const droppedMagnet = selectedMagnet;
 			isDraggingMagnet = false;
-			
+
 			// Reset cursor based on whether still hovering over a magnet
 			if (isHoveringMagnet) {
 				document.body.style.cursor = 'grab';
@@ -2696,7 +2696,7 @@
 		if (magnets && magnets.length > 0 && canvas) {
 			// Enable virtual boundary if not already enabled
 			useVirtualBoundary = true;
-			
+
 			// Get new positions using virtual boundary
 			const newPositions = magnets.map((magnet) => {
 				return checkCanvasBounds(magnet);
@@ -2713,7 +2713,7 @@
 				magnet.x = collisionFreePositions[index].x;
 				magnet.y = collisionFreePositions[index].y;
 			});
-			
+
 			// Force redraw to apply new positions
 			renderAll();
 		}
@@ -2724,7 +2724,7 @@
 
 		if (!hasTriggeredTransition) {
 			hasTriggeredTransition = true;
-			
+
 			// Reset cursor to default when triggering scroll animation
 			document.body.style.cursor = 'default';
 
@@ -2739,7 +2739,7 @@
 				// Enable virtual boundary for magnets but don't reposition yet
 				// The repositioning will happen when the model is facing away
 				useVirtualBoundary = true;
-				
+
 				// Start 3D transition first
 				threeSceneComponent.startTransition();
 				dispatch('transitionstart');
@@ -2906,7 +2906,8 @@
 	.scroll-to-explore {
 		pointer-events: none;
 		position: absolute;
-		top: -9vh;
+		top: 8vh;
+		height: 10vh;
 		left: 50%;
 		transform: translateX(-50%);
 		z-index: 10;
