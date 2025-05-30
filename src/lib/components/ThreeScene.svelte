@@ -1,8 +1,10 @@
 <script>
 	import { onMount, createEventDispatcher, onDestroy, tick } from 'svelte';
+	import { get } from 'svelte/store';
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 	import gsap from 'gsap';
+	import { breakpoint, BREAKPOINTS } from '$lib/stores/breakpoint';
 
 	export let canvas; // Accept canvas from parent
 
@@ -15,8 +17,7 @@
 	let sliderMesh;
 	let sliderInitialPosition;
 	let sliderMinX, sliderMaxX;
-	let isVisible = false;
-	let modelLoaded = false;
+
 	let animationFrameId;
 	let rotationAnimationId;
 	let canvasTexture;
@@ -122,6 +123,9 @@
 
 	let isTransitioning = false;
 	let isFirstTransitionComplete = false;
+	let isVisible = false;
+	let modelLoaded = false;
+	let isMobileOrTablet = false;
 	let hasFacedAway = false;
 	let totalScrollAmount = 0;
 	let currentSliderPosition = 0;
@@ -1371,6 +1375,15 @@
 	export function startWipeAnimation() {
 		if (!sliderMesh) return;
 
+		// Skip animations on mobile/tablet
+		if (isMobileOrTablet) {
+			sliderMesh.position.x = sliderMaxX; // Go to final position
+			sliderMesh.position.y = 0;
+			sliderMesh.position.z = 0;
+			dispatch('wipe', { progress: 1 });
+			return;
+		}
+
 		// First do a spin animation, then the wipe
 		const timeline = gsap.timeline();
 
@@ -1453,7 +1466,18 @@
 		}
 	}
 
+
+
 	onMount(async () => {
+		// Set up breakpoint subscription
+		const unsubscribe = breakpoint.subscribe((bp) => {
+			isMobileOrTablet = bp === BREAKPOINTS.MOBILE || bp === BREAKPOINTS.TABLET;
+		});
+
+		// Initial check using get() to safely access the store value
+		isMobileOrTablet = get(breakpoint) === BREAKPOINTS.MOBILE || 
+					   get(breakpoint) === BREAKPOINTS.TABLET;
+
 		// Check if we're in a browser environment
 		if (typeof window === 'undefined') return;
 

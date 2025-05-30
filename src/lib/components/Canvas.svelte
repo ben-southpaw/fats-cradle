@@ -1,7 +1,9 @@
 <script>
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+	import { get } from 'svelte/store';
 	import { fade, scale } from 'svelte/transition';
 	import { gsap } from 'gsap';
+	import { breakpoint, BREAKPOINTS } from '$lib/stores/breakpoint';
 	import letterF from '$lib/images/f.png?url';
 	import letterA from '$lib/images/a.png?url';
 	import letterT from '$lib/images/t.png?url';
@@ -358,12 +360,42 @@
 		renderAll();
 	}
 
+	let hasTriggeredTransition = false;
+
 	onMount(() => {
 		if (!canvas) return;
-		// Initialize pattern tables
+
+		// Initialize patterns
 		initializePatterns();
-		// Try WebGL first
+
+		// Setup canvas and WebGL
 		setupWebGL();
+
+		// Set up breakpoint subscription
+		const unsubscribe = breakpoint.subscribe((bp) => {
+			isMobileOrTablet = [BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes(bp);
+
+			// If mobile/tablet and not already triggered, trigger the wheel event
+			if (isMobileOrTablet && !hasTriggeredTransition) {
+				// Use setTimeout to ensure everything is initialized
+				setTimeout(() => {
+					handleWheel({ deltaY: 100, preventDefault: () => {} });
+					hasTriggeredTransition = true;
+				}, 1000);
+			}
+		});
+
+		// Initial check
+		isMobileOrTablet = [BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes(get(breakpoint));
+		if (isMobileOrTablet && !hasTriggeredTransition) {
+			setTimeout(() => {
+				handleWheel({ deltaY: 100, preventDefault: () => {} });
+				hasTriggeredTransition = true;
+			}, 1000);
+		}
+
+		// Clean up subscription on component destroy
+		onDestroy(unsubscribe);
 
 		// Fallback to 2D context if WebGL setup failed
 		if (!gl) {
@@ -2619,7 +2651,7 @@
 
 	let threeSceneComponent;
 	let scrollToExploreComponent;
-	let hasTriggeredTransition = false;
+	let isMobileOrTablet = false;
 	// Flag to indicate when we should use a more restrictive virtual boundary for magnets
 	let useVirtualBoundary = false;
 	let isScrollAnimating = false;
