@@ -342,9 +342,9 @@
 				const letter = magnet.id;
 				const img = magnetImages[letter];
 
-				// Update size
-				magnet.height = img.height * scale * 1.25;
-				magnet.width = img.width * scale * 1.25;
+				// Update size (update resize size here)
+				magnet.height = img.height * scale * 1.5;
+				magnet.width = img.width * scale * 1.5;
 
 				// Get letter-specific offset
 				const offset = getLetterOffset(letter, index);
@@ -1724,11 +1724,9 @@
 			case 'F':
 				return containerDims.width * 0.03; // Move F right by 3vw
 			case 'A':
-				if (index === 1) {
-					// Only the first A
-					return containerDims.width * 0.01; // Move A right by 1vw
-				}
-				return 0;
+				return containerDims.width * 0.01; // Move A right by 1vw
+			case 'A2':
+				return containerDims.width * 0.01; // Move A right by 1vw
 			default:
 				return 0;
 		}
@@ -1743,7 +1741,7 @@
 		// Calculate scale based on container width for responsive sizing
 		let scale = width / 1920;
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-		const totalWidth = width * 0.43; // Original 40% width
+		const totalWidth = width * 0.5; // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (width - totalWidth) / 2;
 
@@ -1754,8 +1752,8 @@
 
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
-			const height = img.height * scale * 1.25;
-			const width = img.width * scale * 1.25;
+			const height = img.height * scale * 1.5;
+			const width = img.width * scale * 1.5;
 			const offset = getLetterOffset(letter, index);
 
 			// Get container height for consistent vertical positioning
