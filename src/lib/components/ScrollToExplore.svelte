@@ -1,5 +1,8 @@
 <script>
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
+	import { get } from 'svelte/store';
+	import { fade } from 'svelte/transition';
+	import { appState, deviceInfo } from '$lib/stores/appState';
 	import scrollToExploreAnimation from '$lib/images/lottie/animations/animation.json';
 
 	let container;
@@ -7,6 +10,7 @@
 	let lottieInstance;
 	let mounted = false;
 	let isPlaying = false;
+	let isVisible = true;
 
 	function handleComplete() {
 		isPlaying = false;
@@ -15,9 +19,21 @@
 
 	function handleWheel() {
 		if (!lottieInstance || isPlaying) return;
+		
+		// Play the animation
 		isPlaying = true;
 		lottieInstance.play();
+		
+		// Also notify appState that a transition has been triggered
+		try {
+			appState.startTransition();
+		} catch (error) {
+			console.warn('Error updating appState from ScrollToExplore', error);
+		}
 	}
+
+	// Subscribe to appState changes to hide scroll indicator once transition starts
+	let unsubscribeAppState;
 
 	onMount(async () => {
 		const module = await import('@lottiefiles/svelte-lottie-player');
@@ -26,14 +42,36 @@
 
 		// Add wheel event listener to window
 		window.addEventListener('wheel', handleWheel, { passive: true });
-
-		return () => {
-			window.removeEventListener('wheel', handleWheel);
-		};
+		
+		// Subscribe to appState to hide when transitioning
+		unsubscribeAppState = appState.subscribe(($appState) => {
+			// Hide the scroll indicator once we're transitioning or interactive
+			if ($appState.currentState !== 'initial') {
+				isVisible = false;
+			}
+		});
+		
+		// Check if we should auto-trigger on mobile/tablet
+		const isMobileOrTablet = get(deviceInfo)?.isMobileOrTablet;
+		if (isMobileOrTablet) {
+			// On mobile, we don't need the scroll indicator since we auto-transition
+			isVisible = false;
+		}
+	});
+	
+	// Clean up subscriptions
+	onDestroy(() => {
+		window.removeEventListener('wheel', handleWheel);
+		if (unsubscribeAppState) unsubscribeAppState();
 	});
 </script>
 
-<div class="container" bind:this={container}>
+{#if isVisible}
+<div 
+	class="container" 
+	bind:this={container}
+	transition:fade={{ duration: 300 }}
+>
 	{#if mounted && LottiePlayer}
 		<svelte:component
 			this={LottiePlayer}
@@ -48,6 +86,7 @@
 		/>
 	{/if}
 </div>
+{/if}
 
 <style>
 	.container {

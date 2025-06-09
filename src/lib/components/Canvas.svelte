@@ -4,6 +4,8 @@
 	import { fade, scale } from 'svelte/transition';
 	import { gsap } from 'gsap';
 	import { breakpoint, BREAKPOINTS } from '$lib/stores/breakpoint';
+import { appState, deviceInfo } from '$lib/stores/appState';
+import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
 	import letterF from '$lib/images/f.png?url';
 	import letterA from '$lib/images/a.png?url';
 	import letterT from '$lib/images/t.png?url';
@@ -15,14 +17,14 @@
 	import cursorClick from '$lib/images/Closed.png?url';
 	import multiText from '$lib/images/multi-text.png';
 	import ThreeScene from './ThreeScene.svelte';
-	import ScrollToExplore from './ScrollToExplore.svelte';
+	// Import removed as ScrollToExplore is now managed in +page.svelte
 
 	const dispatch = createEventDispatcher();
 
 	let resizeInterval = undefined;
 
 	export let onScreenCanvasReady = () => {};
-	export let showScrollToExplore = true;
+	// export let showScrollToExplore = true; // Removed as ScrollToExplore is now in +page.svelte
 	export let parentDimensions = null;
 
 	// Function to get container dimensions
@@ -306,9 +308,26 @@
 		particles = particles.filter((p) => p.x > 99999);
 		stampParticles = stampParticles.filter((p) => p.x > 99999);
 
-		const multiTextOffsetX =
-			canvasWidth < 1450 ? canvasWidth * 0.33 : canvasWidth * 0.4;
-		const multiTextOffsetY = canvasHeight * 0.3;
+		// Calculate multiText offsets with defensive fallback
+		let multiTextOffsetX, multiTextOffsetY;
+		
+		try {
+			// Try to use MULTI_TEXT_CONFIG for consistent offsets
+			multiTextOffsetX =
+				canvasWidth < 1450 ? 
+					canvasWidth * MULTI_TEXT_CONFIG.X_OFFSET.NARROW : 
+					canvasWidth * MULTI_TEXT_CONFIG.X_OFFSET.WIDE;
+			
+			// Get the Y offset based on current device type
+			multiTextOffsetY = canvasHeight * MULTI_TEXT_CONFIG.getYOffset();
+		} catch (error) {
+			console.warn('Error using MULTI_TEXT_CONFIG, falling back to original calculations', error);
+			// Fallback to original calculations
+			multiTextOffsetX = canvasWidth < 1450 ? canvasWidth * 0.33 : canvasWidth * 0.4;
+			const currentBreakpoint = get(breakpoint);
+			multiTextOffsetY = canvasHeight * 
+				([BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes(currentBreakpoint) ? 0.45 : 0.3);
+		}
 
 		const offsetX = multiTextOffsetX - saveMultiTextOffsetX;
 		const offsetY = multiTextOffsetY - saveMultiTextOffsetY;
@@ -331,14 +350,20 @@
 
 		// Reposition magnets based on new dimensions
 		if (magnets && magnets.length > 0) {
-			// Get the current breakpoint and calculate mobile scale factor
-			const currentBreakpoint = get(breakpoint);
-			let mobileScale = 1;
+			// Get scale with defensive fallback
+			let mobileScale = 1; // Default fallback
 			
-			if (currentBreakpoint === 'mobile') {
-				mobileScale = 1.5; // Larger scale for mobile
-			} else if (currentBreakpoint === 'tablet') {
-				mobileScale = 1.2; // Slightly larger for tablet
+			// Try to get scale from MAGNET_SCALE but have a fallback to prevent errors
+			try {
+				mobileScale = MAGNET_SCALE.get();
+			} catch (error) {
+				console.warn('Error getting MAGNET_SCALE, using fallback values', error);
+				// Fallback to original logic
+				if (currentBreakpoint === 'mobile') {
+					mobileScale = 1.5; // Larger scale for mobile
+				} else if (currentBreakpoint === 'tablet') {
+					mobileScale = 1.2; // Slightly larger for tablet
+				} // Desktop remains 1.0
 			} // Desktop remains 1.0
 
 			// Calculate base scale based on container width for responsive sizing
@@ -357,7 +382,7 @@
 				// Update size (update resize size here)
 				magnet.height = img.height * scale * 1.5;
 				magnet.width = img.width * scale * 1.5;
-                magnet.mobileScale = mobileScale; // Update the stored scale factor
+				magnet.mobileScale = mobileScale; // Update the stored scale factor
 
 				// Update position with new spacing and offset, applying mobile scale
 				const offset = getLetterOffset(letter, index);
@@ -380,31 +405,51 @@
 		// Setup canvas and WebGL
 		setupWebGL();
 
-		// Set up breakpoint subscription
-		const unsubscribe = breakpoint.subscribe((bp) => {
-			isMobileOrTablet = [BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes(bp);
-
-			// If mobile/tablet and not already triggered, trigger the wheel event
-			if (isMobileOrTablet && !hasTriggeredTransition) {
-				// Use setTimeout to ensure everything is initialized
+		// Set up deviceInfo subscription for responsive behavior
+		const unsubscribeDeviceInfo = deviceInfo.subscribe(($deviceInfo) => {
+			isMobileOrTablet = $deviceInfo.isMobileOrTablet;
+			
+			// Resize canvas on breakpoint changes
+			resize(); // Use the correct function name
+		});
+		
+		// Subscribe to appState for transitions
+		const unsubscribeAppState = appState.subscribe(($appState) => {
+			// When auto-transition is triggered in the store
+			if ($appState.autoTransitionTriggered && !hasTriggeredTransition) {
 				setTimeout(() => {
 					handleWheel({ deltaY: 100, preventDefault: () => {} });
 					hasTriggeredTransition = true;
-				}, 1000);
+				}, 100); // Reduced timeout since we're already waiting in the store
 			}
 		});
-
-		// Initial check
-		isMobileOrTablet = [BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes(get(breakpoint));
+		
+		// Initial device check
+		isMobileOrTablet = get(deviceInfo).isMobileOrTablet;
+		
+		// For mobile/tablet, directly trigger auto-transition
+		// Use direct approach for now to ensure functionality works
 		if (isMobileOrTablet && !hasTriggeredTransition) {
 			setTimeout(() => {
+				// Direct method to ensure transition works while we refactor
 				handleWheel({ deltaY: 100, preventDefault: () => {} });
 				hasTriggeredTransition = true;
-			}, 1000);
+				
+				// Also update appState for future integration
+				try {
+					// Only update appState if it's working
+					appState.set({ autoTransitionTriggered: true });
+				} catch (error) {
+					console.warn('Error updating appState, continuing with direct transition', error);
+				}
+			}, 1000); // Wait a second before triggering
 		}
 
-		// Clean up subscription on component destroy
-		onDestroy(unsubscribe);
+		// Clean up subscriptions on component destroy
+		onDestroy(() => {
+			if (unsubscribeDeviceInfo) unsubscribeDeviceInfo();
+			if (unsubscribeAppState) unsubscribeAppState();
+		});
 
 		// Fallback to 2D context if WebGL setup failed
 		if (!gl) {
@@ -1781,16 +1826,23 @@
 
 		// Calculate base scale based on container width for responsive sizing
 		let scale = width / 1920;
-		
-		// Get the current breakpoint and calculate mobile scale factor
+
+		// Get the current breakpoint and calculate mobile scale factor defensively
 		const currentBreakpoint = get(breakpoint);
-		let mobileScale = 1;
+		let mobileScale = 1; // Default fallback
 		
-		if (currentBreakpoint === 'mobile') {
-			mobileScale = 1.5; // Larger scale for mobile
-		} else if (currentBreakpoint === 'tablet') {
-			mobileScale = 1.2; // Slightly larger for tablet
-		} // Desktop remains 1.0
+		// Try to get scale from MAGNET_SCALE but have a fallback to prevent errors
+		try {
+			mobileScale = MAGNET_SCALE.get();
+		} catch (error) {
+			console.warn('Error getting MAGNET_SCALE, using fallback values', error);
+			// Fallback to original logic
+			if (currentBreakpoint === 'mobile') {
+				mobileScale = 1.5; // Larger scale for mobile
+			} else if (currentBreakpoint === 'tablet') {
+				mobileScale = 1.2; // Slightly larger for tablet
+			} // Desktop remains 1.0
+		}
 
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
 		const totalWidth = width * 0.5; // Original 40% width
@@ -1821,7 +1873,7 @@
 				scale: 1,
 				grabOffsetX: 0,
 				grabOffsetY: 0,
-				mobileScale // Store the scale factor for reference
+				mobileScale, // Store the scale factor for reference
 			};
 		});
 
@@ -2874,11 +2926,13 @@
 			renderAll();
 		}}
 	/>
+	<!-- ScrollToExplore moved to +page.svelte for centralized management
 	{#if (showScrollToExplore || isScrollAnimating) && !hasTriggeredTransition}
 		<div class="scroll-to-explore" out:fade={{ delay: 500, duration: 500 }}>
 			<ScrollToExplore />
 		</div>
 	{/if}
+	-->
 </div>
 
 <!-- <div
@@ -2952,6 +3006,7 @@
 		object-fit: contain;
 	} */
 
+	/* CSS for scroll-to-explore moved to +page.svelte with the component
 	.scroll-to-explore {
 		pointer-events: none;
 		position: absolute;
@@ -2962,4 +3017,5 @@
 		z-index: 10;
 		opacity: 1;
 	}
+	*/
 </style>

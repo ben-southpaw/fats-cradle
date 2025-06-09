@@ -74,6 +74,43 @@
 
 - WebGL context loss needs to be handled gracefully
 
+## App Flow Management
+
+### Device-Specific Behavior
+
+- Desktop and mobile/tablet follow different interaction patterns
+  - Desktop: User-driven scroll transitions
+  - Mobile/Tablet: Auto-triggered transitions with simplified interactions
+
+- Keep device detection logic centralized
+  - Use the breakpoint store consistently
+  - Avoid scattered device checks throughout components
+  - Update all dependent values when breakpoint changes
+
+### State Management Principles
+
+- Separate flow logic from visual components
+  - Use dedicated stores for application state
+  - Components should react to state, not manage transitions directly
+  - Extract configuration into separate files
+
+- Maintain clear dependencies
+  - Document which components depend on which stores
+  - Be explicit about state changes and their effects
+  - Consider component lifecycle when managing subscriptions
+
+### Refactoring Guidelines
+
+- Test incrementally after each change
+  - Verify mobile/tablet behavior
+  - Verify desktop behavior 
+  - Test breakpoint changes during runtime
+
+- Avoid breaking changes to existing behavior
+  - Preserve timing of transitions
+  - Maintain consistent visual scaling across devices
+  - Keep existing event handling intact
+
 ## ThreeScene Component
 
 ### Transition Phases

@@ -5,6 +5,8 @@
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 	import gsap from 'gsap';
 	import { breakpoint, BREAKPOINTS } from '$lib/stores/breakpoint';
+	import { appState, deviceInfo } from '$lib/stores/appState';
+	import { MODEL_SCALE } from '$lib/config/scaleConfig';
 
 	export let canvas; // Accept canvas from parent
 
@@ -62,12 +64,8 @@
 		updateCanvasTexture();
 	}
 
-	const getScaleFactor = () => {
-		const currentBreakpoint = get(breakpoint);
-		if (currentBreakpoint === BREAKPOINTS.MOBILE) return 0.4;
-		if (currentBreakpoint === BREAKPOINTS.TABLET) return 0.6;
-		return 1.5; // Desktop
-	};
+	// Use MODEL_SCALE from our configuration
+	const getScaleFactor = () => MODEL_SCALE.get();
 
 	const CONFIG = {
 		model: {
@@ -1482,15 +1480,18 @@
 	}
 
 	onMount(async () => {
-		// Set up breakpoint subscription
-		const unsubscribe = breakpoint.subscribe((bp) => {
-			isMobileOrTablet = bp === BREAKPOINTS.MOBILE || bp === BREAKPOINTS.TABLET;
+		// Set up deviceInfo subscription for responsive behavior
+		const unsubscribeDeviceInfo = deviceInfo.subscribe(($deviceInfo) => {
+			isMobileOrTablet = $deviceInfo.isMobileOrTablet;
+			
+			// Update model scale if model exists
+			if (model && model.scale) {
+				updateModelScale();
+			}
 		});
-
-		// Initial check using get() to safely access the store value
-		isMobileOrTablet =
-			get(breakpoint) === BREAKPOINTS.MOBILE ||
-			get(breakpoint) === BREAKPOINTS.TABLET;
+		
+		// Initial check
+		isMobileOrTablet = get(deviceInfo).isMobileOrTablet;
 
 		// Check if we're in a browser environment
 		if (typeof window === 'undefined') return;
@@ -1569,27 +1570,22 @@
 		// Cancel any ongoing animations
 		if (scrollAnimation) scrollAnimation.kill();
 		if (scrollTimeout) clearTimeout(scrollTimeout);
-
-		// Clean up Three.js resources
-		if (renderer) {
-			renderer.dispose();
-			renderer.forceContextLoss();
-			if (renderer.domElement) renderer.domElement.remove();
+		if (rotationAnimationId) {
+			cancelAnimationFrame(rotationAnimationId);
 		}
-
-		// Cancel animation frames and timeouts
-		if (typeof window !== 'undefined') {
-			if (animationFrameId) {
-				cancelAnimationFrame(animationFrameId);
-			}
-			if (rotationAnimationId) {
-				cancelAnimationFrame(rotationAnimationId);
-			}
-			if (rotationStopTimeout) {
-				clearTimeout(rotationStopTimeout);
-			}
-		}
+		
+		// Unsubscribe from stores
+		if (unsubscribeDeviceInfo) unsubscribeDeviceInfo();
 	});
+
+	// Helper function to update the model scale based on current breakpoint
+	function updateModelScale() {
+		if (model) {
+			const scale = MODEL_SCALE.get();
+			model.scale.set(scale, scale, scale);
+		}
+	}
+
 </script>
 
 <div class="three-container" class:visible={isVisible} on:wheel={handleWheel}>
