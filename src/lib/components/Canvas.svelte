@@ -331,27 +331,36 @@
 
 		// Reposition magnets based on new dimensions
 		if (magnets && magnets.length > 0) {
-			// Use canvas width instead of window width for consistent scaling
+			// Get the current breakpoint and calculate mobile scale factor
+			const currentBreakpoint = get(breakpoint);
+			let mobileScale = 1;
+			
+			if (currentBreakpoint === 'mobile') {
+				mobileScale = 1.5; // Larger scale for mobile
+			} else if (currentBreakpoint === 'tablet') {
+				mobileScale = 1.2; // Slightly larger for tablet
+			} // Desktop remains 1.0
+
+			// Calculate base scale based on container width for responsive sizing
 			let scale = canvasWidth / 1920;
 			const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-			const totalWidth = canvasWidth * 0.43; // 40% width
+			const totalWidth = canvasWidth * 0.43 * mobileScale; // Apply mobile scale to total width
 			const spacing = totalWidth / (letters.length - 1);
 			const startX = (canvasWidth - totalWidth) / 2;
-			const groupOffset = canvasWidth * -0.02;
+			const groupOffset = canvasWidth * -0.02 * mobileScale; // Apply mobile scale to group offset
 
 			// Update each magnet's position and scale
 			magnets.forEach((magnet, index) => {
 				const letter = magnet.id;
 				const img = magnetImages[letter];
 
-				// Update size
-				magnet.height = img.height * scale * 1.25;
-				magnet.width = img.width * scale * 1.25;
+				// Update size with mobile scale
+				magnet.height = img.height * scale * 1.25 * mobileScale;
+				magnet.width = img.width * scale * 1.25 * mobileScale;
+				magnet.mobileScale = mobileScale; // Update the stored scale factor
 
-				// Get letter-specific offset
+				// Update position with new spacing and offset, applying mobile scale
 				const offset = getLetterOffset(letter, index);
-
-				// Update position
 				magnet.x = startX + spacing * index + offset + groupOffset;
 				magnet.y = canvasHeight * getLetterHeight(letter);
 			});
@@ -1772,22 +1781,31 @@
 		// Use parent dimensions for responsive layout
 		const { width } = getContainerDimensions();
 
-		// Calculate scale based on container width for responsive sizing
+		// Calculate base scale based on container width for responsive sizing
 		let scale = width / 1920;
+		
+		// Get the current breakpoint and calculate mobile scale factor
+		const currentBreakpoint = get(breakpoint);
+		let mobileScale = 1;
+		
+		if (currentBreakpoint === 'mobile') {
+			mobileScale = 1.5; // Larger scale for mobile
+		} else if (currentBreakpoint === 'tablet') {
+			mobileScale = 1.2; // Slightly larger for tablet
+		} // Desktop remains 1.0
+
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-		const totalWidth = width * 0.43; // Original 40% width
+		const totalWidth = width * 0.43 * mobileScale; // Apply mobile scale to total width
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (width - totalWidth) / 2;
 
-		// Original group offset
-		const groupOffset = width * -0.015;
-
-		// Original height
+		// Original group offset with mobile scale
+		const groupOffset = width * -0.015 * mobileScale;
 
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
-			const height = img.height * scale * 1.25;
-			const width = img.width * scale * 1.25;
+			const height = img.height * scale * 1.25 * mobileScale;
+			const width = img.width * scale * 1.25 * mobileScale;
 			const offset = getLetterOffset(letter, index);
 
 			// Get container height for consistent vertical positioning
@@ -1795,7 +1813,7 @@
 
 			return {
 				id: letter,
-				x: startX + spacing * index + offset + groupOffset, // Keep width/2 adjustment out since WebGL handles centering
+				x: startX + spacing * index + offset + groupOffset,
 				y: containerHeight * getLetterHeight(letter),
 				img: img,
 				width,
@@ -1805,6 +1823,7 @@
 				scale: 1,
 				grabOffsetX: 0,
 				grabOffsetY: 0,
+				mobileScale // Store the scale factor for reference
 			};
 		});
 

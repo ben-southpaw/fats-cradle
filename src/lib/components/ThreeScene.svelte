@@ -62,32 +62,41 @@
 		updateCanvasTexture();
 	}
 
+	const getScaleFactor = () => {
+		const currentBreakpoint = get(breakpoint);
+		if (currentBreakpoint === BREAKPOINTS.MOBILE) return 0.4;
+		if (currentBreakpoint === BREAKPOINTS.TABLET) return 0.6;
+		return 1.5; // Desktop
+	};
+
 	const CONFIG = {
 		model: {
 			path: '/models/MagnaSketch_3dModel.glb',
 			initial: {
-				position: { x: 0, y: 0, z: 0 }, // Centered at origin
+				position: { x: 0, y: 0, z: 0 },
 				rotation: { x: 0, y: 0, z: 0 },
-				scale: { x: 1, y: 1, z: 1 }, // Will be calculated dynamically
+				scale: { x: 1, y: 1, z: 1 },
 			},
 			final: {
 				position: { x: 0, y: 0, z: -2 },
 				rotation: { x: 0, y: Math.PI * 2, z: 0 },
-				scale: { x: 1.5, y: 1.5, z: 1.5 },
+				get scale() {
+					const scale = getScaleFactor();
+					return { x: scale, y: scale, z: scale };
+				}
 			},
 		},
 		camera: {
-			fov: 35, // Narrower FOV for less perspective distortion
+			fov: 35,
 			near: 0.1,
 			far: 800,
-			position: { x: 0, y: 0, z: 10 }, // Further back to accommodate full screen
+			position: { x: 0, y: 0, z: 10 },
 		},
 		lighting: {
 			ambient: {
 				color: 0xffffff,
-				intensity: 0.3, // Reduced for stronger shadows
+				intensity: 0.3,
 			},
-
 			directional: {
 				color: 0xffffff,
 				intensity: 1.4,
@@ -200,18 +209,18 @@
 	let lastFrameTime = 0;
 	const DAMPING = 0.97; // Increased damping factor for smoother deceleration
 	const SMOOTHING = 0.15; // Smoothing factor for velocity changes (lower = smoother)
-	
+
 	// Rotation constraints to prevent model from breaching top and bottom of container
 	const MAX_X_ROTATION = Math.PI / 6; // Maximum vertical rotation (30 degrees)
-	
+
 	// Function to enforce rotation constraints
 	function enforceRotationConstraints() {
 		if (!model) return;
-		
+
 		// Completely disable X-axis rotation (vertical rotation)
 		modelRotation.x = 0;
 		model.rotation.x = 0;
-		
+
 		// Horizontal rotation (Y-axis) has no constraints
 		model.rotation.y = modelRotation.y;
 	}
@@ -403,7 +412,7 @@
 			// Update model rotation based on smoothed velocity
 			modelRotation.y += rotationVelocity.y;
 			modelRotation.x += rotationVelocity.x;
-			
+
 			// Apply rotation constraints
 			enforceRotationConstraints();
 
@@ -432,7 +441,7 @@
 		if (!controls) {
 			initOrbitControls();
 		}
-		
+
 		// Reset cursor to default when animation completes
 		if (container) container.style.cursor = 'default';
 
@@ -466,14 +475,14 @@
 
 		if (intersects.length > 0) {
 			isDragging = true;
-			
+
 			// Change cursor to grabbing when actively dragging
 			if (container) container.style.cursor = 'grabbing';
 
 			// Store initial mouse position and slider position for precise tracking
 			initialMouseX = event.clientX;
 			initialSliderX = sliderMesh.position.x;
-			
+
 			// Initialize the screen space cache immediately for responsive initial drag
 			updateScreenSpaceCache();
 		}
@@ -482,7 +491,7 @@
 	// Variables for precise slider tracking
 	let initialMouseX = 0; // Initial mouse X position when drag starts
 	let initialSliderX = 0; // Initial slider X position when drag starts
-	
+
 	// Cache for screen space calculations
 	let cachedMinScreenX = 0;
 	let cachedMaxScreenX = 0;
@@ -493,9 +502,9 @@
 	// Pre-calculate screen space values for slider bounds
 	function updateScreenSpaceCache() {
 		if (!container || !sliderMesh || !camera) return;
-		
+
 		const rect = container.getBoundingClientRect();
-		
+
 		// Project slider bounds to screen space
 		const minPoint = new THREE.Vector3(
 			sliderMinX,
@@ -539,7 +548,7 @@
 				if (container) container.style.cursor = 'default';
 			}
 		}
-		
+
 		if (!isDragging || !isFirstTransitionComplete || !sliderMesh) return;
 
 		// Set the flag indicating this is a manual update
@@ -547,22 +556,24 @@
 
 		// Calculate the mouse movement delta from the initial position
 		const mouseDelta = event.clientX - initialMouseX;
-		
+
 		// Calculate the world space scale factor (how much world units per pixel)
-		const worldToScreenRatio = (sliderMaxX - sliderMinX) / cachedTrackScreenWidth;
-		
+		const worldToScreenRatio =
+			(sliderMaxX - sliderMinX) / cachedTrackScreenWidth;
+
 		// Apply the mouse movement to the initial slider position, scaled to world units
-		let newSliderX = initialSliderX + (mouseDelta * worldToScreenRatio);
-		
+		let newSliderX = initialSliderX + mouseDelta * worldToScreenRatio;
+
 		// Clamp to slider bounds
 		newSliderX = Math.max(sliderMinX, Math.min(sliderMaxX, newSliderX));
-		
+
 		// Update slider position immediately for direct tracking
 		updateSliderPosition(newSliderX, true);
-		
+
 		// Calculate normalized position for animation trigger check
-		const normalizedPosition = (newSliderX - sliderMinX) / (sliderMaxX - sliderMinX);
-		
+		const normalizedPosition =
+			(newSliderX - sliderMinX) / (sliderMaxX - sliderMinX);
+
 		// Check if we've reached the end during drag
 		if (normalizedPosition >= 0.99 && !hasReachedEndDuringDrag) {
 			hasReachedEndDuringDrag = true;
@@ -583,7 +594,7 @@
 			mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 			raycaster.setFromCamera(mouse, camera);
 			const intersects = raycaster.intersectObject(sliderMesh, true);
-			
+
 			// Update cursor based on hover state
 			if (intersects.length > 0) {
 				if (container) container.style.cursor = 'grab';
@@ -591,7 +602,7 @@
 				if (container) container.style.cursor = 'default';
 			}
 		}
-		
+
 		isDragging = false;
 		dragOffset = 0;
 		// Reset the manual update flag when the drag ends
@@ -1169,11 +1180,11 @@
 				CONFIG.model.initial.rotation.y,
 				CONFIG.model.initial.rotation.z
 			);
-			
+
 			// Initialize modelRotation to match the model's rotation
 			modelRotation.x = model.rotation.x;
 			modelRotation.y = model.rotation.y;
-			
+
 			// Apply rotation constraints immediately
 			enforceRotationConstraints();
 
@@ -1333,42 +1344,46 @@
 		const initialRotationY = model.rotation.y;
 
 		// Animate rotation, position and scale together
-		timeline.to(
-			model.rotation,
-			{
-				y: initialRotationY + Math.PI * 2, // Full 360 rotation
-				duration: CONFIG.animation.duration,
-				ease: 'power2.inOut',
-				onUpdate: () => {
-					// Emit facing away event halfway through the rotation
-					if (model.rotation.y >= initialRotationY + Math.PI && !hasFacedAway) {
-						emitFacingAwayEvent();
-						hasFacedAway = true;
-					}
-				}
-			},
-			0
-		)
-		.to(
-			model.position,
-			{
-				z: CONFIG.model.final.position.z,
-				duration: CONFIG.animation.duration,
-				ease: 'power2.inOut',
-			},
-			0
-		)
-		.to(
-			model.scale,
-			{
-				x: CONFIG.model.final.scale.x,
-				y: CONFIG.model.final.scale.y,
-				z: CONFIG.model.final.scale.z,
-				duration: CONFIG.animation.duration,
-				ease: 'power2.inOut',
-			},
-			0
-		);
+		timeline
+			.to(
+				model.rotation,
+				{
+					y: initialRotationY + Math.PI * 2, // Full 360 rotation
+					duration: CONFIG.animation.duration,
+					ease: 'power2.inOut',
+					onUpdate: () => {
+						// Emit facing away event halfway through the rotation
+						if (
+							model.rotation.y >= initialRotationY + Math.PI &&
+							!hasFacedAway
+						) {
+							emitFacingAwayEvent();
+							hasFacedAway = true;
+						}
+					},
+				},
+				0
+			)
+			.to(
+				model.position,
+				{
+					z: CONFIG.model.final.position.z,
+					duration: CONFIG.animation.duration,
+					ease: 'power2.inOut',
+				},
+				0
+			)
+			.to(
+				model.scale,
+				{
+					x: CONFIG.model.final.scale.x,
+					y: CONFIG.model.final.scale.y,
+					z: CONFIG.model.final.scale.z,
+					duration: CONFIG.animation.duration,
+					ease: 'power2.inOut',
+				},
+				0
+			);
 	}
 
 	// Separate wipe animation function
@@ -1466,8 +1481,6 @@
 		}
 	}
 
-
-
 	onMount(async () => {
 		// Set up breakpoint subscription
 		const unsubscribe = breakpoint.subscribe((bp) => {
@@ -1475,8 +1488,9 @@
 		});
 
 		// Initial check using get() to safely access the store value
-		isMobileOrTablet = get(breakpoint) === BREAKPOINTS.MOBILE || 
-					   get(breakpoint) === BREAKPOINTS.TABLET;
+		isMobileOrTablet =
+			get(breakpoint) === BREAKPOINTS.MOBILE ||
+			get(breakpoint) === BREAKPOINTS.TABLET;
 
 		// Check if we're in a browser environment
 		if (typeof window === 'undefined') return;
