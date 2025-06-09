@@ -17,6 +17,9 @@ export * from './animationConfig';
 // Export WebGL shader configurations
 export * from './shaderConfig';
 
+// Export application state configurations
+export * from './appStateConfig';
+
 /**
  * Usage examples:
  * 

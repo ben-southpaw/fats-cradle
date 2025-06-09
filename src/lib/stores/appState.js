@@ -1,24 +1,13 @@
-import { writable, derived, get } from 'svelte/store';
-import { breakpoint, BREAKPOINTS } from './breakpoint';
+import { writable } from 'svelte/store';
+import { APP_STATES, TRANSITION_PHASES, INITIAL_STATE } from '$lib/config/appStateConfig';
 
-// Application states
-export const APP_STATES = {
-  INITIAL: 'initial',         // Initial load state
-  TRANSITIONING: 'transitioning', // During transition animations
-  INTERACTIVE: 'interactive'   // Final interactive state
-};
+// Re-export APP_STATES for backwards compatibility
+export { APP_STATES };
 
 // Create the base app state store
 const createAppState = () => {
-  // Initialize with default values
-  const { subscribe, set, update } = writable({
-    currentState: APP_STATES.INITIAL,
-    transitionPhase: 0,       // 0-3: Not started, Scale, Rotate, Wipe
-    transitionProgress: 0,    // 0-1: Progress within current phase
-    isFirstTransitionComplete: false,
-    autoTransitionTriggered: false,
-    hasTriggeredTransition: false
-  });
+  // Initialize with default values from config
+  const { subscribe, set, update } = writable({ ...INITIAL_STATE });
 
   return {
     subscribe,
@@ -30,7 +19,7 @@ const createAppState = () => {
         return {
           ...state,
           currentState: APP_STATES.TRANSITIONING,
-          transitionPhase: 1, // Start at phase 1 (Scale)
+          transitionPhase: TRANSITION_PHASES.SCALE,
           hasTriggeredTransition: true
         };
       }
@@ -42,8 +31,8 @@ const createAppState = () => {
       ...state,
       transitionPhase: phase,
       transitionProgress: progress,
-      // If we reach phase 3 with progress 1, we're in interactive state
-      currentState: (phase === 3 && progress >= 1) ? 
+      // If we reach WIPE phase with progress 1, we're in interactive state
+      currentState: (phase === TRANSITION_PHASES.WIPE && progress >= 1) ? 
         APP_STATES.INTERACTIVE : APP_STATES.TRANSITIONING
     })),
     
@@ -54,14 +43,7 @@ const createAppState = () => {
     })),
     
     // Reset to initial state (useful for testing)
-    reset: () => set({
-      currentState: APP_STATES.INITIAL,
-      transitionPhase: 0,
-      transitionProgress: 0,
-      isFirstTransitionComplete: false,
-      autoTransitionTriggered: false,
-      hasTriggeredTransition: false
-    }),
+    reset: () => set({ ...INITIAL_STATE }),
     
     // Auto-transition for mobile/tablet
     triggerAutoTransitionIfNeeded: () => update(state => {
@@ -77,7 +59,7 @@ const createAppState = () => {
           autoTransitionTriggered: true,
           hasTriggeredTransition: true,
           currentState: APP_STATES.TRANSITIONING,
-          transitionPhase: 1 // Start at phase 1 (Scale)
+          transitionPhase: TRANSITION_PHASES.SCALE
         };
       }
       
@@ -88,24 +70,3 @@ const createAppState = () => {
 
 // Create and export the app state store
 export const appState = createAppState();
-
-// Derived store for device type information
-export const deviceInfo = derived(
-  breakpoint,
-  $breakpoint => ({
-    isMobileOrTablet: [BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes($breakpoint),
-    isMobile: $breakpoint === BREAKPOINTS.MOBILE,
-    isTablet: $breakpoint === BREAKPOINTS.TABLET,
-    isDesktop: $breakpoint === BREAKPOINTS.DESKTOP,
-    breakpoint: $breakpoint
-  })
-);
-
-// Helper function to get scale factors based on device
-export function getDeviceScaleFactor(mobileFactor, tabletFactor, desktopFactor) {
-  const currentBreakpoint = get(breakpoint);
-  
-  if (currentBreakpoint === BREAKPOINTS.MOBILE) return mobileFactor;
-  if (currentBreakpoint === BREAKPOINTS.TABLET) return tabletFactor;
-  return desktopFactor; // Desktop default
-}

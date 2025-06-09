@@ -2,7 +2,8 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
 	import { fade } from 'svelte/transition';
-	import { appState, deviceInfo } from '$lib/stores/appState';
+	import { appState } from '$lib/stores/appState';
+	import { deviceInfo } from '$lib/stores/deviceStore';
 	import scrollToExploreAnimation from '$lib/images/lottie/animations/animation.json';
 
 	let container;

@@ -3,7 +3,7 @@
  * Centralized configuration for 3D model properties, positioning and behavior
  */
 import { get } from 'svelte/store';
-import { deviceInfo } from '../stores/appState';
+import { deviceInfo } from '../stores/deviceStore';
 import { MODEL_SCALE } from './scaleConfig';
 
 /**

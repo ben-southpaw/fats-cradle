@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { breakpoint, BREAKPOINTS } from '../stores/breakpoint';
-import { getDeviceScaleFactor } from '../stores/appState';
+import { getDeviceScaleFactor } from '../stores/deviceStore';
 
 /**
  * Scale configuration for the 3D model

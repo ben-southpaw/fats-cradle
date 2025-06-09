@@ -4,7 +4,8 @@
 	import { fade, scale } from 'svelte/transition';
 	import { gsap } from 'gsap';
 	import { breakpoint, BREAKPOINTS } from '$lib/stores/breakpoint';
-	import { appState, deviceInfo } from '$lib/stores/appState';
+	import { appState } from '$lib/stores/appState';
+	import { deviceInfo } from '$lib/stores/deviceStore';
 	import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
 	import { 
 		VERTEX_SHADER, 
