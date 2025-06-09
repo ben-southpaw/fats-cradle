@@ -20,6 +20,9 @@
 			// Update local transition state based on app state
 			isTransitioning = $appState.currentState === APP_STATES.TRANSITIONING;
 		});
+
+		// Trigger auto-transition for mobile/tablet devices
+		appState.triggerAutoTransitionIfNeeded();
 		
 		// Listen for messages from parent
 		window.addEventListener('message', (event) => {

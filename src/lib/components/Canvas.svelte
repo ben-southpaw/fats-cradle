@@ -7,15 +7,15 @@
 	import { appState } from '$lib/stores/appState';
 	import { deviceInfo } from '$lib/stores/deviceStore';
 	import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
-	import { 
-		VERTEX_SHADER, 
-		FRAGMENT_SHADER, 
-		GRID_VERTEX_SHADER, 
-		GRID_FRAGMENT_SHADER, 
-		TEXTURE_VERTEX_SHADER, 
+	import {
+		VERTEX_SHADER,
+		FRAGMENT_SHADER,
+		GRID_VERTEX_SHADER,
+		GRID_FRAGMENT_SHADER,
+		TEXTURE_VERTEX_SHADER,
 		TEXTURE_FRAGMENT_SHADER,
 		createShader,
-		hexToRGBA
+		hexToRGBA,
 	} from '$lib/config';
 	import letterF from '$lib/images/f.png?url';
 	import letterA from '$lib/images/a.png?url';
@@ -321,23 +321,30 @@
 
 		// Calculate multiText offsets with defensive fallback
 		let multiTextOffsetX, multiTextOffsetY;
-		
+
 		try {
 			// Try to use MULTI_TEXT_CONFIG for consistent offsets
 			multiTextOffsetX =
-				canvasWidth < 1450 ? 
-					canvasWidth * MULTI_TEXT_CONFIG.X_OFFSET.NARROW : 
-					canvasWidth * MULTI_TEXT_CONFIG.X_OFFSET.WIDE;
-			
+				canvasWidth < 1450
+					? canvasWidth * MULTI_TEXT_CONFIG.X_OFFSET.NARROW
+					: canvasWidth * MULTI_TEXT_CONFIG.X_OFFSET.WIDE;
+
 			// Get the Y offset based on current device type
 			multiTextOffsetY = canvasHeight * MULTI_TEXT_CONFIG.getYOffset();
 		} catch (error) {
-			console.warn('Error using MULTI_TEXT_CONFIG, falling back to original calculations', error);
+			console.warn(
+				'Error using MULTI_TEXT_CONFIG, falling back to original calculations',
+				error
+			);
 			// Fallback to original calculations
-			multiTextOffsetX = canvasWidth < 1450 ? canvasWidth * 0.33 : canvasWidth * 0.4;
+			multiTextOffsetX =
+				canvasWidth < 1450 ? canvasWidth * 0.33 : canvasWidth * 0.4;
 			const currentBreakpoint = get(breakpoint);
-			multiTextOffsetY = canvasHeight * 
-				([BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes(currentBreakpoint) ? 0.45 : 0.3);
+			multiTextOffsetY =
+				canvasHeight *
+				([BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes(currentBreakpoint)
+					? 0.45
+					: 0.3);
 		}
 
 		const offsetX = multiTextOffsetX - saveMultiTextOffsetX;
@@ -363,12 +370,15 @@
 		if (magnets && magnets.length > 0) {
 			// Get scale with defensive fallback
 			let mobileScale = 1; // Default fallback
-			
+
 			// Try to get scale from MAGNET_SCALE but have a fallback to prevent errors
 			try {
 				mobileScale = MAGNET_SCALE.get();
 			} catch (error) {
-				console.warn('Error getting MAGNET_SCALE, using fallback values', error);
+				console.warn(
+					'Error getting MAGNET_SCALE, using fallback values',
+					error
+				);
 				// Fallback to original logic
 				if (currentBreakpoint === 'mobile') {
 					mobileScale = 1.5; // Larger scale for mobile
@@ -380,7 +390,7 @@
 			// Calculate base scale based on container width for responsive sizing
 			let scale = canvasWidth / 1920;
 			const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-			const totalWidth = canvasWidth * 0.43 * mobileScale; // Apply mobile scale to total width
+			const totalWidth = canvasWidth * 0.5 * mobileScale; // Apply mobile scale to total width
 			const spacing = totalWidth / (letters.length - 1);
 			const startX = (canvasWidth - totalWidth) / 2;
 			const groupOffset = canvasWidth * -0.02 * mobileScale; // Apply mobile scale to group offset
@@ -419,11 +429,11 @@
 		// Set up deviceInfo subscription for responsive behavior
 		const unsubscribeDeviceInfo = deviceInfo.subscribe(($deviceInfo) => {
 			isMobileOrTablet = $deviceInfo.isMobileOrTablet;
-			
+
 			// Resize canvas on breakpoint changes
 			resize(); // Use the correct function name
 		});
-		
+
 		// Subscribe to appState for transitions
 		const unsubscribeAppState = appState.subscribe(($appState) => {
 			// When auto-transition is triggered in the store
@@ -434,10 +444,10 @@
 				}, 100); // Reduced timeout since we're already waiting in the store
 			}
 		});
-		
+
 		// Initial device check
 		isMobileOrTablet = get(deviceInfo).isMobileOrTablet;
-		
+
 		// For mobile/tablet, directly trigger auto-transition
 		// Use direct approach for now to ensure functionality works
 		if (isMobileOrTablet && !hasTriggeredTransition) {
@@ -445,13 +455,16 @@
 				// Direct method to ensure transition works while we refactor
 				handleWheel({ deltaY: 100, preventDefault: () => {} });
 				hasTriggeredTransition = true;
-				
+
 				// Also update appState for future integration
 				try {
 					// Only update appState if it's working
 					appState.set({ autoTransitionTriggered: true });
 				} catch (error) {
-					console.warn('Error updating appState, continuing with direct transition', error);
+					console.warn(
+						'Error updating appState, continuing with direct transition',
+						error
+					);
 				}
 			}, 1000); // Wait a second before triggering
 		}
@@ -922,11 +935,31 @@
 
 		// Create shaders using centralized shader code
 		const vertexShader = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-		const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
-		const gridVertexShader = createShader(gl, gl.VERTEX_SHADER, GRID_VERTEX_SHADER);
-		const gridFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, GRID_FRAGMENT_SHADER);
-		const textureVertexShader = createShader(gl, gl.VERTEX_SHADER, TEXTURE_VERTEX_SHADER);
-		const textureFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, TEXTURE_FRAGMENT_SHADER);
+		const fragmentShader = createShader(
+			gl,
+			gl.FRAGMENT_SHADER,
+			FRAGMENT_SHADER
+		);
+		const gridVertexShader = createShader(
+			gl,
+			gl.VERTEX_SHADER,
+			GRID_VERTEX_SHADER
+		);
+		const gridFragmentShader = createShader(
+			gl,
+			gl.FRAGMENT_SHADER,
+			GRID_FRAGMENT_SHADER
+		);
+		const textureVertexShader = createShader(
+			gl,
+			gl.VERTEX_SHADER,
+			TEXTURE_VERTEX_SHADER
+		);
+		const textureFragmentShader = createShader(
+			gl,
+			gl.FRAGMENT_SHADER,
+			TEXTURE_FRAGMENT_SHADER
+		);
 
 		if (
 			!vertexShader ||
@@ -1617,7 +1650,7 @@
 		// Get the current breakpoint and calculate mobile scale factor defensively
 		const currentBreakpoint = get(breakpoint);
 		let mobileScale = 1; // Default fallback
-		
+
 		// Try to get scale from MAGNET_SCALE but have a fallback to prevent errors
 		try {
 			mobileScale = MAGNET_SCALE.get();
