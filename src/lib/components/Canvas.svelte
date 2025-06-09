@@ -4,8 +4,18 @@
 	import { fade, scale } from 'svelte/transition';
 	import { gsap } from 'gsap';
 	import { breakpoint, BREAKPOINTS } from '$lib/stores/breakpoint';
-import { appState, deviceInfo } from '$lib/stores/appState';
-import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
+	import { appState, deviceInfo } from '$lib/stores/appState';
+	import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
+	import { 
+		VERTEX_SHADER, 
+		FRAGMENT_SHADER, 
+		GRID_VERTEX_SHADER, 
+		GRID_FRAGMENT_SHADER, 
+		TEXTURE_VERTEX_SHADER, 
+		TEXTURE_FRAGMENT_SHADER,
+		createShader,
+		hexToRGBA
+	} from '$lib/config';
 	import letterF from '$lib/images/f.png?url';
 	import letterA from '$lib/images/a.png?url';
 	import letterT from '$lib/images/t.png?url';
@@ -565,223 +575,19 @@ import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
 	// let letterTexture;
 
 	// WebGL shaders
-	const vertexShaderSource = `#version 300 es
-		in vec2 position;
-		in vec4 color;
-		uniform vec2 resolution;
-		out vec4 vColor;
-		out vec2 vPosition;
-		
-		void main() {
-			// Convert from pixel coordinates to clip space
-			vec2 zeroToOne = position / resolution;
-			vec2 zeroToTwo = zeroToOne * 2.0;
-			vec2 clipSpace = zeroToTwo - 1.0;
-			gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-			
-			// Pass through position for grid calculations
-			vPosition = position;
-			
-			// Set point size based on screen resolution
-			gl_PointSize = 2.0 * (resolution.y / 1080.0);
-			
-			vColor = color;
-		}
-	`;
+	// Using vertexShaderSource from centralized config as VERTEX_SHADER
 
-	const fragmentShaderSource = `#version 300 es
-		precision highp float;
-		
-		in vec4 vColor;
-		in vec2 vPosition;
-		uniform vec2 resolution;
-		uniform float hexSize;
-		out vec4 fragColor;
+	// Using fragmentShaderSource from centralized config as FRAGMENT_SHADER
 
-		float distToHexGrid(vec2 p) {
-			float size = hexSize * 3.0;
-			float hexWidth = size * 2.0; // Width of a hexagon
-			float hexHeight = size * sqrt(3.0); // Height of a hexagon
-			
-			// Calculate grid position
-			float horizontalSpacing = hexWidth * 0.75;
-			float verticalSpacing = hexHeight;
-			
-			// Find the nearest hexagon center
-			float col = floor(p.x / horizontalSpacing);
-			float row = floor(p.y / verticalSpacing);
-			
-			// Calculate center of nearest hexagon
-			vec2 center = vec2(
-				col * horizontalSpacing,
-				row * verticalSpacing + mod(col, 2.0) * (verticalSpacing / 2.0)
-			);
-			
-			// Calculate distances to all edges of this hexagon
-			float minDist = 1000.0;
-			for (int i = 0; i < 6; i++) {
-				float angle = float(i) * 3.14159 / 3.0;
-				vec2 v1 = center + vec2(size * cos(angle), size * sin(angle));
-				
-				float nextAngle = float(i + 1) * 3.14159 / 3.0;
-				vec2 v2 = center + vec2(size * cos(nextAngle), size * sin(nextAngle));
-				
-				// Calculate distance to line segment
-				vec2 edge = v2 - v1;
-				float edgeLength = length(edge);
-				vec2 edgeDir = edge / edgeLength;
-				vec2 toPoint = p - v1;
-				
-				float proj = dot(toPoint, edgeDir);
-				vec2 closest;
-				if (proj <= 0.0) {
-					closest = v1;
-				} else if (proj >= edgeLength) {
-					closest = v2;
-				} else {
-					closest = v1 + edgeDir * proj;
-				}
-				
-				float dist = length(p - closest);
-				minDist = min(minDist, dist);
-			}
-			
-			// Also check adjacent hexagons for closer edges
-			for (int dx = -1; dx <= 1; dx++) {
-				for (int dy = -1; dy <= 1; dy++) {
-					if (dx == 0 && dy == 0) continue;
-					
-					vec2 adjCenter = center + vec2(
-						float(dx) * horizontalSpacing,
-						float(dy) * verticalSpacing + 
-						(mod(col + float(dx), 2.0) - mod(col, 2.0)) * (verticalSpacing / 2.0)
-					);
-					
-					for (int i = 0; i < 6; i++) {
-						float angle = float(i) * 3.14159 / 3.0;
-						vec2 v1 = adjCenter + vec2(size * cos(angle), size * sin(angle));
-						
-						float nextAngle = float(i + 1) * 3.14159 / 3.0;
-						vec2 v2 = adjCenter + vec2(size * cos(nextAngle), size * sin(nextAngle));
-						
-						vec2 edge = v2 - v1;
-						float edgeLength = length(edge);
-						vec2 edgeDir = edge / edgeLength;
-						vec2 toPoint = p - v1;
-						
-						float proj = dot(toPoint, edgeDir);
-						vec2 closest;
-						if (proj <= 0.0) {
-							closest = v1;
-						} else if (proj >= edgeLength) {
-							closest = v2;
-						} else {
-							closest = v1 + edgeDir * proj;
-						}
-						
-						float dist = length(p - closest);
-						minDist = min(minDist, dist);
-					}
-				}
-			}
-			
-			return minDist;
-		}
-		
-		void main() {
-			// Calculate distance to nearest grid line
-			float gridDist = distToHexGrid(vPosition);
-			
-			// Hard cutoff very close to grid
-			if (gridDist < 1.0) {
-				discard;
-				return;
-			}
-			
-			// Create circular particle with soft edges
-			vec2 center = gl_PointCoord - vec2(0.5);
-			float dist = length(center);
-			
-			// Smoother transition for anti-aliasing
-			float alpha = smoothstep(0.5, 0.3, dist);
-			
-			// Apply color with adjusted alpha
-			fragColor = vec4(vColor.rgb, vColor.a * alpha * 0.8);
-		}
-	`;
+	// Using gridVertexShaderSource from centralized config as GRID_VERTEX_SHADER
 
-	const gridVertexShaderSource = `#version 300 es
-		in vec2 position;
-		uniform vec2 resolution;
-		
-		void main() {
-			// Convert from pixel coordinates to clip space
-			vec2 zeroToOne = position / resolution;
-			vec2 zeroToTwo = zeroToOne * 2.0;
-			vec2 clipSpace = zeroToTwo - 1.0;
-			gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-		}
-	`;
+	// Using gridFragmentShaderSource from centralized config as GRID_FRAGMENT_SHADER
 
-	const gridFragmentShaderSource = `#version 300 es
-		precision highp float;
-		
-		uniform vec4 gridColor;
-		out vec4 fragColor;
-		
-		void main() {
-			fragColor = gridColor;
-		}
-	`;
+	// Using textureVertexShaderSource from centralized config as TEXTURE_VERTEX_SHADER
 
-	const textureVertexShaderSource = `#version 300 es
-		in vec2 position;
-		in vec2 texCoord;
-		uniform vec2 resolution;
-		out vec2 vTexCoord;
-		
-		void main() {
-			vec2 zeroToOne = position / resolution;
-			vec2 zeroToTwo = zeroToOne * 2.0;
-			vec2 clipSpace = zeroToTwo - 1.0;
-			gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-			vTexCoord = texCoord;
-		}
-	`;
+	// Using textureFragmentShaderSource from centralized config as TEXTURE_FRAGMENT_SHADER
 
-	const textureFragmentShaderSource = `#version 300 es
-		precision highp float;
-		
-		uniform sampler2D uTexture;
-		in vec2 vTexCoord;
-		out vec4 fragColor;
-		
-		void main() {
-			fragColor = texture(uTexture, vTexCoord);
-		}
-	`;
-
-	function createShader(gl, type, source) {
-		const shader = gl.createShader(type);
-		gl.shaderSource(shader, source);
-		gl.compileShader(shader);
-
-		if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-			const error = gl.getShaderInfoLog(shader);
-			gl.deleteShader(shader);
-			return null;
-		}
-
-		return shader;
-	}
-
-	// Helper function to convert hex color to rgba
-	function hexToRGBA(hex, alpha = 1) {
-		const r = parseInt(hex.slice(1, 3), 16) / 255;
-		const g = parseInt(hex.slice(3, 5), 16) / 255;
-		const b = parseInt(hex.slice(5, 7), 16) / 255;
-		return [r, g, b, alpha];
-	}
+	// Using createShader and hexToRGBA from centralized config
 
 	// Helper function to prepare particle data for WebGL
 	function prepareParticleData(particles) {
@@ -991,11 +797,11 @@ import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
 
 	function createTextureShaderProgram() {
 		const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-		gl.shaderSource(vertexShader, textureVertexShaderSource);
+		gl.shaderSource(vertexShader, TEXTURE_VERTEX_SHADER);
 		gl.compileShader(vertexShader);
 
 		const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-		gl.shaderSource(fragmentShader, textureFragmentShaderSource);
+		gl.shaderSource(fragmentShader, TEXTURE_FRAGMENT_SHADER);
 		gl.compileShader(fragmentShader);
 
 		textureProgram = gl.createProgram();
@@ -1113,33 +919,13 @@ import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
 			return;
 		}
 
-		// Create shaders with logging
-		const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-		const fragmentShader = createShader(
-			gl,
-			gl.FRAGMENT_SHADER,
-			fragmentShaderSource
-		);
-		const gridVertexShader = createShader(
-			gl,
-			gl.VERTEX_SHADER,
-			gridVertexShaderSource
-		);
-		const gridFragmentShader = createShader(
-			gl,
-			gl.FRAGMENT_SHADER,
-			gridFragmentShaderSource
-		);
-		const textureVertexShader = createShader(
-			gl,
-			gl.VERTEX_SHADER,
-			textureVertexShaderSource
-		);
-		const textureFragmentShader = createShader(
-			gl,
-			gl.FRAGMENT_SHADER,
-			textureFragmentShaderSource
-		);
+		// Create shaders using centralized shader code
+		const vertexShader = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
+		const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+		const gridVertexShader = createShader(gl, gl.VERTEX_SHADER, GRID_VERTEX_SHADER);
+		const gridFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, GRID_FRAGMENT_SHADER);
+		const textureVertexShader = createShader(gl, gl.VERTEX_SHADER, TEXTURE_VERTEX_SHADER);
+		const textureFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, TEXTURE_FRAGMENT_SHADER);
 
 		if (
 			!vertexShader ||
