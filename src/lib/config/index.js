@@ -20,6 +20,9 @@ export * from './shaderConfig';
 // Export application state configurations
 export * from './appStateConfig';
 
+// Export transition state configurations
+export * from './transitionConfig';
+
 /**
  * Usage examples:
  * 

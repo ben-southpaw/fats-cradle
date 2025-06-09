@@ -1,70 +1,42 @@
-import { writable } from 'svelte/store';
-import { APP_STATES, TRANSITION_PHASES, INITIAL_STATE } from '$lib/config/appStateConfig';
+import { APP_STATES } from '$lib/config/appStateConfig';
+import { transitionStore, transitionAppState } from './transitionStore';
 
 // Re-export APP_STATES for backwards compatibility
 export { APP_STATES };
 
-// Create the base app state store
+/**
+ * Create the app state store that integrates with the transition store
+ * This maintains the exact same API and behavior as the original implementation
+ * for backward compatibility, while delegating transition logic to transitionStore
+ */
 const createAppState = () => {
-  // Initialize with default values from config
-  const { subscribe, set, update } = writable({ ...INITIAL_STATE });
-
   return {
-    subscribe,
+    subscribe: transitionAppState.subscribe,
     
-    // Start the transition sequence
-    startTransition: () => update(state => {
-      // Only start if we're in the initial state and haven't started yet
-      if (state.currentState === APP_STATES.INITIAL && !state.hasTriggeredTransition) {
-        return {
-          ...state,
-          currentState: APP_STATES.TRANSITIONING,
-          transitionPhase: TRANSITION_PHASES.SCALE,
-          hasTriggeredTransition: true
-        };
-      }
-      return state;
-    }),
+    // Start the transition sequence - delegates to transitionStore
+    startTransition: () => {
+      transitionStore.start();
+    },
     
-    // Update transition progress
-    updateTransitionProgress: (phase, progress) => update(state => ({
-      ...state,
-      transitionPhase: phase,
-      transitionProgress: progress,
-      // If we reach WIPE phase with progress 1, we're in interactive state
-      currentState: (phase === TRANSITION_PHASES.WIPE && progress >= 1) ? 
-        APP_STATES.INTERACTIVE : APP_STATES.TRANSITIONING
-    })),
+    // Update transition progress - delegates to transitionStore
+    updateTransitionProgress: (phase, progress) => {
+      transitionStore.updateProgress(phase, progress);
+    },
     
-    // Complete the first transition (Scale + Rotate)
-    completeFirstTransition: () => update(state => ({
-      ...state,
-      isFirstTransitionComplete: true
-    })),
+    // Complete the first transition - delegates to transitionStore
+    completeFirstTransition: () => {
+      transitionStore.completeFirstTransition();
+    },
     
-    // Reset to initial state (useful for testing)
-    reset: () => set({ ...INITIAL_STATE }),
+    // Reset to initial state - delegates to transitionStore
+    reset: () => {
+      transitionStore.reset();
+    },
     
-    // Auto-transition for mobile/tablet
-    triggerAutoTransitionIfNeeded: () => update(state => {
-      const isMobileOrTablet = [
-        BREAKPOINTS.MOBILE, 
-        BREAKPOINTS.TABLET
-      ].includes(get(breakpoint));
-      
-      // Auto-transition on mobile/tablet if not already triggered
-      if (isMobileOrTablet && !state.autoTransitionTriggered) {
-        return {
-          ...state,
-          autoTransitionTriggered: true,
-          hasTriggeredTransition: true,
-          currentState: APP_STATES.TRANSITIONING,
-          transitionPhase: TRANSITION_PHASES.SCALE
-        };
-      }
-      
-      return state;
-    })
+    // Auto-transition for mobile/tablet - delegates to transitionStore
+    triggerAutoTransitionIfNeeded: () => {
+      transitionStore.triggerAutoTransitionIfNeeded();
+    }
   };
 };
 
