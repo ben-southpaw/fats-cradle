@@ -28,7 +28,9 @@
 	import cursorClick from '$lib/images/Closed.png?url';
 	import multiText from '$lib/images/multi-text.png';
 	import ThreeScene from './ThreeScene.svelte';
-	// Import removed as ScrollToExplore is now managed in +page.svelte
+
+	// Reactive variable for current breakpoint
+	$: currentBreakpoint = $breakpoint;
 
 	const dispatch = createEventDispatcher();
 
@@ -43,6 +45,13 @@
 		// Use parent dimensions if available
 		if (parentDimensions) {
 			return { width: parentDimensions.width, height: parentDimensions.height };
+		}
+
+		// For mobile/tablet where canvas is hidden, use viewport dimensions directly
+		if (currentBreakpoint === 'mobile' || currentBreakpoint === 'tablet') {
+			const width = window.innerWidth;
+			const height = window.innerHeight;
+			return { width, height };
 		}
 
 		if (!canvas) {
@@ -339,7 +348,7 @@
 			// Fallback to original calculations
 			multiTextOffsetX =
 				canvasWidth < 1450 ? canvasWidth * 0.33 : canvasWidth * 0.4;
-			const currentBreakpoint = get(breakpoint);
+			currentBreakpoint = get(breakpoint);
 			multiTextOffsetY =
 				canvasHeight *
 				([BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes(currentBreakpoint)
@@ -397,12 +406,25 @@
 
 			// Update each magnet's position and scale
 			magnets.forEach((magnet, index) => {
-				const letter = magnet.id;
+				const letter = magnet.id; // The id is the letter type (F, A, T, etc.)
 				const img = magnetImages[letter];
 
-				// Update size (update resize size here)
-				magnet.height = img.height * scale * 1.5;
-				magnet.width = img.width * scale * 1.5;
+				// Calculate base dimensions with mobile scale
+				const baseHeight = img.height * scale * 1.5 * mobileScale;
+				const baseWidth = img.width * scale * 1.5 * mobileScale;
+
+				// Adjust aspect ratio for non-desktop devices
+				let height, width;
+				if (currentBreakpoint === 'mobile' || currentBreakpoint === 'tablet') {
+					// Reduce height and increase width for mobile/tablet
+					magnet.height = baseHeight * 0.7; // Reduce height by 30%
+					magnet.width = baseWidth * 1.3; // Increase width by 30%
+				} else {
+					// Keep original proportions for desktop
+					magnet.height = baseHeight;
+					magnet.width = baseWidth;
+				}
+
 				magnet.mobileScale = mobileScale; // Update the stored scale factor
 
 				// Update position with new spacing and offset, applying mobile scale
@@ -1668,14 +1690,25 @@
 		const totalWidth = width * 0.5; // Original 40% width
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (width - totalWidth) / 2;
-
-		// Original group offset with mobile scale
-		const groupOffset = width * -0.015 * mobileScale;
+		const groupOffset = width * -0.015 * mobileScale; // Apply mobile scale to group offset
 
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
-			const height = img.height * scale * 1.5;
-			const width = img.width * scale * 1.5;
+			const height = img.height * scale * 1.5 * mobileScale;
+			const width = img.width * scale * 1.5 * mobileScale;
+
+			// Adjust aspect ratio for non-desktop devices
+			let heightFinal, widthFinal;
+			if (currentBreakpoint === 'mobile' || currentBreakpoint === 'tablet') {
+				// Reduce height and increase width for mobile/tablet
+				heightFinal = height * 0.7; // Reduce height by 30%
+				widthFinal = width * 1.3; // Increase width by 30%
+			} else {
+				// Keep original proportions for desktop
+				heightFinal = height;
+				widthFinal = width;
+			}
+
 			const offset = getLetterOffset(letter, index);
 
 			// Get container height for consistent vertical positioning
@@ -1686,8 +1719,8 @@
 				x: startX + spacing * index + offset + groupOffset,
 				y: containerHeight * getLetterHeight(letter),
 				img: img,
-				width,
-				height,
+				height: heightFinal,
+				width: widthFinal,
 				rotation: 0,
 				isPickedUp: false,
 				scale: 1,
@@ -2211,55 +2244,12 @@
 			// Check canvas bounds and get corrected position
 			const boundedPosition = checkCanvasBounds(droppedMagnet);
 
-			// Update magnet position with bounded position
-			droppedMagnet.x = boundedPosition.x;
-			droppedMagnet.y = boundedPosition.y;
-
-			// Check for collisions with other magnets
-			const otherMagnets = magnets.filter((m) => m !== droppedMagnet);
-			let collidingMagnet = null;
-
-			// Find the magnet that's being collided with
-			for (const other of otherMagnets) {
-				if (checkCollision(droppedMagnet, other)) {
-					collidingMagnet = other;
-					break;
-				}
-			}
-
-			// If collision detected, move the magnet that's already on the canvas
-			if (collidingMagnet) {
-				// Find free space for the colliding magnet (the one already on the canvas)
-				const magnetsExceptColliding = magnets.filter(
-					(m) => m !== collidingMagnet
-				);
-				const freePosition = findFreeSpace(
-					collidingMagnet,
-					magnetsExceptColliding
-				);
-
-				if (freePosition) {
-					// Animate the colliding magnet to the new position
-					gsap.to(collidingMagnet, {
-						x: freePosition.x,
-						y: freePosition.y,
-						duration: 0.3,
-						ease: 'power2.out',
-						onUpdate: () => scheduleRender(),
-						onComplete: () => {
-							// Create stamp for the moved magnet at its new position
-							createMagnetStamp(collidingMagnet);
-						},
-					});
-				}
-			}
-
 			gsap.killTweensOf(droppedMagnet);
 			gsap.to(droppedMagnet, {
 				x: boundedPosition.x,
 				y: boundedPosition.y,
 				scale: 1,
-				rotation: finalRotation,
+				rotation: 0,
 				duration: 0.3,
 				ease: 'power2.out',
 				onUpdate: () => scheduleRender(),
@@ -2715,7 +2705,9 @@
 >
 	<canvas
 		bind:this={canvas}
-		class:hidden={!isCanvasVisible}
+		class:hidden={!isCanvasVisible ||
+			currentBreakpoint === 'mobile' ||
+			currentBreakpoint === 'tablet'}
 		on:pointermove={handlePointerMove}
 		on:pointerdown={handlePointerDown}
 		on:pointerup={handlePointerUp}

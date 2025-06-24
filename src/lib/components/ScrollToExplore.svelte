@@ -43,7 +43,7 @@
 
 		// Add wheel event listener to window
 		window.addEventListener('wheel', handleWheel, { passive: true });
-		
+
 		// Subscribe to appState to hide when transitioning
 		unsubscribeAppState = appState.subscribe(($appState) => {
 			// Hide the scroll indicator once we're transitioning or interactive
@@ -51,7 +51,7 @@
 				isVisible = false;
 			}
 		});
-		
+
 		// Check if we should auto-trigger on mobile/tablet
 		const isMobileOrTablet = get(deviceInfo)?.isMobileOrTablet;
 		if (isMobileOrTablet) {
@@ -59,7 +59,7 @@
 			isVisible = false;
 		}
 	});
-	
+
 	// Clean up subscriptions
 	onDestroy(() => {
 		window.removeEventListener('wheel', handleWheel);
@@ -68,25 +68,25 @@
 </script>
 
 {#if isVisible}
-<div 
-	class="container" 
-	bind:this={container}
-	transition:fade={{ duration: 300 }}
->
-	{#if mounted && LottiePlayer}
-		<svelte:component
-			this={LottiePlayer}
-			bind:this={lottieInstance}
-			src={scrollToExploreAnimation}
-			autoplay={false}
-			controls={false}
-			renderer="svg"
-			controlsLayout={[]}
-			class="lottie-player"
-			on:complete={handleComplete}
-		/>
-	{/if}
-</div>
+	<div
+		class="container"
+		bind:this={container}
+		transition:fade={{ duration: 350 }}
+	>
+		{#if mounted && LottiePlayer}
+			<svelte:component
+				this={LottiePlayer}
+				bind:this={lottieInstance}
+				src={scrollToExploreAnimation}
+				autoplay={false}
+				controls={false}
+				renderer="svg"
+				controlsLayout={[]}
+				class="lottie-player"
+				on:complete={handleComplete}
+			/>
+		{/if}
+	</div>
 {/if}
 
 <style>
