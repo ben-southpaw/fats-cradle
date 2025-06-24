@@ -3,7 +3,7 @@
 	import { get } from 'svelte/store';
 	import { fade, scale } from 'svelte/transition';
 	import { gsap } from 'gsap';
-	import { breakpoint, BREAKPOINTS } from '$lib/stores/breakpoint';
+	import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 	import { appState } from '$lib/stores/appState';
 	import { deviceInfo } from '$lib/stores/deviceStore';
 	import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
@@ -30,7 +30,7 @@
 	import ThreeScene from './ThreeScene.svelte';
 
 	// Reactive variable for current breakpoint
-	$: currentBreakpoint = $breakpoint;
+	
 
 	const dispatch = createEventDispatcher();
 
@@ -47,8 +47,8 @@
 			return { width: parentDimensions.width, height: parentDimensions.height };
 		}
 
-		// For mobile/tablet where canvas is hidden, use viewport dimensions directly
-		if (currentBreakpoint === 'mobile' || currentBreakpoint === 'tablet') {
+		// For mobile where canvas is hidden, use viewport dimensions directly
+		if (get(isMobile)) {
 			const width = window.innerWidth;
 			const height = window.innerHeight;
 			return { width, height };
@@ -350,12 +350,7 @@
 			// Fallback to original calculations
 			multiTextOffsetX =
 				canvasWidth < 1450 ? canvasWidth * 0.33 : canvasWidth * 0.4;
-			currentBreakpoint = get(breakpoint);
-			multiTextOffsetY =
-				canvasHeight *
-				([BREAKPOINTS.MOBILE, BREAKPOINTS.TABLET].includes(currentBreakpoint)
-					? 0.45
-					: 0.3);
+			multiTextOffsetY = canvasHeight * (get(isMobile) ? 0.45 : 0.3);
 		}
 
 		const offsetX = multiTextOffsetX - saveMultiTextOffsetX;
@@ -442,6 +437,7 @@
 	let hasTriggeredTransition = false;
 
 	onMount(() => {
+	if (!get(isDesktop)) { isCanvasVisible = false; return; }
 		if (!canvas) return;
 
 		// Initialize patterns
@@ -1673,8 +1669,7 @@
 		// Calculate base scale based on container width for responsive sizing
 		let scale = width / 1920;
 
-		// Get the current breakpoint and calculate mobile scale factor defensively
-		const currentBreakpoint = get(breakpoint);
+		// Calculate mobile scale factor defensively
 		let mobileScale = 1; // Default fallback
 
 		// Try to get scale from MAGNET_SCALE but have a fallback to prevent errors
@@ -1682,11 +1677,9 @@
 			mobileScale = MAGNET_SCALE.get();
 		} catch (error) {
 			console.warn('Error getting MAGNET_SCALE, using fallback values', error);
-			// Fallback to original logic
-			if (currentBreakpoint === 'mobile') {
+			// Fallback to mobile if needed
+			if (get(isMobile)) {
 				mobileScale = 1.5; // Larger scale for mobile
-			} else if (currentBreakpoint === 'tablet') {
-				mobileScale = 1.2; // Slightly larger for tablet
 			} // Desktop remains 1.0
 		}
 
@@ -1701,10 +1694,10 @@
 			const height = img.height * scale * 1.5 * mobileScale;
 			const width = img.width * scale * 1.5 * mobileScale;
 
-			// Adjust aspect ratio for non-desktop devices
+			// Adjust aspect ratio for mobile devices
 			let heightFinal, widthFinal;
-			if (currentBreakpoint === 'mobile' || currentBreakpoint === 'tablet') {
-				// Reduce height and increase width for mobile/tablet
+			if (get(isMobile)) {
+				// Reduce height and increase width for mobile
 				heightFinal = height * 0.7; // Reduce height by 30%
 				widthFinal = width * 1.3; // Increase width by 30%
 			} else {
@@ -2709,10 +2702,8 @@
 >
 	<canvas
 		bind:this={canvas}
-		class:hidden={!isCanvasVisible ||
-			currentBreakpoint === 'mobile' ||
-			currentBreakpoint === 'tablet'}
-		on:pointermove={handlePointerMove}
+		class:hidden={!isCanvasVisible || !$isDesktop}
+    on:pointermove={handlePointerMove}
 		on:pointerdown={handlePointerDown}
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}

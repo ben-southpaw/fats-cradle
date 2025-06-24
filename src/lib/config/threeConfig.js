@@ -1,12 +1,8 @@
 import { get } from 'svelte/store';
-import { breakpoint, BREAKPOINTS } from '$lib/stores/breakpoint';
+import { isMobile } from '$lib/stores/breakpoint';
 
 export function getModelScale() {
-  const currentBreakpoint = get(breakpoint);
-  
-  if (currentBreakpoint === BREAKPOINTS.MOBILE) return 0.4;
-  if (currentBreakpoint === BREAKPOINTS.TABLET) return 0.8;
-  return 1.5; // Desktop default
+  return get(isMobile) ? 0.4 : 1.5;
 }
 
 export const MODEL_CONFIG = {

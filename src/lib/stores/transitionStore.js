@@ -1,6 +1,6 @@
 import { writable, derived, get } from 'svelte/store';
 import { TRANSITION_PHASES, INITIAL_TRANSITION_STATE } from '$lib/config/transitionConfig';
-import { breakpoint, BREAKPOINTS } from './breakpoint';
+import { isMobile } from '$lib/stores/breakpoint';
 import { APP_STATES } from '$lib/config/appStateConfig';
 
 /**
@@ -59,10 +59,7 @@ const createTransitionStore = () => {
      * Automatically triggers transition on mobile/tablet devices
      */
     triggerAutoTransitionIfNeeded: () => update(state => {
-      const isMobileOrTablet = [
-        BREAKPOINTS.MOBILE, 
-        BREAKPOINTS.TABLET
-      ].includes(get(breakpoint));
+      const isMobileOrTablet = get(isMobile);
       
       // Auto-transition on mobile/tablet if not already triggered
       if (isMobileOrTablet && !state.autoTransitionTriggered) {

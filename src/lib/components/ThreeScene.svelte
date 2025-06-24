@@ -4,7 +4,7 @@
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 	import gsap from 'gsap';
-	import { breakpoint, BREAKPOINTS } from '$lib/stores/breakpoint';
+	import { isMobile } from '$lib/stores/breakpoint';
 
 	export let canvas; // Accept canvas from parent
 
@@ -62,12 +62,7 @@
 		updateCanvasTexture();
 	}
 
-	const getScaleFactor = () => {
-		const currentBreakpoint = get(breakpoint);
-		if (currentBreakpoint === BREAKPOINTS.MOBILE) return 0.4;
-		if (currentBreakpoint === BREAKPOINTS.TABLET) return 0.6;
-		return 1.5; // Desktop
-	};
+	const getScaleFactor = () => get(isMobile) ? 0.4 : 1.5;
 
 	const CONFIG = {
 		model: {
@@ -1483,14 +1478,12 @@
 
 	onMount(async () => {
 		// Set up breakpoint subscription
-		const unsubscribe = breakpoint.subscribe((bp) => {
-			isMobileOrTablet = bp === BREAKPOINTS.MOBILE || bp === BREAKPOINTS.TABLET;
+		const unsubscribe = isMobile.subscribe((mobile) => {
+			isMobileOrTablet = mobile;
 		});
 
 		// Initial check using get() to safely access the store value
-		isMobileOrTablet =
-			get(breakpoint) === BREAKPOINTS.MOBILE ||
-			get(breakpoint) === BREAKPOINTS.TABLET;
+		isMobileOrTablet = get(isMobile);
 
 		// Check if we're in a browser environment
 		if (typeof window === 'undefined') return;

@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { breakpoint, BREAKPOINTS } from '../stores/breakpoint';
+// import { breakpoint, BREAKPOINTS } from '../stores/breakpoint';
 import { getDeviceScaleFactor } from '../stores/deviceStore';
 
 /**

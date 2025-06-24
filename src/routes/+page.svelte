@@ -4,6 +4,8 @@
 	import ScrollToExplore from '$lib/components/ScrollToExplore.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { appState, APP_STATES } from '$lib/stores/appState';
+import { isDesktop } from '$lib/stores/breakpoint';
+import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 
 	// Local component state
 	let isTransitioning = false;
@@ -97,19 +99,17 @@
 </script>
 
 <section>
-	{#if isReady}
-		<!-- ScrollToExplore with original fadeout behavior - the component handles its own internal visibility -->
-		<div class="scroll-indicator">
-			<ScrollToExplore />
-		</div>
-		<Canvas bind:this={canvasComponent} {parentDimensions} />
-		<!-- <ThreeScene
-			on:transitionstart={handleTransitionStart}
-			on:wipe={handleWipe}
-		/> -->
-        <!--
-        <MobileModelImage  />
-        -->
+	{#if $isDesktop}
+		{#if isReady}
+			<!-- ScrollToExplore with original fadeout behavior -->
+			<div class="scroll-indicator">
+				<ScrollToExplore />
+			</div>
+			<Canvas bind:this={canvasComponent} {parentDimensions} />
+			<!-- <ThreeScene on:transitionstart={handleTransitionStart} on:wipe={handleWipe} /> -->
+		{/if}
+	{:else}
+		<MobileModeImage />
 	{/if}
 </section>
 
