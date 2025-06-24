@@ -321,6 +321,8 @@
 	}
 
 	function resize() {
+        //TODO
+        //if (mobile ) return
 		// Get dimensions from the container using our consistent function
 		const { width: canvasWidth, height: canvasHeight } =
 			getContainerDimensions();
@@ -522,6 +524,8 @@
 		// Start animation loop
 		function animate() {
 			animationFrameId = requestAnimationFrame(animate);
+            //TODO
+            //if (mobile ) return
 			const currentTime = performance.now();
 
 			// Check if we should switch to idle FPS
@@ -2738,28 +2742,9 @@
 			renderAll();
 		}}
 	/>
-	<!-- ScrollToExplore moved to +page.svelte for centralized management
-	{#if (showScrollToExplore || isScrollAnimating) && !hasTriggeredTransition}
-		<div class="scroll-to-explore" out:fade={{ delay: 500, duration: 500 }}>
-			<ScrollToExplore />
-		</div>
-	{/if}
-	-->
+
 </div>
 
-<!-- <div
-	class="cursor"
-	bind:this={cursorElement}
-	style="transform: translate({m.x}px, {m.y}px); opacity: {cursorOpacity};"
->
-	{#if isHoveringMagnet && !hasTriggeredTransition}
-		<img
-			src={isClicking ? cursorClick : isHoveringMagnet && cursorHover}
-			alt="cursor"
-			transition:scale={{ duration: 350 }}
-		/>
-	{/if}
-</div> -->
 
 <style>
 	:global(body) {

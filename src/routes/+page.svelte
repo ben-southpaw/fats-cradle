@@ -14,6 +14,9 @@
 	// Subscribe to appState for coordinated transitions
 	let unsubscribeAppState;
 
+
+    //add browser lister subscribe to check for ratio to set mob/desktop landscape/portrait 
+
 	onMount(() => {
 		// Subscribe to the app state to coordinate transition states
 		unsubscribeAppState = appState.subscribe(($appState) => {
@@ -100,10 +103,13 @@
 			<ScrollToExplore />
 		</div>
 		<Canvas bind:this={canvasComponent} {parentDimensions} />
-		<ThreeScene
+		<!-- <ThreeScene
 			on:transitionstart={handleTransitionStart}
 			on:wipe={handleWipe}
-		/>
+		/> -->
+        <!--
+        <MobileModelImage  />
+        -->
 	{/if}
 </section>
 
