@@ -100,7 +100,7 @@
 <section>
 	{#if isReady}
 		<!-- ScrollToExplore with original fadeout behavior -->
-		<div class="scroll-indicator">
+		<div class="scroll-indicator" class:mobile={!$isDesktop}>
 			<ScrollToExplore />
 		</div>
 		<Canvas bind:this={canvasComponent} {parentDimensions} />
@@ -132,9 +132,10 @@
 		pointer-events: none;
 		opacity: 1;
 		width: 100%;
-		@media only screen and (max-width: 600px) {
-			top: 25vh;
-			height: 20vh;
-		}
+	}
+
+	.mobile {
+		top: 25vh;
+		height: 20vh;
 	}
 </style>

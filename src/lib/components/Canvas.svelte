@@ -3,7 +3,7 @@
 	import { get } from 'svelte/store';
 	import { fade, scale } from 'svelte/transition';
 	import { gsap } from 'gsap';
-	import { isDesktop, isMobile } from '$lib/stores/breakpoint';
+import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 	import { appState } from '$lib/stores/appState';
 	
 	import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
@@ -386,7 +386,7 @@
 					error
 				);
 				// Fallback to original logic
-				if (currentBreakpoint === 'mobile') {
+				if (get(isMobile)) {
 					mobileScale = 1.5; // Larger scale for mobile
 				} 
 			} // Desktop remains 1.0
@@ -408,10 +408,9 @@
 				const baseHeight = img.height * scale * 1.5 * mobileScale;
 				const baseWidth = img.width * scale * 1.5 * mobileScale;
 
-				// Adjust aspect ratio for non-desktop devices
-				let height, width;
-				if (currentBreakpoint === 'mobile' || currentBreakpoint === 'tablet') {
-					// Reduce height and increase width for mobile/tablet
+				// Adjust aspect ratio for mobile devices
+				if (get(isMobile)) {
+					// Reduce height and increase width for mobile
 					magnet.height = baseHeight * 0.7; // Reduce height by 30%
 					magnet.width = baseWidth * 1.3; // Increase width by 30%
 				} else {
