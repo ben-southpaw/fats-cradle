@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 // import { breakpoint, BREAKPOINTS } from '../stores/breakpoint';
-import { getDeviceScaleFactor } from '../stores/deviceStore';
+import { isMobile } from '$lib/stores/breakpoint';
 
 /**
  * Scale configuration for the 3D model
@@ -8,12 +8,12 @@ import { getDeviceScaleFactor } from '../stores/deviceStore';
 export const MODEL_SCALE = {
 	// Default scale factors by device type
 	MOBILE: 0.4,
-	TABLET: 0.6,
+	
 	DESKTOP: 1.5,
 
 	// Get the appropriate scale factor based on current breakpoint
 	get() {
-		return getDeviceScaleFactor(this.MOBILE, this.TABLET, this.DESKTOP);
+		return get(isMobile) ? this.MOBILE : this.DESKTOP;
 	},
 };
 
@@ -26,12 +26,12 @@ export const MAGNET_SCALE = {
 
 	// Breakpoint-specific scaling factors
 	MOBILE: 1.2,
-	TABLET: 1.2,
+	
 	DESKTOP: 1.0,
 
 	// Get the appropriate scale factor based on current breakpoint
 	get() {
-		return getDeviceScaleFactor(this.MOBILE, this.TABLET, this.DESKTOP);
+		return get(isMobile) ? this.MOBILE : this.DESKTOP;
 	},
 };
 
@@ -48,17 +48,13 @@ export const MULTI_TEXT_CONFIG = {
 	// Y offset as percentage of container height
 	Y_OFFSET: {
 		MOBILE: 0.45,
-		TABLET: 0.45,
+		
 		DESKTOP: 0.3,
 	},
 
 	// Get the Y offset percentage based on current breakpoint
 	getYOffset() {
-		return getDeviceScaleFactor(
-			this.Y_OFFSET.MOBILE,
-			this.Y_OFFSET.TABLET,
-			this.Y_OFFSET.DESKTOP
-		);
+		return get(isMobile) ? this.Y_OFFSET.MOBILE : this.Y_OFFSET.DESKTOP;
 	},
 };
 

@@ -3,7 +3,7 @@
  * Centralized configuration for 3D model properties, positioning and behavior
  */
 import { get } from 'svelte/store';
-import { deviceInfo } from '../stores/deviceStore';
+import { isMobile } from '$lib/stores/breakpoint';
 import { MODEL_SCALE } from './scaleConfig';
 
 /**
@@ -97,8 +97,8 @@ export const MODEL_CONFIG = {
       const isMobile = get(deviceInfo)?.isMobile;
       const isTablet = get(deviceInfo)?.isTablet;
       
-      if (isMobile) return 0.003;
-      if (isTablet) return 0.002;
+      if (isMobileMode) return 0.003;
+      
       return 0.001; // desktop
     } catch (error) {
       console.warn('Error getting model rotation speed', error);

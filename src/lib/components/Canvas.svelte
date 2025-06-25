@@ -5,7 +5,7 @@
 	import { gsap } from 'gsap';
 	import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 	import { appState } from '$lib/stores/appState';
-	import { deviceInfo } from '$lib/stores/deviceStore';
+	
 	import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
 	import {
 		VERTEX_SHADER,
@@ -23,9 +23,9 @@
 	import letterE from '$lib/images/e.png?url';
 	import letterM from '$lib/images/m.png?url';
 	import letterA2 from '$lib/images/a2.png?url';
-	import cursorDefault from '$lib/images/cursor.png?url';
-	import cursorHover from '$lib/images/Open.png?url';
-	import cursorClick from '$lib/images/Closed.png?url';
+	// import cursorDefault from '$lib/images/cursor.png?url';
+	// import cursorHover from '$lib/images/Open.png?url';
+	// import cursorClick from '$lib/images/Closed.png?url';
 	import multiText from '$lib/images/multi-text.png';
 	import ThreeScene from './ThreeScene.svelte';
 
@@ -388,9 +388,7 @@
 				// Fallback to original logic
 				if (currentBreakpoint === 'mobile') {
 					mobileScale = 1.5; // Larger scale for mobile
-				} else if (currentBreakpoint === 'tablet') {
-					mobileScale = 1.2; // Slightly larger for tablet
-				} // Desktop remains 1.0
+				} 
 			} // Desktop remains 1.0
 
 			// Calculate base scale based on container width for responsive sizing
@@ -447,8 +445,8 @@
 		setupWebGL();
 
 		// Set up deviceInfo subscription for responsive behavior
-		const unsubscribeDeviceInfo = deviceInfo.subscribe(($deviceInfo) => {
-			isMobileOrTablet = $deviceInfo.isMobileOrTablet;
+		const unsubscribeIsMobile = isMobile.subscribe((mobile) => {
+			isMobileMode = mobile;
 
 			// Resize canvas on breakpoint changes
 			resize(); // Use the correct function name
@@ -466,11 +464,11 @@
 		});
 
 		// Initial device check
-		isMobileOrTablet = get(deviceInfo).isMobileOrTablet;
+		isMobileMode = get(isMobile);
 
 		// For mobile/tablet, directly trigger auto-transition
 		// Use direct approach for now to ensure functionality works
-		if (isMobileOrTablet && !hasTriggeredTransition) {
+		if (isMobileMode && !hasTriggeredTransition) {
 			setTimeout(() => {
 				// Direct method to ensure transition works while we refactor
 				handleWheel({ deltaY: 100, preventDefault: () => {} });
@@ -491,7 +489,7 @@
 
 		// Clean up subscriptions on component destroy
 		onDestroy(() => {
-			if (unsubscribeDeviceInfo) unsubscribeDeviceInfo();
+			if (unsubscribeIsMobile) unsubscribeIsMobile();
 			if (unsubscribeAppState) unsubscribeAppState();
 		});
 
@@ -2527,7 +2525,7 @@
 
 	let threeSceneComponent;
 	let scrollToExploreComponent;
-	let isMobileOrTablet = false;
+	let isMobileMode = false;
 	// Flag to indicate when we should use a more restrictive virtual boundary for magnets
 	let useVirtualBoundary = false;
 	let isScrollAnimating = false;

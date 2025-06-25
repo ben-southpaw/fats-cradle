@@ -4,20 +4,19 @@
 	import ScrollToExplore from '$lib/components/ScrollToExplore.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { appState, APP_STATES } from '$lib/stores/appState';
-import { isDesktop } from '$lib/stores/breakpoint';
-import MobileModeImage from '$lib/components/MobileModeImage.svelte';
+	import { isDesktop } from '$lib/stores/breakpoint';
+	import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 
 	// Local component state
 	let isTransitioning = false;
 	let canvasComponent;
 	let parentDimensions = null;
 	let isReady = false;
-	
+
 	// Subscribe to appState for coordinated transitions
 	let unsubscribeAppState;
 
-
-    //add browser lister subscribe to check for ratio to set mob/desktop landscape/portrait 
+	//add browser lister subscribe to check for ratio to set mob/desktop landscape/portrait
 
 	onMount(() => {
 		// Subscribe to the app state to coordinate transition states
@@ -28,7 +27,7 @@ import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 
 		// Trigger auto-transition for mobile/tablet devices
 		appState.triggerAutoTransitionIfNeeded();
-		
+
 		// Listen for messages from parent
 		window.addEventListener('message', (event) => {
 			// Verify origin for security
@@ -61,7 +60,7 @@ import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 			}
 		}, 2000);
 	});
-	
+
 	// Clean up subscriptions when component is destroyed
 	onDestroy(() => {
 		if (unsubscribeAppState) unsubscribeAppState();
@@ -71,7 +70,7 @@ import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 	function handleTransitionStart() {
 		// Update local state
 		isTransitioning = true;
-		
+
 		// Update app state - safely with error handling
 		try {
 			appState.startTransition();
@@ -83,12 +82,12 @@ import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 	// Handle wipe event and update transition progress
 	function handleWipe(event) {
 		const progress = event.detail.progress;
-		
+
 		// Update canvas wipe effect
 		if (canvasComponent) {
 			canvasComponent.clearWithProgress(progress);
 		}
-		
+
 		// Update app state with transition progress - safely with error handling
 		try {
 			appState.updateTransitionProgress(3, progress); // Phase 3: Wipe
@@ -99,16 +98,16 @@ import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 </script>
 
 <section>
-	{#if $isDesktop}
-		{#if isReady}
-			<!-- ScrollToExplore with original fadeout behavior -->
-			<div class="scroll-indicator">
-				<ScrollToExplore />
-			</div>
-			<Canvas bind:this={canvasComponent} {parentDimensions} />
-			<!-- <ThreeScene on:transitionstart={handleTransitionStart} on:wipe={handleWipe} /> -->
-		{/if}
-	{:else}
+	{#if isReady}
+		<!-- ScrollToExplore with original fadeout behavior -->
+		<div class="scroll-indicator">
+			<ScrollToExplore />
+		</div>
+		<Canvas bind:this={canvasComponent} {parentDimensions} />
+		<ThreeScene
+			on:transitionstart={handleTransitionStart}
+			on:wipe={handleWipe}
+		/>
 		<MobileModeImage />
 	{/if}
 </section>
@@ -121,7 +120,7 @@ import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 		height: 100vh;
 		overflow: hidden;
 	}
-	
+
 	/* Match exact styling from the original implementation */
 	.scroll-indicator {
 		position: absolute;
@@ -133,5 +132,9 @@ import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 		pointer-events: none;
 		opacity: 1;
 		width: 100%;
+		@media only screen and (max-width: 600px) {
+			top: 25vh;
+			height: 20vh;
+		}
 	}
 </style>

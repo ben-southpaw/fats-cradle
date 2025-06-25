@@ -3,7 +3,7 @@
 	import { get } from 'svelte/store';
 	import { fade } from 'svelte/transition';
 	import { appState } from '$lib/stores/appState';
-	import { deviceInfo } from '$lib/stores/deviceStore';
+	import { isMobile } from '$lib/stores/breakpoint';
 	import scrollToExploreAnimation from '$lib/images/lottie/animations/animation.json';
 
 	let container;
@@ -52,9 +52,9 @@
 			}
 		});
 
-		// Check if we should auto-trigger on mobile/tablet
-		const isMobileOrTablet = get(deviceInfo)?.isMobileOrTablet;
-		if (isMobileOrTablet) {
+		// Check if we should auto-trigger on mobile
+		const mobileMode = get(isMobile);
+		if (mobileMode) {
 			// On mobile, we don't need the scroll indicator since we auto-transition
 			isVisible = false;
 		}

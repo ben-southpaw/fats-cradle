@@ -5,9 +5,7 @@ import { isDesktop } from '$lib/stores/breakpoint';
 export const deviceInfo = derived(
   [isDesktop],
   ($isDesktop) => ({
-    isMobileOrTablet: !$isDesktop,
     isMobile: !$isDesktop,
-    isTablet: false,
     isDesktop: $isDesktop,
     breakpoint: $isDesktop ? 'desktop' : 'mobile'
   })

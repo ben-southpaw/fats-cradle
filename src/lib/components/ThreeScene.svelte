@@ -62,7 +62,7 @@
 		updateCanvasTexture();
 	}
 
-	const getScaleFactor = () => get(isMobile) ? 0.4 : 1.5;
+	const getScaleFactor = () => (get(isMobile) ? 0.4 : 1.5);
 
 	const CONFIG = {
 		model: {
@@ -78,7 +78,7 @@
 				get scale() {
 					const scale = getScaleFactor();
 					return { x: scale, y: scale, z: scale };
-				}
+				},
 			},
 		},
 		camera: {
