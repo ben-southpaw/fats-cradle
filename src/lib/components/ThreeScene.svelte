@@ -4,7 +4,24 @@
 	import * as THREE from 'three';
 	import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 	import gsap from 'gsap';
-	import { isMobile } from '$lib/stores/breakpoint';
+	import { isMobile, isDesktop } from '$lib/stores/breakpoint';
+
+	// Method to set visibility of all meshes in the model
+	function setModelVisibility(visible) {
+		if (!model) return;
+		
+		model.traverse((child) => {
+			if (child.isMesh) {
+				child.visible = visible;
+			}
+		});
+		isModelVisible = visible;
+	}
+
+	// Toggle model visibility based on desktop breakpoint
+	$: if (model) {
+		setModelVisibility($isDesktop);
+	}
 
 	export let canvas; // Accept canvas from parent
 
@@ -14,6 +31,7 @@
 	let renderer;
 	let model;
 	let screenMesh;
+	let isModelVisible = true;
 	let sliderMesh;
 	let sliderInitialPosition;
 	let sliderMinX, sliderMaxX;
@@ -1472,18 +1490,17 @@
 				},
 				'-=0.4'
 			); // Overlap with spin animation
-			return;
 		}
 	}
 
-	onMount(async () => {
-		// Set up breakpoint subscription
-		const unsubscribe = isMobile.subscribe((mobile) => {
-			isMobileOrTablet = mobile;
-		});
+	// Initial check using get() to safely access the store value
+	isMobileOrTablet = get(isMobile);
 
-		// Initial check using get() to safely access the store value
-		isMobileOrTablet = get(isMobile);
+	onMount(async () => {
+		// Set initial visibility based on desktop state
+		if (model) {
+			setModelVisibility($isDesktop);
+		}
 
 		// Check if we're in a browser environment
 		if (typeof window === 'undefined') return;
@@ -1542,6 +1559,9 @@
 	});
 
 	onDestroy(() => {
+		// Make sure to clean up any pending visibility toggles
+		isModelVisible = false;
+		
 		// Only run cleanup in browser environment
 		if (typeof window !== 'undefined') {
 			// Clean up event listeners

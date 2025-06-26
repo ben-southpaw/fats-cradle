@@ -3,9 +3,9 @@
 	import { get } from 'svelte/store';
 	import { fade, scale } from 'svelte/transition';
 	import { gsap } from 'gsap';
-import { isDesktop, isMobile } from '$lib/stores/breakpoint';
+	import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 	import { appState } from '$lib/stores/appState';
-	
+
 	import { MAGNET_SCALE, MULTI_TEXT_CONFIG } from '$lib/config/scaleConfig';
 	import {
 		VERTEX_SHADER,
@@ -30,11 +30,18 @@ import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 	import ThreeScene from './ThreeScene.svelte';
 
 	// Reactive variable for current breakpoint
-	
 
 	const dispatch = createEventDispatcher();
 
-	let resizeInterval = undefined;
+	// WebGL state management
+	let resizeTimeout = null;
+	let resizeInterval = null; // Add resizeInterval declaration
+	let animationId = null;
+	let isContextLost = false;
+	let renderer = null;
+	let camera = null; // Add camera declaration
+	let isRendering = false;
+	let isInitialized = false;
 
 	export let onScreenCanvasReady = () => {};
 	// export let showScrollToExplore = true; // Removed as ScrollToExplore is now in +page.svelte
@@ -42,12 +49,25 @@ import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 
 	// Function to get container dimensions
 	function getContainerDimensions() {
+		// Default to viewport dimensions
+		const defaultDims = {
+			width: typeof window !== 'undefined' ? window.innerWidth : 1024,
+			height: typeof window !== 'undefined' ? window.innerHeight : 768,
+		};
+
 		// Use parent dimensions if available
-		if (parentDimensions) {
-			return { width: parentDimensions.width, height: parentDimensions.height };
+		if (
+			parentDimensions &&
+			parentDimensions.width > 0 &&
+			parentDimensions.height > 0
+		) {
+			return {
+				width: Math.max(1, parentDimensions.width),
+				height: Math.max(1, parentDimensions.height),
+			};
 		}
 
-		// For mobile where canvas is hidden, use viewport dimensions directly
+		return defaultDims;
 		if (get(isMobile)) {
 			const width = window.innerWidth;
 			const height = window.innerHeight;
@@ -320,121 +340,154 @@ import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 		scheduleRender();
 	}
 
-	function resize() {
-        //TODO
-        //if (mobile ) return
-		// Get dimensions from the container using our consistent function
-		const { width: canvasWidth, height: canvasHeight } =
-			getContainerDimensions();
-
-		particles = particles.filter((p) => p.x > 99999);
-		stampParticles = stampParticles.filter((p) => p.x > 99999);
-
-		// Calculate multiText offsets with defensive fallback
-		let multiTextOffsetX, multiTextOffsetY;
-
+	function safeResize() {
 		try {
-			// Try to use MULTI_TEXT_CONFIG for consistent offsets
-			multiTextOffsetX =
-				canvasWidth < 1450
-					? canvasWidth * MULTI_TEXT_CONFIG.X_OFFSET.NARROW
-					: canvasWidth * MULTI_TEXT_CONFIG.X_OFFSET.WIDE;
+			if (!isInitialized) return;
 
-			// Get the Y offset based on current device type
-			multiTextOffsetY = canvasHeight * MULTI_TEXT_CONFIG.getYOffset();
-		} catch (error) {
-			console.warn(
-				'Error using MULTI_TEXT_CONFIG, falling back to original calculations',
-				error
-			);
-			// Fallback to original calculations
-			multiTextOffsetX =
-				canvasWidth < 1450 ? canvasWidth * 0.33 : canvasWidth * 0.4;
-			multiTextOffsetY = canvasHeight * (get(isMobile) ? 0.45 : 0.3);
-		}
+			const { width: canvasWidth, height: canvasHeight } =
+				getContainerDimensions();
 
-		const offsetX = multiTextOffsetX - saveMultiTextOffsetX;
-		const offsetY = multiTextOffsetY - saveMultiTextOffsetY;
+			// Skip if dimensions are invalid
+			if (canvasWidth <= 0 || canvasHeight <= 0 || !canvas) {
+				return;
+			}
 
-		saveMultiTextOffsetX = saveMultiTextOffsetX + offsetX;
-		saveMultiTextOffsetY = saveMultiTextOffsetY + offsetY;
+			// Update canvas dimensions
+			canvas.width = canvasWidth;
+			canvas.height = canvasHeight;
 
-		preDrawnParticles.forEach((particle) => {
-			particle.x = particle.x + offsetX;
-			particle.y = particle.y + offsetY;
-		});
+			// Update WebGL viewport
+			if (gl) {
+				gl.viewport(0, 0, canvasWidth, canvasHeight);
+			}
 
-		canvas.width = canvasWidth;
-		canvas.height = canvasHeight;
+			// Update any render targets or textures if needed
+			if (renderer?.setSize) {
+				renderer.setSize(canvasWidth, canvasHeight, false);
+			}
 
-		// Resize the WebGL renderer
-		if (gl) {
-			gl.viewport(0, 0, canvasWidth, canvasHeight);
-		}
-
-		// Reposition magnets based on new dimensions
-		if (magnets && magnets.length > 0) {
-			// Get scale with defensive fallback
-			let mobileScale = 1; // Default fallback
-
-			// Try to get scale from MAGNET_SCALE but have a fallback to prevent errors
-			try {
-				mobileScale = MAGNET_SCALE.get();
-			} catch (error) {
-				console.warn(
-					'Error getting MAGNET_SCALE, using fallback values',
-					error
-				);
-				// Fallback to original logic
-				if (get(isMobile)) {
-					mobileScale = 1.5; // Larger scale for mobile
-				} 
-			} // Desktop remains 1.0
-
-			// Calculate base scale based on container width for responsive sizing
-			let scale = canvasWidth / 1920;
-			const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-			const totalWidth = canvasWidth * 0.5 * mobileScale; // Apply mobile scale to total width
-			const spacing = totalWidth / (letters.length - 1);
-			const startX = (canvasWidth - totalWidth) / 2;
-			const groupOffset = canvasWidth * -0.02 * mobileScale; // Apply mobile scale to group offset
-
-			// Update each magnet's position and scale
-			magnets.forEach((magnet, index) => {
-				const letter = magnet.id; // The id is the letter type (F, A, T, etc.)
-				const img = magnetImages[letter];
-
-				// Calculate base dimensions with mobile scale
-				const baseHeight = img.height * scale * 1.5 * mobileScale;
-				const baseWidth = img.width * scale * 1.5 * mobileScale;
-
-				// Adjust aspect ratio for mobile devices
-				if (get(isMobile)) {
-					// Reduce height and increase width for mobile
-					magnet.height = baseHeight * 0.7; // Reduce height by 30%
-					magnet.width = baseWidth * 1.3; // Increase width by 30%
-				} else {
-					// Keep original proportions for desktop
-					magnet.height = baseHeight;
-					magnet.width = baseWidth;
+			// Update camera if it exists and has required properties
+			if (camera && typeof camera.aspect !== 'undefined') {
+				try {
+					camera.aspect = canvasWidth / canvasHeight;
+					if (typeof camera.updateProjectionMatrix === 'function') {
+						camera.updateProjectionMatrix();
+					}
+				} catch (cameraError) {
+					console.warn('Error updating camera:', cameraError);
 				}
+			}
+		} catch (error) {
+			console.warn('Error during resize:', error);
+		}
+	}
 
-				magnet.mobileScale = mobileScale; // Update the stored scale factor
+	// Debounced resize handler
+	function handleResize() {
+		clearTimeout(resizeTimeout);
+		resizeTimeout = setTimeout(safeResize, 100);
+	}
 
-				// Update position with new spacing and offset, applying mobile scale
-				const offset = getLetterOffset(letter, index);
-				magnet.x = startX + spacing * index + offset + groupOffset;
-				magnet.y = canvasHeight * getLetterHeight(letter);
-			});
+	function safeRender() {
+		try {
+			if (!renderer || !scene || !camera) return;
+			renderer.render(scene, camera);
+		} catch (error) {
+			// Only log if we have a renderer (prevents errors during cleanup)
+			if (renderer) {
+				console.warn('Error during render:', error);
+			}
+		}
+	}
+
+	function animate(timestamp) {
+		if (!isRendering) return;
+
+		animationId = requestAnimationFrame(animate);
+
+		// Only render if we have a valid renderer and scene
+		if (renderer && scene && camera) {
+			const currentTime = performance.now();
+
+			// Check if we should switch to idle FPS
+			if (!isIdle && currentTime - lastInteractionTime > CONFIG.idleTimeout) {
+				isIdle = true;
+				FRAME_INTERVAL = 1000 / CONFIG.idleFPS;
+			}
+
+			if (currentTime - lastRenderTime >= FRAME_INTERVAL) {
+				safeRender();
+				lastRenderTime = currentTime;
+			}
+		}
+	}
+
+	function handleContextLost(event) {
+		event.preventDefault();
+		isContextLost = true;
+		console.warn('WebGL context lost, waiting for restoration...');
+
+		// Try to restore the context after a short delay
+		setTimeout(() => {
+			if (canvas?.getContext) {
+				const newGl =
+					canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+				if (newGl) {
+					gl = newGl;
+					isContextLost = false;
+					setupWebGL();
+					animate();
+				}
+			}
+		}, 100);
+	}
+
+	function initializeWebGL() {
+		try {
+			setupWebGL();
+			if (!isContextLost) {
+				animate();
+			}
+			isInitialized = true;
+		} catch (error) {
+			console.error('Failed to initialize WebGL:', error);
+		}
+	}
+
+	// Initial resize and render
+	function resize() {
+		// Skip if not in desktop mode
+		if (!get(isDesktop)) {
+			isCanvasVisible = false;
+			return;
 		}
 
-		renderAll();
+		isCanvasVisible = true;
+		if (!isInitialized) {
+			initializeWebGL();
+		}
+		handleResize();
 	}
 
 	let hasTriggeredTransition = false;
 
 	onMount(() => {
-	if (!get(isDesktop)) { isCanvasVisible = false; return; }
+		// Set up window resize handler
+		window.addEventListener('resize', handleResize);
+
+		// Set up context loss handler
+		if (canvas) {
+			canvas.addEventListener('webglcontextlost', handleContextLost, false);
+		}
+
+		// Initial setup and resize
+		resize();
+
+		if (!get(isDesktop)) {
+			isCanvasVisible = false;
+			return;
+		}
+
 		if (!canvas) return;
 
 		// Initialize patterns
@@ -488,8 +541,70 @@ import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 
 		// Clean up subscriptions on component destroy
 		onDestroy(() => {
+			// Stop the render loop
+			isRendering = false;
+			if (animationId) {
+				cancelAnimationFrame(animationId);
+				animationId = null;
+			}
+
+			// Clean up renderer
+			if (renderer) {
+				try {
+					renderer.forceContextLoss?.();
+					renderer.dispose?.();
+					renderer.domElement?.remove?.();
+					renderer = null;
+				} catch (error) {
+					console.warn('Error during renderer cleanup:', error);
+				}
+			}
+
+			// Clean up WebGL context
+			if (gl) {
+				try {
+					const loseContext = gl.getExtension('WEBGL_lose_context');
+					if (loseContext) {
+						loseContext.loseContext();
+					}
+				} catch (error) {
+					console.warn('Error during WebGL context cleanup:', error);
+				} finally {
+					gl = null;
+				}
+			}
+
+			// Clean up canvas
+			if (canvas) {
+				try {
+					canvas.width = 1;
+					canvas.height = 1;
+				} catch (error) {
+					console.warn('Error during canvas cleanup:', error);
+				}
+			}
+
+			// Clear other references
+			scene = null;
+			camera = null;
+
+			// Unsubscribe from stores
 			if (unsubscribeIsMobile) unsubscribeIsMobile();
 			if (unsubscribeAppState) unsubscribeAppState();
+
+			// Remove event listeners
+			window.removeEventListener('resize', handleResize);
+			if (canvas) {
+				try {
+					canvas.removeEventListener(
+						'webglcontextlost',
+						handleContextLost,
+						false
+					);
+				} catch (error) {
+					console.warn('Error removing event listeners:', error);
+				}
+			}
 		});
 
 		// Fallback to 2D context if WebGL setup failed
@@ -517,8 +632,8 @@ import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 		// Start animation loop
 		function animate() {
 			animationFrameId = requestAnimationFrame(animate);
-            //TODO
-            //if (mobile ) return
+			//TODO
+			//if (mobile ) return
 			const currentTime = performance.now();
 
 			// Check if we should switch to idle FPS
@@ -2652,6 +2767,27 @@ import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 		}
 	}
 
+	function handleWipe({ detail: { progress } }) {
+		// Clear particles based on wipe progress
+		const canvasWidth = canvas?.width || 0;
+		const clearX = (1 - progress) * canvasWidth; // Invert progress for left-to-right clearing
+
+		// Keep particles to the right of clearX
+		particles = particles.filter((p) => p.x > clearX);
+		stampParticles = stampParticles.filter((p) => p.x > clearX);
+		preDrawnParticles = preDrawnParticles.filter((p) => p.x > clearX);
+
+		// Notify parent window of wipe start
+		const message = {
+			type: 'wipeStart',
+		};
+		// Update to live link later
+		window.parent.postMessage(message, 'https://fatscradle.com/');
+
+		// Force a render to update the canvas
+		renderAll();
+	}
+
 	// Progressive clear function
 	export function clearWithProgress(progress) {
 		if (!canvas) return;
@@ -2681,11 +2817,12 @@ import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 	on:mousemove={handleMousemove}
 	on:mousedown={handleMousedown}
 	on:resize={() => {
-		window.clearTimeout(resizeInterval);
-		resizeInterval = setTimeout(() => {
-			//
-			if (!hasTriggeredTransition) resize();
-		}, 0);
+		if (typeof window !== 'undefined') {
+			window.clearTimeout(resizeInterval);
+			resizeInterval = window.setTimeout(() => {
+				if (!hasTriggeredTransition) resize();
+			}, 100); // Increased delay for better performance
+		}
 	}}
 	on:mouseup={handleMouseup}
 	on:wheel={handleWheel}
@@ -2700,7 +2837,7 @@ import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 	<canvas
 		bind:this={canvas}
 		class:hidden={!isCanvasVisible || !$isDesktop}
-    on:pointermove={handlePointerMove}
+		on:pointermove={handlePointerMove}
 		on:pointerdown={handlePointerDown}
 		on:pointerup={handlePointerUp}
 		on:pointerleave={handlePointerLeave}
@@ -2724,15 +2861,13 @@ import { isDesktop, isMobile } from '$lib/stores/breakpoint';
 			const message = {
 				type: 'wipeStart',
 			};
-			//update to live link later
+			//update to live link
 			window.parent.postMessage(message, 'https://fatscradle.com/');
 			// Force a render to update the canvas
 			renderAll();
 		}}
 	/>
-
 </div>
-
 
 <style>
 	:global(body) {

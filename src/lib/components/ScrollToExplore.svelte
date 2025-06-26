@@ -53,11 +53,11 @@
 		});
 
 		// Check if we should auto-trigger on mobile
-		const mobileMode = get(isMobile);
-		if (mobileMode) {
-			// On mobile, we don't need the scroll indicator since we auto-transition
-			isVisible = false;
-		}
+		// const mobileMode = get(isMobile);
+		// if (mobileMode) {
+		// 	// On mobile, we don't need the scroll indicator since we auto-transition
+		// 	isVisible = false;
+		// }
 	});
 
 	// Clean up subscriptions

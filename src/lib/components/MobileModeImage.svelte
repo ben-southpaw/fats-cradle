@@ -22,7 +22,7 @@
 	});
 
 	// Log changes for debugging
-	$: console.log('MobileModeImage - isDesktop:', $isDesktop, 'windowWidth:', windowWidth);
+	// $: console.log('MobileModeImage - isDesktop:', $isDesktop, 'windowWidth:', windowWidth);
 </script>
 
 <div class="mobile-mode" class:visible={!$isDesktop}>
