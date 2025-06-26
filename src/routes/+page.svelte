@@ -5,6 +5,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { appState, APP_STATES } from '$lib/stores/appState';
 	import { isDesktop } from '$lib/stores/breakpoint';
+	import { get } from 'svelte/store';
 	import MobileModeImage from '$lib/components/MobileModeImage.svelte';
 
 	// Local component state
@@ -12,6 +13,7 @@
 	let canvasComponent;
 	let parentDimensions = null;
 	let isReady = false;
+	let unsubscribeBreakpoint;
 
 	// Subscribe to appState for coordinated transitions
 	let unsubscribeAppState;
@@ -59,11 +61,24 @@
 				isReady = true;
 			}
 		}, 2000);
+
+		// --- Refresh on mobile→desktop breakpoint change ---
+		const initiallyDesktop = get(isDesktop);
+		if (!initiallyDesktop) {
+			unsubscribeBreakpoint = isDesktop.subscribe((value) => {
+				if (value) {
+					// Small delay so any CSS layout settles before reload
+					setTimeout(() => location.reload(), 150);
+					if (unsubscribeBreakpoint) unsubscribeBreakpoint();
+				}
+			});
+		}
 	});
 
 	// Clean up subscriptions when component is destroyed
 	onDestroy(() => {
 		if (unsubscribeAppState) unsubscribeAppState();
+		if (unsubscribeBreakpoint) unsubscribeBreakpoint();
 	});
 
 	// Handle transition start event from ThreeScene
