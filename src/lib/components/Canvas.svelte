@@ -1471,30 +1471,81 @@
 		if (isTransitioning) return;
 
 		if (isDraggingMagnet && selectedMagnet) {
-			const magnet = selectedMagnet;
-			let pos = getPointerPos(e);
-			// Set initial position from pointer
-			magnet.x = pos.x + magnet.grabOffsetX;
-			magnet.y = pos.y + magnet.grabOffsetY;
+			const droppedMagnet = selectedMagnet;
+			isDraggingMagnet = false;
 
-			// Check and adjust for canvas bounds
-			const boundedPosition = checkCanvasBounds(magnet);
+			// Reset cursor based on whether still hovering over a magnet
+			if (isHoveringMagnet) {
+				document.body.style.cursor = 'grab';
+			} else {
+				document.body.style.cursor = 'default';
+			}
+			const finalRotation = Math.round(droppedMagnet.rotation / 5) * 5;
 
-			gsap.killTweensOf(magnet);
-			gsap.to(magnet, {
+			// Check canvas bounds and get corrected position
+			const boundedPosition = checkCanvasBounds(droppedMagnet);
+
+			// Update magnet position with bounded position
+			droppedMagnet.x = boundedPosition.x;
+			droppedMagnet.y = boundedPosition.y;
+
+			// Check for collisions with other magnets
+			const otherMagnets = magnets.filter((m) => m !== droppedMagnet);
+			let collidingMagnet = null;
+
+			// Find the magnet that's being collided with
+			for (const other of otherMagnets) {
+				if (checkCollision(droppedMagnet, other)) {
+					collidingMagnet = other;
+					break;
+				}
+			}
+
+			// If collision detected, move the magnet that's already on the canvas
+			if (collidingMagnet) {
+				// Find free space for the colliding magnet (the one already on the canvas)
+				const magnetsExceptColliding = magnets.filter(
+					(m) => m !== collidingMagnet
+				);
+				const freePosition = findFreeSpace(
+					collidingMagnet,
+					magnetsExceptColliding
+				);
+
+				// If a free space was found, move to it, otherwise use a simple offset
+				const newPosition = freePosition || {
+					x: collidingMagnet.x + 30, // Simple horizontal offset if no free space
+					y: collidingMagnet.y - 20
+				};
+				
+				// Animate the colliding magnet to the new position
+				gsap.to(collidingMagnet, {
+					x: newPosition.x,
+					y: newPosition.y,
+					duration: 0.3,
+					ease: 'power2.out',
+					onUpdate: () => scheduleRender(),
+					onComplete: () => {
+						// Create stamp for the moved magnet at its new position
+						createMagnetStamp(collidingMagnet);
+					},
+				});
+			}
+
+			gsap.killTweensOf(droppedMagnet);
+			gsap.to(droppedMagnet, {
 				x: boundedPosition.x,
 				y: boundedPosition.y,
 				scale: 1,
-				rotation: 0,
+				rotation: finalRotation,
 				duration: 0.3,
 				ease: 'power2.out',
 				onUpdate: () => scheduleRender(),
 				onComplete: () => {
-					magnet.isPickedUp = false;
-					isDraggingMagnet = false;
+					droppedMagnet.isPickedUp = false;
 					// Create stamp after animation completes with final position
-					createMagnetStamp(magnet);
-					restoreMagnetPosition(magnet, selectedMagnetIndex);
+					createMagnetStamp(droppedMagnet);
+					restoreMagnetPosition(droppedMagnet, selectedMagnetIndex);
 					selectedMagnet = null;
 					selectedMagnetIndex = -1;
 					scheduleRender();
