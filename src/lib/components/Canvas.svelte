@@ -356,9 +356,7 @@
 			return; // Avoid division by zero or empty magnets array
 		}
 
-		console.log(
-			`Repositioning magnets: ${oldWidth}x${oldHeight} → ${newWidth}x${newHeight}`
-		);
+		
 
 		// Calculate scale factors for x and y dimensions
 		const scaleX = newWidth / oldWidth;
@@ -367,7 +365,6 @@
 		// Calculate screen width factor for responsive sizing
 		const screenWidthFactor = Math.min(1.0, Math.max(0.6, newWidth / 1280));
 		const sizeAdjust = Math.min(1.0, Math.max(0.8, newWidth / 1280));
-		const mobileScale = get(isMobile) ? 1.5 : 1.0;
 		const adaptiveScale = 1.6 * screenWidthFactor;
 
 		// Reposition and resize each magnet based on the new scale factors
@@ -405,9 +402,7 @@
 			magnet.x = bounded.x;
 			magnet.y = bounded.y;
 
-			console.log(
-				`Magnet ${index}: position (${origX.toFixed(1)},${origY.toFixed(1)}) → (${magnet.x.toFixed(1)},${magnet.y.toFixed(1)}), size ${origWidth.toFixed(1)}x${origHeight.toFixed(1)} → ${magnet.width.toFixed(1)}x${magnet.height.toFixed(1)}`
-			);
+		
 		});
 
 		// Force a render to update visual positions
@@ -430,15 +425,8 @@
 
 			// Skip if dimensions are invalid
 			if (canvasWidth <= 0 || canvasHeight <= 0 || !canvas) {
-				console.log(
-					'Skipping resize: Invalid dimensions',
-					canvasWidth,
-					canvasHeight
-				);
 				return;
 			}
-
-			console.log(`Resizing canvas to ${canvasWidth} x ${canvasHeight}`);
 
 			// Reposition magnets if we have previous dimensions to compare against
 			if (

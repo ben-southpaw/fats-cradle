@@ -1,7 +1,7 @@
 <script>
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { isDesktop } from '$lib/stores/breakpoint';
-	import modelJpg from '$lib/images/model.jpg?url';
+	import modelJpg from '$lib/images/model.png?url';
 
 	let windowWidth = 0;
 
@@ -20,9 +20,6 @@
 			window.removeEventListener('resize', handleResize);
 		};
 	});
-
-	// Log changes for debugging
-	// $: console.log('MobileModeImage - isDesktop:', $isDesktop, 'windowWidth:', windowWidth);
 </script>
 
 <div class="mobile-mode" class:visible={!$isDesktop}>
