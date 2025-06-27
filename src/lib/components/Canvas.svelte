@@ -43,18 +43,16 @@
 	let isRendering = false;
 	let isInitialized = false;
 
+	// Variables to track canvas dimensions for repositioning magnets on resize
+	let previousCanvasWidth = 0;
+	let previousCanvasHeight = 0;
+
 	export let onScreenCanvasReady = () => {};
 	// export let showScrollToExplore = true; // Removed as ScrollToExplore is now in +page.svelte
 	export let parentDimensions = null;
 
 	// Function to get container dimensions
 	function getContainerDimensions() {
-		// Default to viewport dimensions
-		const defaultDims = {
-			width: typeof window !== 'undefined' ? window.innerWidth : 1024,
-			height: typeof window !== 'undefined' ? window.innerHeight : 768,
-		};
-
 		// Use parent dimensions if available
 		if (
 			parentDimensions &&
@@ -67,29 +65,32 @@
 			};
 		}
 
-		return defaultDims;
+		// Mobile-specific sizing
 		if (get(isMobile)) {
 			const width = window.innerWidth;
 			const height = window.innerHeight;
 			return { width, height };
 		}
 
-		if (!canvas) {
-			// Use a consistent aspect ratio when falling back to window width
-			const width = window.innerWidth;
-			return { width, height: width * 0.5625 }; // 16:9 aspect ratio
-		}
-		const container = canvas.parentElement;
-		if (!container) {
-			// Use a consistent aspect ratio when falling back to window width
-			const width = window.innerWidth;
-			return { width, height: width * 0.5625 }; // 16:9 aspect ratio
+		// Container-based sizing
+		if (canvas) {
+			const container = canvas.parentElement;
+			if (container) {
+				return {
+					width: container.clientWidth,
+					height: container.clientHeight,
+				};
+			}
 		}
 
-		return {
-			width: container.clientWidth,
-			height: container.clientHeight,
-		};
+		// Fallback to viewport with aspect ratio
+		const width = typeof window !== 'undefined' ? window.innerWidth : 1024;
+		const height =
+			typeof window !== 'undefined'
+				? width * 0.5625 // 16:9 aspect ratio
+				: 768;
+
+		return { width, height };
 	}
 
 	// Base config values - these are the values for the reference viewport size
@@ -340,21 +341,128 @@
 		scheduleRender();
 	}
 
+	/**
+	 * Repositions and rescales all magnets when the canvas is resized
+	 * @param {number} oldWidth - The previous canvas width
+	 * @param {number} oldHeight - The previous canvas height
+	 * @param {number} newWidth - The new canvas width
+	 * @param {number} newHeight - The new canvas height
+	 */
+	function repositionMagnets(oldWidth, oldHeight, newWidth, newHeight) {
+		if (oldWidth <= 0 || oldHeight <= 0 || !magnets || magnets.length === 0) {
+			console.log(
+				'Skipping magnet repositioning - invalid dimensions or no magnets'
+			);
+			return; // Avoid division by zero or empty magnets array
+		}
+
+		console.log(
+			`Repositioning magnets: ${oldWidth}x${oldHeight} → ${newWidth}x${newHeight}`
+		);
+
+		// Calculate scale factors for x and y dimensions
+		const scaleX = newWidth / oldWidth;
+		const scaleY = newHeight / oldHeight;
+		
+		// Calculate screen width factor for responsive sizing
+		const screenWidthFactor = Math.min(1.0, Math.max(0.6, newWidth / 1280));
+		const sizeAdjust = Math.min(1.0, Math.max(0.8, newWidth / 1280));
+		const mobileScale = get(isMobile) ? 1.5 : 1.0;
+		const adaptiveScale = 1.6 * screenWidthFactor;
+
+		// Reposition and resize each magnet based on the new scale factors
+		magnets.forEach((magnet, index) => {
+			// Store original values for debugging
+			const origX = magnet.x;
+			const origY = magnet.y;
+			const origWidth = magnet.width;
+			const origHeight = magnet.height;
+
+			// Scale positions proportionally
+			magnet.x = magnet.x * scaleX;
+			magnet.y = magnet.y * scaleY;
+
+			// Store original dimensions the first time for future scaling reference
+			if (magnet.originalWidth === undefined) {
+				magnet.originalWidth = magnet.width / sizeAdjust;
+				magnet.originalHeight = magnet.height / sizeAdjust;
+			}
+			
+			// Recalculate size based on new canvas width using the original dimensions
+			// This ensures consistent scaling across multiple resize operations
+			magnet.width = magnet.originalWidth * sizeAdjust;
+			magnet.height = magnet.originalHeight * sizeAdjust;
+			
+			// Apply additional scaling for very small screens to prevent overlap
+			if (newWidth < 768) {
+				const smallScreenAdjust = Math.max(0.6, newWidth / 768);
+				magnet.width *= smallScreenAdjust;
+				magnet.height *= smallScreenAdjust;
+			}
+
+			// Ensure magnets stay within bounds after repositioning
+			const bounded = checkCanvasBounds(magnet);
+			magnet.x = bounded.x;
+			magnet.y = bounded.y;
+
+			console.log(
+				`Magnet ${index}: position (${origX.toFixed(1)},${origY.toFixed(1)}) → (${magnet.x.toFixed(1)},${magnet.y.toFixed(1)}), size ${origWidth.toFixed(1)}x${origHeight.toFixed(1)} → ${magnet.width.toFixed(1)}x${magnet.height.toFixed(1)}`
+			);
+		});
+
+		// Force a render to update visual positions
+		scheduleRender();
+	}
+
 	function safeResize() {
 		try {
 			if (!isInitialized) return;
+
+			// Force a reflow to get accurate parent dimensions
+			if (canvas) {
+				canvas.style.display = 'none';
+				void canvas.offsetHeight; // Force reflow
+				canvas.style.display = '';
+			}
 
 			const { width: canvasWidth, height: canvasHeight } =
 				getContainerDimensions();
 
 			// Skip if dimensions are invalid
 			if (canvasWidth <= 0 || canvasHeight <= 0 || !canvas) {
+				console.log(
+					'Skipping resize: Invalid dimensions',
+					canvasWidth,
+					canvasHeight
+				);
 				return;
 			}
 
-			// Update canvas dimensions
+			console.log(`Resizing canvas to ${canvasWidth} x ${canvasHeight}`);
+
+			// Reposition magnets if we have previous dimensions to compare against
+			if (
+				previousCanvasWidth > 0 &&
+				previousCanvasHeight > 0 &&
+				(previousCanvasWidth !== canvasWidth ||
+					previousCanvasHeight !== canvasHeight)
+			) {
+				// Only reposition if dimensions actually changed
+				repositionMagnets(
+					previousCanvasWidth,
+					previousCanvasHeight,
+					canvasWidth,
+					canvasHeight
+				);
+			}
+
+			// Update canvas element dimensions (crucial for WebGL)
 			canvas.width = canvasWidth;
 			canvas.height = canvasHeight;
+
+			// Also set CSS dimensions explicitly
+			canvas.style.width = `${canvasWidth}px`;
+			canvas.style.height = `${canvasHeight}px`;
 
 			// Update WebGL viewport
 			if (gl) {
@@ -377,6 +485,13 @@
 					console.warn('Error updating camera:', cameraError);
 				}
 			}
+
+			// Store current dimensions for next resize
+			previousCanvasWidth = canvasWidth;
+			previousCanvasHeight = canvasHeight;
+
+			// Force a render to update visuals immediately
+			scheduleRender();
 		} catch (error) {
 			console.warn('Error during resize:', error);
 		}
@@ -385,7 +500,17 @@
 	// Debounced resize handler
 	function handleResize() {
 		clearTimeout(resizeTimeout);
-		resizeTimeout = setTimeout(safeResize, 100);
+		// Perform an immediate resize for better responsiveness
+		if (canvas) {
+			// Apply critical CSS size updates immediately
+			const { width, height } = getContainerDimensions();
+			if (width > 0 && height > 0) {
+				canvas.style.width = `${width}px`;
+				canvas.style.height = `${height}px`;
+			}
+		}
+		// Then do full resize with a short delay to prevent thrashing
+		resizeTimeout = setTimeout(safeResize, 30);
 	}
 
 	function safeRender() {
@@ -1515,9 +1640,9 @@
 				// If a free space was found, move to it, otherwise use a simple offset
 				const newPosition = freePosition || {
 					x: collidingMagnet.x + 30, // Simple horizontal offset if no free space
-					y: collidingMagnet.y - 20
+					y: collidingMagnet.y - 20,
 				};
-				
+
 				// Animate the colliding magnet to the new position
 				gsap.to(collidingMagnet, {
 					x: newPosition.x,
@@ -1806,7 +1931,7 @@
 		}
 	}
 
-	function getLetterOffset(letter, index) {
+	function getLetterOffset(letter) {
 		// Add specific offsets for F and A
 		// Use parent dimensions if available for responsive layout
 		const containerDims = getContainerDimensions();
@@ -1832,42 +1957,41 @@
 		// Calculate base scale based on container width for responsive sizing
 		let scale = width / 1920;
 
-		// Calculate mobile scale factor defensively
-		let mobileScale = 1; // Default fallback
-
-		// Try to get scale from MAGNET_SCALE but have a fallback to prevent errors
-		try {
-			mobileScale = MAGNET_SCALE.get();
-		} catch (error) {
-			console.warn('Error getting MAGNET_SCALE, using fallback values', error);
-			// Fallback to mobile if needed
-			if (get(isMobile)) {
-				mobileScale = 1.5; // Larger scale for mobile
-			} // Desktop remains 1.0
-		}
-
 		const letters = ['F', 'A', 'T', 'E', 'M', 'A2'];
-		const totalWidth = width * 0.5; // Original 40% width
+		// Adaptive total width that increases as screen width decreases
+		// Base value starts at 50% for larger screens, scales up to 75% for smaller screens
+		const widthRatio = Math.max(
+			0.5,
+			0.65 - (0.25 * Math.min(width, 1920)) / 1920
+		);
+		const totalWidth = width * widthRatio;
 		const spacing = totalWidth / (letters.length - 1);
 		const startX = (width - totalWidth) / 2;
-		const groupOffset = width * -0.015 * mobileScale; // Apply mobile scale to group offset
+		const groupOffset = width * -0.015; // Apply mobile scale to group offset
+
+		// Store canvas width in a separate variable to avoid naming conflicts
+		const canvasWidth = width;
 
 		magnets = letters.map((letter, index) => {
 			const img = magnetImages[letter];
-			const height = img.height * scale * 1.5 * mobileScale;
-			const width = img.width * scale * 1.5 * mobileScale;
+			// Calculate adaptive scale based on screen width
+			// Base scale starts at 1.6 for large screens, reduces more aggressively for smaller screens
+			// This makes magnets relatively smaller on smaller screens to avoid overlap
+			const screenWidthFactor = Math.min(
+				1.0,
+				Math.max(0.6, canvasWidth / 1280)
+			);
+			const adaptiveScale = 1.6 * screenWidthFactor;
+
+			const magnetHeight = img.height * scale * adaptiveScale;
+			const magnetWidth = img.width * scale * adaptiveScale;
 
 			// Adjust aspect ratio for mobile devices
 			let heightFinal, widthFinal;
-			if (get(isMobile)) {
-				// Reduce height and increase width for mobile
-				heightFinal = height * 0.7; // Reduce height by 30%
-				widthFinal = width * 1.3; // Increase width by 30%
-			} else {
-				// Keep original proportions for desktop
-				heightFinal = height;
-				widthFinal = width;
-			}
+			// Progressively adjust for desktop based on screen size
+			const sizeAdjust = Math.min(1.0, Math.max(0.8, canvasWidth / 1280));
+			heightFinal = magnetHeight * sizeAdjust;
+			widthFinal = magnetWidth * sizeAdjust;
 
 			const offset = getLetterOffset(letter, index);
 
@@ -1886,7 +2010,6 @@
 				scale: 1,
 				grabOffsetX: 0,
 				grabOffsetY: 0,
-				mobileScale, // Store the scale factor for reference
 			};
 		});
 
@@ -2939,20 +3062,26 @@
 		top: 0;
 		left: 0;
 		width: 100%;
-		max-width: 100vw;
 		height: 100%;
 		z-index: 1;
 		overflow: hidden;
-		/* cursor: none;  */
+		box-sizing: border-box;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	canvas {
-		width: 100%;
-		height: 100%;
 		opacity: 1;
 		transition: opacity 0.15s ease;
 		position: absolute;
-		/* cursor: none;  */
+		top: 0;
+		left: 0;
+		margin: 0;
+		padding: 0;
+		display: block;
+		backface-visibility: hidden;
+		transform-origin: center center;
 	}
 
 	canvas.hidden {
